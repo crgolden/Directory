@@ -1,0 +1,16 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+    <File Path=".gitignore" />
+    <File Path="CLAUDE.md" />
+    <File Path="coverage.settings.xml" />
+    <File Path="dotnet-tools.json" />
+    <File Path="global.json" />
+    <File Path="README.md" />
+  </Folder>
+  <Project Path="experience.client/experience.client.esproj">
+    <Build />
+    <Deploy />
+  </Project>
+  <Project Path="Experience.Server/Experience.Server.csproj" />
+</Solution>
