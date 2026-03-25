@@ -10,6 +10,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Moq;
 
+[Trait("Category", "Unit")]
 public sealed class HostApplicationBuilderExtensionsTests
 {
     [Fact]

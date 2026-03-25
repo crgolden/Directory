@@ -5,6 +5,7 @@ using Experience.Server.Extensions;
 using Microsoft.Extensions.Configuration;
 using Moq;
 
+[Trait("Category", "Unit")]
 public sealed class ConfigurationExtensionsTests
 {
     [Fact]
