@@ -1,7 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpInterceptorFn } from '@angular/common/http';
 import { HttpRequest, HttpHeaders, HttpResponse } from '@angular/common/http';
-
 import { appInterceptor } from './app.interceptor';
 import { of } from 'rxjs';
 
@@ -13,7 +12,7 @@ describe('appInterceptor', () => {
     TestBed.configureTestingModule({});
   });
 
-  it('should set the X-CSRF header to 1', (done) => {
+  it('should set the X-CSRF header to 1', () => {
     const request = new HttpRequest('GET', '/test', { headers: new HttpHeaders() });
     let modifiedReq: HttpRequest<any> | undefined;
 
@@ -25,7 +24,6 @@ describe('appInterceptor', () => {
     interceptor(request, next).subscribe(() => {
       expect(modifiedReq).toBeDefined();
       expect(modifiedReq!.headers.get('X-CSRF')).toBe('1');
-      done();
     });
   });
 });

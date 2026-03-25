@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { Title } from '@angular/platform-browser';
 import { NavMenuComponent } from '../nav-menu/nav-menu.component';

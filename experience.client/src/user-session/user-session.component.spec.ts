@@ -1,9 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-
 import { UserSessionComponent } from './user-session.component';
-import {signal, WritableSignal} from '@angular/core';
-import {AuthService, Claim, Session} from '../Services/auth.service';
-import {By} from '@angular/platform-browser';
+import { signal, WritableSignal } from '@angular/core';
+import { AuthService, Claim, Session } from '../auth/auth.service';
+import { By } from '@angular/platform-browser';
 
 describe('UserSessionComponent', () => {
   let component: UserSessionComponent;

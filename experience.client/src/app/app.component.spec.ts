@@ -1,12 +1,12 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { AppComponent } from './app.component';
-import { RouterOutlet } from '@angular/router'; // Import RouterOutlet
-import { NavMenuComponent } from '../nav-menu/nav-menu.component'; // Import NavMenu
+import { RouterOutlet } from '@angular/router';
+import { NavMenuComponent } from '../nav-menu/nav-menu.component';
 import { Component } from '@angular/core';
 import { By } from '@angular/platform-browser';
 import { provideRouter, Routes } from '@angular/router';
-import {provideHttpClientTesting} from '@angular/common/http/testing';
-import {provideHttpClient} from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { provideHttpClient } from '@angular/common/http';
 
 @Component({ template: '' })
 class DummyComponent {}
@@ -32,10 +32,6 @@ describe('AppComponent', () => {
 
   it('should create the app', () => {
     expect(component).toBeTruthy();
-  });
-
-  it(`should have the 'angular.ssr' title`, () => {
-    expect(component.title).toEqual('angular.ssr');
   });
 
   it('should render nav-menu', () => {

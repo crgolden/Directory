@@ -1,4 +1,4 @@
-import { TestBed, fakeAsync, flush } from '@angular/core/testing';
+import { TestBed } from '@angular/core/testing';
 import { AuthService, Claim, Session } from './auth.service';
 import {
   HttpTestingController,
@@ -29,14 +29,13 @@ describe('AuthService', () => {
     httpTestingController.verify();
   });
 
-  it('should be created', fakeAsync(() => {
+  it('should be created', () => {
     const req = httpTestingController.expectOne('bff/user');
     req.flush(null);
     expect(service).toBeTruthy();
-    flush(); // Add flush here as well
-  }));
+  });
 
-  it('should return session data on successful getSession', fakeAsync(() => {
+  it('should return session data on successful getSession', () => {
     const mockSession: Session = [
       { type: 'name', value: 'TestUser' },
       { type: 'bff:logout_url', value: '/logout' },
@@ -51,10 +50,9 @@ describe('AuthService', () => {
     expect(service.isAnonymous()).toBe(false);
     expect(service.username()).toBe('TestUser');
     expect(service.logoutUrl()).toBe('/logout');
-    flush();
-  }));
+  });
 
-  it('should return null session on getSession error', fakeAsync(() => { // fakeAsync
+  it('should return null session on getSession error', () => {
     service.session();
     const req = httpTestingController.expectOne('bff/user');
     req.error(new ProgressEvent('error'));
@@ -63,10 +61,9 @@ describe('AuthService', () => {
     expect(service.isAnonymous()).toBe(true);
     expect(service.username()).toBeNull();
     expect(service.logoutUrl()).toBeNull();
-    flush();
-  }));
+  });
 
-  it('should cache session data', fakeAsync(() => {  // fakeAsync
+  it('should cache session data', () => {
     const mockSession: Session = [{ type: 'name', value: 'TestUser' }];
 
     service.session();
@@ -76,35 +73,28 @@ describe('AuthService', () => {
     service.session();
     httpTestingController.expectNone('bff/user');
     expect(service.isAuthenticated()).toBe(true);
-    flush();
-  }));
+  });
 
-  it('should ignore cache when ignoreCache is true', fakeAsync(() => {
+  it('should ignore cache when ignoreCache is true', () => {
     const mockSession1: Session = [{ type: 'name', value: 'User1' }];
     const mockSession2: Session = [{ type: 'name', value: 'User2' }];
 
-    let result1: Session|undefined;
+    let result1: Session | undefined;
     service.getSession().subscribe(s => result1 = s);
     const req1 = httpTestingController.expectOne('bff/user');
     req1.flush(mockSession1);
-    flush();
     expect(result1).toEqual(mockSession1);
 
-    let result2: Session|undefined;
+    let result2: Session | undefined;
     service.getSession(true).subscribe(s => result2 = s);
     const req2 = httpTestingController.expectOne('bff/user');
     req2.flush(mockSession2);
-    flush();
     expect(result2).toEqual(mockSession2);
 
-    // At this point, we know "ignoreCache" triggered a second request
-    // and we got back "User2". So the service is doing its job.
-
-    // The *signal* may still read "User1" unless you re-wire it.
     expect(service.username()).toBe('User1'); // still the old signal data
-  }));
+  });
 
-  it('should handle an empty session response', fakeAsync(() => {
+  it('should handle an empty session response', () => {
     service.session();
     const req = httpTestingController.expectOne('bff/user');
     req.flush([]);
@@ -113,6 +103,5 @@ describe('AuthService', () => {
     expect(service.isAnonymous()).toBe(false);
     expect(service.username()).toBeNull();
     expect(service.logoutUrl()).toBeNull();
-    flush();
-  }));
+  });
 });

@@ -1,9 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-
 import { NavMenuComponent } from './nav-menu.component';
-import { AuthService } from '../Services/auth.service';
+import { AuthService } from '../auth/auth.service';
 import { By } from '@angular/platform-browser';
-import {provideRouter, Routes } from '@angular/router';
+import { provideRouter, Routes } from '@angular/router';
 import { Component } from '@angular/core';
 
 describe('NavMenuComponent', () => {
@@ -28,17 +27,17 @@ describe('NavMenuComponent', () => {
   });
 
   it('should toggle isExpanded when toggle is called', () => {
-    expect(component.isExpanded).toBe(false);
+    expect(component.isExpanded()).toBe(false);
     component.toggle();
-    expect(component.isExpanded).toBe(true);
+    expect(component.isExpanded()).toBe(true);
     component.toggle();
-    expect(component.isExpanded).toBe(false);
+    expect(component.isExpanded()).toBe(false);
   });
 
   it('should collapse when collapse is called', () => {
-    component.isExpanded = true;
+    component.isExpanded.set(true);
     component.collapse();
-    expect(component.isExpanded).toBe(false);
+    expect(component.isExpanded()).toBe(false);
   });
 
   it('should render signout link when authenticated', () => {
