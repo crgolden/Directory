@@ -7,7 +7,8 @@ import { NavMenuComponent } from '../nav-menu/nav-menu.component';
   selector: 'app-root',
   imports: [RouterOutlet, NavMenuComponent],
   templateUrl: './app.component.html',
-  styleUrl: './app.component.css'
+  styleUrl: './app.component.css',
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class AppComponent implements OnInit {
 

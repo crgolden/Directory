@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
 
@@ -6,7 +6,8 @@ import { AuthService } from '../auth/auth.service';
   selector: 'nav-menu',
   imports: [RouterLink, RouterLinkActive],
   templateUrl: './nav-menu.component.html',
-  styleUrl: './nav-menu.component.css'
+  styleUrl: './nav-menu.component.css',
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class NavMenuComponent {
   private auth = inject(AuthService);
@@ -15,13 +16,13 @@ export class NavMenuComponent {
   public anonymous = this.auth.isAnonymous;
   public logoutUrl = this.auth.logoutUrl;
 
-  isExpanded = false;
+  isExpanded = signal(false);
 
   collapse() {
-    this.isExpanded = false;
+    this.isExpanded.set(false);
   }
 
   toggle() {
-    this.isExpanded = !this.isExpanded;
+    this.isExpanded.update(expanded => !expanded);
   }
 }

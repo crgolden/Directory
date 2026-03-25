@@ -1,26 +1,27 @@
 namespace Experience.Server.Extensions;
 
+using Azure.Core;
 using Azure.Identity;
-using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Azure.Security.KeyVault.Secrets;
 
 public static class ConfigurationExtensions
 {
     extension(IConfiguration configuration)
     {
-        public (IConfigurationSection, IConfigurationSection) GetSections()
+        public async Task<TokenCredential> ToTokenCredentialAsync(string scope = "https://vault.azure.net/.default", CancellationToken cancellationToken = default)
         {
-            var defaultAzureCredentialOptionsSection = configuration.GetSection(nameof(DefaultAzureCredentialOptions));
-            var openIdConnectOptionsSection = configuration.GetSection(nameof(OpenIdConnectOptions));
-            return (defaultAzureCredentialOptionsSection, openIdConnectOptionsSection);
+            var options = configuration.Get<DefaultAzureCredentialOptions>() ?? throw new InvalidOperationException($"Invalid '{nameof(DefaultAzureCredentialOptions)}' configuration.");
+            var credential = new DefaultAzureCredential(options);
+            var context = new TokenRequestContext([scope]);
+            var token = await credential.GetTokenAsync(context, cancellationToken);
+            return IsNullOrWhiteSpace(token.Token) ? throw new InvalidOperationException("Failed to acquire token for Azure Key Vault access.") : credential;
         }
 
-        public (Uri, Uri, Uri, Uri) GetUris()
+        public SecretClient ToSecretClient(TokenCredential credential)
         {
-            var elasticsearchNode = configuration.GetValue<Uri>("ElasticsearchNode") ?? throw new InvalidOperationException("Invalid 'ElasticsearchNode'.");
             var keyVaultUrl = configuration.GetValue<Uri>("KeyVaultUri") ?? throw new InvalidOperationException("Invalid 'KeyVaultUri'.");
-            var blobUrl = configuration.GetValue<Uri>("BlobUri") ?? throw new InvalidOperationException("Invalid 'BlobUri'.");
-            var dataProtectionKeyIdentifier = configuration.GetValue<Uri>("DataProtectionKeyIdentifier") ?? throw new InvalidOperationException("Invalid 'DataProtectionKeyIdentifier'.");
-            return (elasticsearchNode, keyVaultUrl, blobUrl, dataProtectionKeyIdentifier);
+            var secretClient = new SecretClient(keyVaultUrl, credential);
+            return secretClient;
         }
     }
 }

@@ -67,6 +67,22 @@ jobs:
         with:
           dotnet-version: '10.x'
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Cache npm packages
+        uses: actions/cache@v5
+        with:
+          path: experience.client/node_modules
+          key: ${{ runner.os }}-npm-${{ hashFiles('experience.client/package-lock.json') }}
+          restore-keys: ${{ runner.os }}-npm-
+
+      - name: Install npm dependencies
+        working-directory: experience.client
+        run: npm ci
+
       - name: Install dotnet-coverage
         run: dotnet tool install --global dotnet-coverage
 
@@ -83,10 +99,28 @@ jobs:
             /d:sonar.token="$env:SONAR_TOKEN" `
             /d:sonar.host.url="https://sonarcloud.io" `
             /d:sonar.cs.vscoveragexml.reportsPaths="coverage.xml,coverage-e2e.xml" `
+            /d:sonar.javascript.lcov.reportPaths="experience.client/coverage/lcov.info" `
             /d:sonar.scanner.skipJreProvisioning=true
 
       - name: Build with dotnet
         run: dotnet build --no-incremental --configuration Release
+
+      - name: Run unit tests with coverage
+        run: |
+          dotnet-coverage collect `
+            "dotnet test --project Experience.Tests --no-build --configuration Release -- --filter-trait Category=Unit --report-xunit-trx --report-xunit-trx-filename unit-tests.trx" `
+            -f xml -o "coverage.xml" -s "coverage.settings.xml"
+
+      - name: Run UI tests
+        working-directory: experience.client
+        run: npx vitest run --coverage
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: test-results
+          path: Identity.Tests/bin/Release/net10.0/TestResults/
 
       - name: dotnet publish
         run: >
