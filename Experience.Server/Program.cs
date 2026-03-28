@@ -1,5 +1,7 @@
 #pragma warning disable SA1200
 using Duende.Bff;
+using Duende.Bff.AccessTokenManagement;
+using Duende.Bff.Yarp;
 using Experience.Server.Extensions;
 using Serilog;
 #pragma warning restore SA1200
@@ -39,6 +41,8 @@ try
     app.UseAuthentication();
     app.UseBff();
     app.MapFallbackToFile("/index.html");
+    app.MapRemoteBffApiEndpoint("/remote", new Uri("https://localhost:7099"))
+        .WithAccessToken(RequiredTokenType.User);
     await app.RunAsync();
 }
 catch (Exception ex) when (ex is not HostAbortedException)

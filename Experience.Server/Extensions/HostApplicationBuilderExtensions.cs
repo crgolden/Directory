@@ -6,6 +6,7 @@ using Azure.Security.KeyVault.Secrets;
 using Duende.Bff;
 using Duende.Bff.DynamicFrontends;
 using Duende.Bff.Yarp;
+using Duende.IdentityModel;
 using Elastic.Ingest.Elasticsearch;
 using Elastic.Ingest.Elasticsearch.DataStreams;
 using Elastic.Serilog.Sinks;
@@ -41,7 +42,16 @@ public static class HostApplicationBuilderExtensions
             });
             builder.Services
                 .AddOpenTelemetry()
-                .ConfigureResource(x => x.AddService(builder.Environment.ApplicationName))
+                .ConfigureResource(x =>
+                {
+                    x.AddService(
+                        serviceName: builder.Environment.ApplicationName,
+                        serviceVersion: typeof(Program).Assembly.GetName().Version?.ToString() ?? "0.0.0");
+                    x.AddAttributes(new Dictionary<string, object>
+                    {
+                        ["deployment.environment"] = builder.Environment.EnvironmentName.ToLowerInvariant()
+                    });
+                })
                 .UseAzureMonitor()
                 .WithMetrics(meterProviderBuilder =>
                 {
@@ -53,6 +63,7 @@ public static class HostApplicationBuilderExtensions
                 .WithTracing(tracerProviderBuilder =>
                 {
                     tracerProviderBuilder
+                        .SetSampler(new AlwaysOnSampler())
                         .AddSource(builder.Environment.ApplicationName)
                         .AddAspNetCoreInstrumentation(aspNetCoreTraceInstrumentationOptions =>
                         {
@@ -73,34 +84,31 @@ public static class HostApplicationBuilderExtensions
                         .ReadFrom.Configuration(builder.Configuration)
                         .ReadFrom.Services(sp)
                         .Enrich.FromLogContext();
-                    if (!builder.Environment.IsProduction())
+                    if (builder.Environment.IsProduction())
                     {
-                        return;
+                        loggerConfiguration
+                            .WriteTo.Elasticsearch(
+                                [elasticsearchNode],
+                                elasticsearchSinkOptions =>
+                                {
+                                    elasticsearchSinkOptions.DataStream = new DataStreamName("logs", "dotnet", nameof(Experience));
+                                    elasticsearchSinkOptions.BootstrapMethod = BootstrapMethod.Failure;
+                                },
+                                transportConfiguration =>
+                                {
+                                    var header = new BasicAuthentication(result[0].Value.Value, result[1].Value.Value);
+                                    transportConfiguration.Authentication(header);
+                                });
                     }
-
-                    loggerConfiguration
-                        .WriteTo.OpenTelemetry()
-                        .WriteTo.Elasticsearch(
-                            [elasticsearchNode],
-                            elasticsearchSinkOptions =>
-                            {
-                                elasticsearchSinkOptions.DataStream = new DataStreamName("logs", "dotnet", nameof(Experience));
-                                elasticsearchSinkOptions.BootstrapMethod = BootstrapMethod.Failure;
-                            },
-                            transportConfiguration =>
-                            {
-                                var header = new BasicAuthentication(result[0].Value.Value, result[1].Value.Value);
-                                transportConfiguration.Authentication(header);
-                            });
                 });
             return builder;
         }
 
         public async Task<IHostApplicationBuilder> AddAuthAsync(SecretClient secretClient, CancellationToken cancellationToken = default)
         {
+            var authority = builder.Configuration.GetValue<Uri?>("OidcAuthority") ?? throw new InvalidOperationException("Invalid 'OidcAuthority'.");
             var tasks = new[]
             {
-                secretClient.GetSecretAsync("OidcAuthority", cancellationToken: cancellationToken),
                 secretClient.GetSecretAsync("ExperienceClientId", cancellationToken: cancellationToken),
                 secretClient.GetSecretAsync("ExperienceClientSecret", cancellationToken: cancellationToken)
             };
@@ -119,14 +127,15 @@ public static class HostApplicationBuilderExtensions
                     var openIdConnectOptions = builder.Configuration
                         .GetSection(nameof(OpenIdConnectOptions))
                         .Get<OpenIdConnectOptions>() ?? throw new InvalidOperationException($"Invalid '{nameof(OpenIdConnectOptions)}' section.");
-                    options.Authority = result[0].Value.Value;
-                    options.ClientId = result[1].Value.Value;
-                    options.ClientSecret = result[2].Value.Value;
+                    options.Authority = authority.ToString();
+                    options.ClientId = result[0].Value.Value;
+                    options.ClientSecret = result[1].Value.Value;
                     foreach (var scope in openIdConnectOptions.Scope)
                     {
                         options.Scope.Add(scope);
                     }
 
+                    options.ResponseType = OidcConstants.ResponseTypes.Code;
                     options.SaveTokens = openIdConnectOptions.SaveTokens;
                     options.GetClaimsFromUserInfoEndpoint = openIdConnectOptions.GetClaimsFromUserInfoEndpoint;
                     options.MapInboundClaims = openIdConnectOptions.MapInboundClaims;

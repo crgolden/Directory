@@ -12,6 +12,7 @@ const CACHE_SIZE = 1;
   providedIn: 'root'
 })
 export class AuthService {
+
   private readonly http = inject(HttpClient);
   private session$: Observable<Session> | null = null;
 
@@ -35,6 +36,11 @@ export class AuthService {
 
 
   public getSession(ignoreCache: boolean = false): Observable<Session> {
+    this.http.get('/remote/identity').subscribe({
+      next: response => {
+        console.log(response);
+      }
+    });
     if (!this.session$ || ignoreCache) {
       this.session$ = this.http.get<Session>('bff/user').pipe(
         catchError(err => of(ANONYMOUS)),
