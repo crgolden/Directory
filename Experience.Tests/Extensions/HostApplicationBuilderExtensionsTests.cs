@@ -84,28 +84,35 @@ public sealed class HostApplicationBuilderExtensionsTests
     {
         // Arrange
         var builder = new Mock<IHostApplicationBuilder>();
+        var configuration = new Mock<IConfigurationManager>();
+        var configurationSection = new Mock<IConfigurationSection>();
         var serviceCollection = new ServiceCollection();
+        const string oidcAuthorityKey = "OidcAuthority";
+        configurationSection.SetupGet(x => x.Path).Returns(oidcAuthorityKey);
+        configurationSection.SetupGet(x => x.Value).Returns("https://login.microsoftonline.com/tenant");
+        configuration.Setup(x => x.GetSection(oidcAuthorityKey)).Returns(configurationSection.Object);
+        builder.SetupGet(x => x.Configuration).Returns(configuration.Object);
         builder.SetupGet(x => x.Services).Returns(serviceCollection);
-        var secret1 = new KeyVaultSecret("OidcAuthority", "https://login.microsoftonline.com/tenant");
-        var secret2 = new KeyVaultSecret("ExperienceClientId", Guid.NewGuid().ToString());
-        var secret3 = new KeyVaultSecret("ExperienceClientSecret", Guid.NewGuid().ToString());
+        var secret1 = new KeyVaultSecret("ExperienceClientId", Guid.NewGuid().ToString());
+        var secret2 = new KeyVaultSecret("ExperienceClientSecret", Guid.NewGuid().ToString());
         var response1 = Response.FromValue(secret1, Mock.Of<Response>());
         var response2 = Response.FromValue(secret2, Mock.Of<Response>());
-        var response3 = Response.FromValue(secret3, Mock.Of<Response>());
         var secretClient = new Mock<SecretClient>();
         secretClient.Setup(x => x.GetSecretAsync(secret1.Name, null, null, TestContext.Current.CancellationToken)).ReturnsAsync(response1);
         secretClient.Setup(x => x.GetSecretAsync(secret2.Name, null, null, TestContext.Current.CancellationToken)).ReturnsAsync(response2);
-        secretClient.Setup(x => x.GetSecretAsync(secret3.Name, null, null, TestContext.Current.CancellationToken)).ReturnsAsync(response3);
 
         // Act
         var result = await builder.Object.AddAuthAsync(secretClient.Object, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Same(builder.Object, result);
+        builder.VerifyGet(x => x.Configuration, Times.Once);
         builder.VerifyGet(x => x.Services, Times.Once);
+        configuration.Verify(x => x.GetSection(oidcAuthorityKey), Times.Once);
+        configurationSection.VerifyGet(x => x.Value, Times.Once);
+        configurationSection.VerifyGet(x => x.Path, Times.Once);
         secretClient.Verify(x => x.GetSecretAsync(secret1.Name, null, null, TestContext.Current.CancellationToken), Times.Once);
         secretClient.Verify(x => x.GetSecretAsync(secret2.Name, null, null, TestContext.Current.CancellationToken), Times.Once);
-        secretClient.Verify(x => x.GetSecretAsync(secret3.Name, null, null, TestContext.Current.CancellationToken), Times.Once);
     }
 
     [Fact]
