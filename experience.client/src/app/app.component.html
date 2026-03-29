@@ -2,5 +2,8 @@
 <nav-menu></nav-menu>
 <div class="container">
   <router-outlet></router-outlet>
+  @if (iframeVisible) {
+    <iframe id="bff-silent-login" [src]=iframeUrl referrerpolicy="origin"></iframe>
+  }
 </div>
 </body>

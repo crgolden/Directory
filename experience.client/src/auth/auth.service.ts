@@ -1,4 +1,3 @@
-// src/app/Services/auth.service.ts (NO CHANGES NEEDED)
 import { HttpClient } from '@angular/common/http';
 import { Injectable, Signal,  computed, inject } from '@angular/core';
 import { catchError, shareReplay, Observable, defer } from 'rxjs';
@@ -16,8 +15,9 @@ export class AuthService {
   private readonly http = inject(HttpClient);
   private session$: Observable<Session> | null = null;
 
-  // Create a signal from the getSession() observable.
-  // Maybe in the future this can be a Resource once the api stabilizes.
+  public silentLoginUrl = '/bff/silent-login';
+  public loginUrl = '/bff/login';
+
   public session: Signal<Session> = toSignal(
     defer(() => this.getSession()), // Defer the getSession call
     { initialValue: ANONYMOUS }
@@ -36,17 +36,13 @@ export class AuthService {
 
 
   public getSession(ignoreCache: boolean = false): Observable<Session> {
-    this.http.get('/remote/identity').subscribe({
-      next: response => {
-        console.log(response);
-      }
-    });
     if (!this.session$ || ignoreCache) {
       this.session$ = this.http.get<Session>('bff/user').pipe(
         catchError(err => of(ANONYMOUS)),
         shareReplay(CACHE_SIZE)
       );
     }
+
     return this.session$;
   }
 }
