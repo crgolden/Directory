@@ -37,10 +37,16 @@ export class AppComponent implements AfterViewInit, OnInit {
   }
 
   onMessage(event: MessageEvent) {
-    if (event.data !== null && event.data['source'] == 'bff-silent-login') {
-      console.log('Message received from iframe:', event.data);
-      this.iframeVisible = false;
+    if (event.data == null || event.data['source'] !== 'bff-silent-login') {
+      return;
     }
+
+    this.iframeVisible = false;
+    if (event.data['isLoggedIn'] !== true) {
+      return;
+    }
+
+    this.authService.getSession(true).subscribe();
   }
 
 }
