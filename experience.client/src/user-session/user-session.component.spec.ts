@@ -13,7 +13,7 @@ describe('UserSessionComponent', () => {
   let mockIsAnonymous: WritableSignal<boolean>;
 
   beforeEach(async () => {
-    mockSession = signal<Session>(null);
+    mockSession = signal<Session>([]);
     mockIsAuthenticated = signal(false);
     mockIsAnonymous = signal(true);
 
@@ -37,6 +37,7 @@ describe('UserSessionComponent', () => {
   it('should create', () => {
     expect(component).toBeTruthy();
   });
+
   it('should display "Loading..." when anonymous', () => {
     mockIsAnonymous.set(true);
     mockIsAuthenticated.set(false);
@@ -83,21 +84,6 @@ describe('UserSessionComponent', () => {
 
     const emptyMessage = fixture.debugElement.query(By.css('td[colspan="2"]'));
     expect(emptyMessage).toBeTruthy();
-    expect(emptyMessage.nativeElement.textContent).toContain(
-      'No claims available'
-    );
-  });
-
-  it('should display "No claims available" when authenticated but session is null', () => {
-    mockSession.set(null);
-    mockIsAuthenticated.set(true);
-    mockIsAnonymous.set(false);
-    fixture.detectChanges();
-    const tableElement = fixture.debugElement.query(By.css('table'));
-    expect(tableElement).toBeTruthy();
-
-    const emptyMessage = fixture.debugElement.query(By.css('td[colspan="2"]'));
-    expect(emptyMessage).toBeTruthy();
-    expect(emptyMessage.nativeElement.textContent).toContain('No claims available.');
+    expect(emptyMessage.nativeElement.textContent).toContain('No claims available');
   });
 });

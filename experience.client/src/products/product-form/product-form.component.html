@@ -1,0 +1,59 @@
+<div class="container py-4" style="max-width: 640px;">
+  <h2 class="mb-4">{{ isEdit() ? 'Edit Product' : 'New Product' }}</h2>
+
+  <form [formGroup]="form" (ngSubmit)="submit()">
+    <div class="mb-3">
+      <label for="name" class="form-label">Name <span class="text-danger">*</span></label>
+      <input id="name" type="text" class="form-control" formControlName="name"
+        [class.is-invalid]="form.controls.name.invalid && form.controls.name.touched" />
+      @if (form.controls.name.invalid && form.controls.name.touched) {
+        <div class="invalid-feedback">Name is required.</div>
+      }
+    </div>
+
+    <div class="row mb-3">
+      <div class="col">
+        <label for="brand" class="form-label">Brand</label>
+        <input id="brand" type="text" class="form-control" formControlName="brand" />
+      </div>
+      <div class="col">
+        <label for="modelNumber" class="form-label">Model Number</label>
+        <input id="modelNumber" type="text" class="form-control" formControlName="modelNumber" />
+      </div>
+    </div>
+
+    <div class="row mb-3">
+      <div class="col">
+        <label for="serialNumber" class="form-label">Serial Number</label>
+        <input id="serialNumber" type="text" class="form-control" formControlName="serialNumber" />
+      </div>
+      <div class="col">
+        <label for="purchaseDate" class="form-label">Purchase Date</label>
+        <input id="purchaseDate" type="date" class="form-control" formControlName="purchaseDate" />
+      </div>
+    </div>
+
+    <div class="mb-3">
+      <label for="category" class="form-label">Category</label>
+      <input id="category" type="text" class="form-control" formControlName="category"
+        placeholder="e.g. Electronics, Vehicle, Home Appliance" />
+    </div>
+
+    <div class="mb-3">
+      <label for="description" class="form-label">Description</label>
+      <textarea id="description" class="form-control" rows="3" formControlName="description"></textarea>
+    </div>
+
+    <div class="mb-4">
+      <label for="manualUrl" class="form-label">Manual URL</label>
+      <input id="manualUrl" type="url" class="form-control" formControlName="manualUrl" />
+    </div>
+
+    <div class="d-flex gap-2">
+      <button type="submit" class="btn btn-primary" [disabled]="form.invalid">
+        {{ isEdit() ? 'Save Changes' : 'Create Product' }}
+      </button>
+      <a class="btn btn-outline-secondary" [routerLink]="['/products']">Cancel</a>
+    </div>
+  </form>
+</div>

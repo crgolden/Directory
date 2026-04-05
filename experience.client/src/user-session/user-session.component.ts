@@ -1,6 +1,7 @@
-import { Component, computed, inject, Signal, OnInit, ChangeDetectionStrategy } from '@angular/core';
+import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { Title } from '@angular/platform-browser';
-import {AuthService, Session} from '../auth/auth.service';
+import { AuthService, Session } from '../auth/auth.service';
+import { Signal } from '@angular/core';
 
 @Component({
   selector: 'app-user-session',
@@ -11,16 +12,14 @@ import {AuthService, Session} from '../auth/auth.service';
 })
 export class UserSessionComponent implements OnInit {
 
-  private readonly auth = inject(AuthService);
+  private readonly authService = inject(AuthService);
   private readonly titleService = inject(Title);
 
   ngOnInit(): void {
     this.titleService.setTitle('Experience | User Session');
   }
-  
-  public session: Signal<Session> = this.auth.session;
-  public isAuthenticated = this.auth.isAuthenticated;
-  public isAnonymous = this.auth.isAnonymous;
-  public claims = computed(() => this.session() || []);
 
+  public readonly isAuthenticated = this.authService.isAuthenticated;
+  public readonly isAnonymous = this.authService.isAnonymous;
+  public readonly claims = this.authService.session;
 }

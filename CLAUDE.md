@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Full-stack SPA: **Angular 21.2.0** frontend (`experience.client/`) + **ASP.NET Core 10.0** backend (`Experience.Server/`). Both projects are wired together via SPA proxy — the Angular dev server (port 50212) proxies API requests to the ASP.NET backend (port 7150).
+Full-stack SPA: **Angular 21.2.0** frontend (`experience.client/`) + **ASP.NET Core 10.0** BFF backend (`Experience.Server/`). Both projects are wired together via SPA proxy — the Angular dev server (port 50212) proxies API and BFF requests to the ASP.NET backend (port 7150).
 
 ## Common Commands
 
@@ -34,13 +34,55 @@ Open the solution in Visual Studio and run with the `https` launch profile, whic
 
 ### Backend (`Experience.Server/`)
 - **Minimal API** pattern: all configuration in `Program.cs`, no `Startup` class.
-- **Controller-based routing**: controllers in `Controllers/` with `[Route("[controller]")]`.
+- **Duende BFF**: authentication uses `AddBff()` + `AddRemoteApis()`. The session cookie is issued by the BFF; the Angular SPA never holds tokens directly.
+- **Manuals proxy**: `app.MapRemoteBffApiEndpoint("/manuals", manualsApiAddress).WithAccessToken()` forwards all `/manuals/**` requests to the Manuals service, automatically attaching the user's access token. This covers `/manuals/api/chat`, `/manuals/api/chat/stream`, `/manuals/api/chat/conversations`, and the delete conversation endpoint.
 - In production, ASP.NET serves the Angular build output via `app.UseDefaultFiles()` + `app.MapStaticAssets()`.
 
 ### Frontend (`experience.client/src/`)
-- **NgModule architecture** (non-standalone components): `AppModule` in `app/app-module.ts`, routing in `app/app-routing-module.ts`.
-- HTTP calls use `HttpClient` injected directly into components (no separate service layer yet).
+- **Standalone components** (Angular 21 pattern): no NgModules. Each component declares its `imports` array directly.
+- **Zoneless change detection**: `provideZonelessChangeDetection()` is used in `app.config.ts`. Reactivity is driven by Angular signals (`signal`, `computed`). Always use `fixture.detectChanges()` manually in tests.
+- **HTTP interceptor** (`app.interceptor.ts`): adds `X-CSRF: 1` header and `withCredentials: true` to every request.
 - TypeScript strict mode is enabled (`strict`, `noImplicitOverride`, `noImplicitReturns`, `noFallthroughCasesInSwitch`).
 
 ### Dev proxy
-`experience.client/src/proxy.conf.js` routes `/weatherforecast` (and similar API paths) from the Angular dev server to `https://localhost:7150`.
+`experience.client/src/proxy.conf.json` routes `/bff/**` and `/manuals/**` from the Angular dev server to `https://localhost:7150`.
+
+## Feature Overview
+
+### Home (`/`)
+`src/home/` — public landing page with hero section and six benefit cards. CTA adapts based on auth state (login link vs. "View My Products").
+
+### Products (`/products/**`)
+`src/products/` — lazy-loaded product inventory feature. **Service calls are currently mocked** (`of(...)`) to unblock UI development while the real Products API is being built. When the API ships, replace the `of(...)` calls in `product.service.ts` with `HttpClient` calls to `/api/products`.
+
+| Path | Component |
+|------|-----------|
+| `/products` | `ProductListComponent` — table with inline delete confirmation |
+| `/products/new` | `ProductFormComponent` (create mode) |
+| `/products/:id` | `ProductDetailComponent` — includes "Find Manual" button that pre-populates the Chat |
+| `/products/:id/edit` | `ProductFormComponent` (edit mode) |
+
+### Chat (`/chat`)
+`src/chat/` — AI-assisted product manual lookup via the Manuals service.
+
+**Conversation lifecycle** (managed by `ChatService`):
+1. On init: `GET /manuals/api/chat/conversations` loads existing conversation IDs into the sidebar.
+2. On init: `POST /manuals/api/chat/conversations` creates a fresh conversation; its ID is prepended to the sidebar list.
+3. Selecting a sidebar item: `GET /manuals/api/chat/conversations/{id}/items` fetches the message history and populates the message list. Items with `role: null` are filtered out; `text ?? ''` guards null text.
+4. `POST /manuals/api/chat/stream` streams responses as SSE deltas; the component appends each delta to the last assistant message in real time.
+5. `DELETE /manuals/api/chat/conversations/{id}` → called on "New Conversation" only if the user explicitly discards. Conversations are **not** deleted on component destroy — they persist in Redis.
+
+**SSE streaming**: uses the Fetch API (not `EventSource`) because the stream endpoint requires a POST body. The `streamMessage()` method in `ChatService` reads `response.body` as a `ReadableStream`, parses `data: {...}\n\n` SSE lines, and emits each `delta.content` string as an `Observable<string>`.
+
+**Query param pre-population**: navigating to `/chat?q=...` pre-fills the input box. `ProductDetailComponent` uses this to pass "Help me find the manual for [Name] [Brand] [Model]" when the user clicks "Find Manual".
+
+## Auth Guard
+
+`src/auth/auth.guard.ts` — functional `CanActivateFn` that reads `AuthService.isAuthenticated()` signal. Redirects to `/bff/login` via `window.location.href` if the user is anonymous. Applied to `/products/**` and `/chat`.
+
+## Testing
+
+- **Framework**: Vitest with `globals: true`, `environment: jsdom`, setup via `src/test-setup.ts`.
+- **Pattern**: `TestBed.configureTestingModule` with `AuthService` stubs (using `signal()`), `provideRouter(testRoutes)` with a local `DummyComponent`, and `vi.fn()` for service mocks.
+- **Async**: use `firstValueFrom` from `rxjs` to await observables in tests.
+- **Streaming tests**: mock `globalThis.fetch` with `vi.spyOn` and a `ReadableStream` that emits pre-encoded SSE chunks.

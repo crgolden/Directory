@@ -1,5 +1,5 @@
-import { Component, inject, signal, ChangeDetectionStrategy } from '@angular/core';
-import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { Component, inject, signal, ChangeDetectionStrategy, WritableSignal } from '@angular/core';
+import { RouterLink, RouterLinkActive } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
 
 @Component({
@@ -10,13 +10,13 @@ import { AuthService } from '../auth/auth.service';
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class NavMenuComponent {
-  private auth = inject(AuthService);
-  public username = this.auth.username;
-  public authenticated = this.auth.isAuthenticated;
-  public anonymous = this.auth.isAnonymous;
-  public logoutUrl = this.auth.logoutUrl;
 
-  isExpanded = signal(false);
+  private readonly authService: AuthService = inject(AuthService);
+
+  public readonly isAuthenticated = this.authService.isAuthenticated;
+  public readonly isAnonymous = this.authService.isAnonymous;
+  public readonly logoutUrl = this.authService.logoutUrl;
+  public readonly isExpanded: WritableSignal<boolean> = signal(false);
 
   collapse() {
     this.isExpanded.set(false);

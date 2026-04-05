@@ -7,6 +7,7 @@ import {
 import {
   provideHttpClient,
 } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -29,22 +30,22 @@ describe('AuthService', () => {
     httpTestingController.verify();
   });
 
-  it('should be created', () => {
-    const req = httpTestingController.expectOne('bff/user');
-    req.flush(null);
+  it('should be created without making any HTTP requests', () => {
     expect(service).toBeTruthy();
+    httpTestingController.expectNone('bff/user');
   });
 
-  it('should return session data on successful getSession', () => {
+  it('should return session data after initialize', async () => {
     const mockSession: Session = [
       { type: 'name', value: 'TestUser' },
       { type: 'bff:logout_url', value: '/logout' },
     ];
 
-    service.session();
+    const result = firstValueFrom(service.initialize());
     const req = httpTestingController.expectOne('bff/user');
     expect(req.request.method).toBe('GET');
     req.flush(mockSession);
+    await result;
 
     expect(service.isAuthenticated()).toBe(true);
     expect(service.isAnonymous()).toBe(false);
@@ -52,56 +53,68 @@ describe('AuthService', () => {
     expect(service.logoutUrl()).toBe('/logout');
   });
 
-  it('should return null session on getSession error', () => {
-    service.session();
+  it('should be unauthenticated on HTTP error', async () => {
+    const result = firstValueFrom(service.initialize());
     const req = httpTestingController.expectOne('bff/user');
     req.error(new ProgressEvent('error'));
+    await result;
 
     expect(service.isAuthenticated()).toBe(false);
     expect(service.isAnonymous()).toBe(true);
     expect(service.username()).toBeNull();
     expect(service.logoutUrl()).toBeNull();
+    expect(service.session()).toEqual([]);
   });
 
-  it('should cache session data', () => {
+  it('should not make a new HTTP request when reading session signal after initialize', async () => {
     const mockSession: Session = [{ type: 'name', value: 'TestUser' }];
 
-    service.session();
-    const firstReq = httpTestingController.expectOne('bff/user');
-    firstReq.flush(mockSession);
+    const result = firstValueFrom(service.initialize());
+    const req = httpTestingController.expectOne('bff/user');
+    req.flush(mockSession);
+    await result;
 
     service.session();
     httpTestingController.expectNone('bff/user');
     expect(service.isAuthenticated()).toBe(true);
   });
 
-  it('should ignore cache when ignoreCache is true', () => {
+  it('should re-fetch on refresh', async () => {
     const mockSession1: Session = [{ type: 'name', value: 'User1' }];
     const mockSession2: Session = [{ type: 'name', value: 'User2' }];
 
-    let result1: Session | undefined;
-    service.getSession().subscribe(s => result1 = s);
-    const req1 = httpTestingController.expectOne('bff/user');
-    req1.flush(mockSession1);
-    expect(result1).toEqual(mockSession1);
+    const init = firstValueFrom(service.initialize());
+    httpTestingController.expectOne('bff/user').flush(mockSession1);
+    await init;
 
-    let result2: Session | undefined;
-    service.getSession(true).subscribe(s => result2 = s);
-    const req2 = httpTestingController.expectOne('bff/user');
-    req2.flush(mockSession2);
-    expect(result2).toEqual(mockSession2);
+    service.refresh();
+    httpTestingController.expectOne('bff/user').flush(mockSession2);
 
-    expect(service.username()).toBe('User1'); // still the old signal data
+    expect(service.username()).toBe('User2');
   });
 
-  it('should handle an empty session response', () => {
-    service.session();
-    const req = httpTestingController.expectOne('bff/user');
-    req.flush([]);
+  it('should treat empty session array as authenticated', async () => {
+    const result = firstValueFrom(service.initialize());
+    httpTestingController.expectOne('bff/user').flush([]);
+    await result;
 
     expect(service.isAuthenticated()).toBe(true);
     expect(service.isAnonymous()).toBe(false);
+    expect(service.session()).toEqual([]);
     expect(service.username()).toBeNull();
     expect(service.logoutUrl()).toBeNull();
+  });
+
+  it('should append sid to logoutUrl when sid claim is present', async () => {
+    const mockSession: Claim[] = [
+      { type: 'bff:logout_url', value: '/logout' },
+      { type: 'sid', value: 'abc123' },
+    ];
+
+    const result = firstValueFrom(service.initialize());
+    httpTestingController.expectOne('bff/user').flush(mockSession);
+    await result;
+
+    expect(service.logoutUrl()).toBe('/logout?sid=abc123');
   });
 });

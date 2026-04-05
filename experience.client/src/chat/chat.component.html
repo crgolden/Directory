@@ -1,0 +1,76 @@
+<div class="d-flex chat-container">
+
+  <!-- Conversations sidebar -->
+  <div class="conversation-sidebar border-end d-flex flex-column">
+    <div class="p-2 border-bottom d-flex justify-content-between align-items-center">
+      <span class="fw-semibold small text-muted text-uppercase">Conversations</span>
+      <button class="btn btn-sm btn-outline-primary" (click)="newConversation()"
+        [disabled]="streaming()" title="New conversation">+</button>
+    </div>
+    <div class="flex-grow-1 overflow-auto">
+      @if (conversations().length === 0) {
+        <p class="text-muted small p-2 mb-0">No conversations yet.</p>
+      }
+      @for (id of conversations(); track id) {
+        <button
+          class="btn btn-sm w-100 text-start rounded-0 conversation-item"
+          [class.active]="conversationId() === id"
+          (click)="selectConversation(id)">
+          {{ truncate(id) }}
+        </button>
+      }
+    </div>
+  </div>
+
+  <!-- Chat panel -->
+  <div class="d-flex flex-column flex-grow-1">
+    <div class="d-flex justify-content-between align-items-center p-3 border-bottom">
+      <h5 class="mb-0">Product Assistant</h5>
+    </div>
+
+    <div class="flex-grow-1 overflow-auto p-3 message-list">
+      @if (messages().length === 0) {
+        <p class="text-muted text-center mt-4">
+          Ask me anything about your products or user manuals.
+        </p>
+      }
+      @for (msg of messages(); track $index) {
+        <div class="d-flex mb-3"
+          [class.justify-content-end]="msg.role === 'user'"
+          [class.justify-content-start]="msg.role === 'assistant'">
+          <div class="message-bubble px-3 py-2 rounded-3"
+            [class.user-bubble]="msg.role === 'user'"
+            [class.assistant-bubble]="msg.role === 'assistant'">
+            @if (msg.content) {
+              {{ msg.content }}
+            } @else if (streaming()) {
+              <span class="typing-cursor">&#9646;</span>
+            }
+          </div>
+        </div>
+      }
+    </div>
+
+    <div class="p-3 border-top">
+      <div class="input-group">
+        <textarea
+          class="form-control"
+          rows="2"
+          placeholder="Ask about a product manual…"
+          [value]="input()"
+          (input)="input.set($any($event.target).value)"
+          (keydown)="onKeydown($event)"
+          [disabled]="streaming() || !conversationId()"
+        ></textarea>
+        <button class="btn btn-primary" (click)="send()"
+          [disabled]="!input().trim() || streaming() || !conversationId()">
+          Send
+        </button>
+      </div>
+      @if (streaming()) {
+        <small class="text-muted mt-1 d-block">Responding&hellip;</small>
+      }
+    </div>
+  </div>
+
+</div>

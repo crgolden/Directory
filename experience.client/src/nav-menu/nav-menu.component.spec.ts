@@ -41,7 +41,7 @@ describe('NavMenuComponent', () => {
   });
 
   it('should render signout link when authenticated', () => {
-    // Trigger change detection so the template is updated.
+    // Signals are automatically evaluated in template with OnPush change detection
     fixture.detectChanges();
     const signoutLink = fixture.debugElement.query(By.css('a.nav-link[href="/logout"]'));
     expect(signoutLink).toBeTruthy();
@@ -54,12 +54,11 @@ class DummyComponent {}
 // Define dummy routes.  Include routes for ALL paths used by routerLink in your component.
 const testRoutes: Routes = [
   { path: '', component: DummyComponent },
-  { path: 'user-session', component: DummyComponent },
-  { path: 'bff/login', component: DummyComponent }, // Add route for /bff/login
+  { path: 'products', component: DummyComponent },
+  { path: 'chat', component: DummyComponent },
 ];
 
 class AuthServiceStub {
-  username = 'TestUser';
   isAuthenticated = () => true;
   isAnonymous = () => false;
   logoutUrl = () => '/logout';

@@ -1,4 +1,4 @@
-import { AfterViewInit, Component, inject, OnInit, ChangeDetectionStrategy, ViewChild, ElementRef, HostListener } from '@angular/core';
+import { AfterViewInit, Component, inject, ChangeDetectionStrategy, signal } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { DomSanitizer, SafeResourceUrl, Title } from '@angular/platform-browser';
 import { NavMenuComponent } from '../nav-menu/nav-menu.component';
@@ -14,26 +14,25 @@ import { AuthService } from '../auth/auth.service';
     '(window:message)': 'onMessage($event)'
   }
 })
-export class AppComponent implements AfterViewInit, OnInit {
+export class AppComponent implements AfterViewInit {
 
-  private authService: AuthService = inject(AuthService);
-  private titleService: Title = inject(Title);
-  private sanitizer: DomSanitizer = inject(DomSanitizer);
-  public iframeUrl: SafeResourceUrl = this.sanitizer.bypassSecurityTrustResourceUrl(this.authService.silentLoginUrl);
-  public iframeVisible: boolean = false;
+  private readonly authService: AuthService = inject(AuthService);
+  private readonly titleService: Title = inject(Title);
+  private readonly sanitizer: DomSanitizer = inject(DomSanitizer);
 
-  ngOnInit(): void {
-    this.titleService.setTitle('Experience | Home');
-  }
-  
+  public readonly iframeVisible = signal(false);
+  public readonly iframeUrl = signal<SafeResourceUrl | null>(null);
+
   ngAfterViewInit(): void {
-    if (this.authService.session() !== null) {
+    this.titleService.setTitle('Experience | Home');
+
+    if (this.authService.isAuthenticated()) {
       return;
     }
 
     const loginUrl = `${this.authService.loginUrl}?prompt=none`;
-    this.iframeUrl = this.sanitizer.bypassSecurityTrustResourceUrl(loginUrl);
-    this.iframeVisible = true;
+    this.iframeUrl.set(this.sanitizer.bypassSecurityTrustResourceUrl(loginUrl));
+    this.iframeVisible.set(true);
   }
 
   onMessage(event: MessageEvent) {
@@ -41,12 +40,11 @@ export class AppComponent implements AfterViewInit, OnInit {
       return;
     }
 
-    this.iframeVisible = false;
+    this.iframeVisible.set(false);
     if (event.data['isLoggedIn'] !== true) {
       return;
     }
 
-    this.authService.getSession(true).subscribe();
+    this.authService.refresh();
   }
-
 }

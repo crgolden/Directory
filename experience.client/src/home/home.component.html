@@ -1,0 +1,32 @@
+<section class="py-5 text-center hero-section">
+  <div class="container">
+    <h1 class="display-5 fw-bold">Your Complete Product Inventory</h1>
+    <p class="lead mb-4">
+      Keep track of everything you own — so you're ready for anything.
+    </p>
+    @if (authService.isAuthenticated()) {
+      <a class="btn btn-primary btn-lg" [routerLink]="['/products']">View My Products</a>
+    } @else {
+      <a class="btn btn-primary btn-lg" href="/bff/login">Get Started &mdash; Log In</a>
+    }
+  </div>
+</section>
+
+<section class="py-5">
+  <div class="container">
+    <h2 class="text-center mb-4">Why keep an inventory?</h2>
+    <div class="row row-cols-1 row-cols-md-3 g-4">
+      @for (benefit of benefits; track benefit.title) {
+        <div class="col">
+          <div class="card h-100 shadow-sm">
+            <div class="card-body">
+              <div class="fs-2 mb-2">{{ benefit.icon }}</div>
+              <h5 class="card-title">{{ benefit.title }}</h5>
+              <p class="card-text text-muted">{{ benefit.body }}</p>
+            </div>
+          </div>
+        </div>
+      }
+    </div>
+  </div>
+</section>

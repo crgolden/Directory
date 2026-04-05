@@ -105,7 +105,7 @@ jobs:
             /o:"$env:SONAR_ORGANIZATION" `
             /d:sonar.token="$env:SONAR_TOKEN" `
             /d:sonar.host.url="https://sonarcloud.io" `
-            /d:sonar.cs.vscoveragexml.reportsPaths="coverage.xml,coverage-e2e.xml" `
+            /d:sonar.cs.vscoveragexml.reportsPaths="coverage.xml" `
             /d:sonar.javascript.lcov.reportPaths="experience.client/coverage/lcov.info" `
             /d:sonar.scanner.skipJreProvisioning=true
 
@@ -177,4 +177,3 @@ jobs:
           app-name: 'crgolden-experience'
           slot-name: 'Production'
           package: .
-          

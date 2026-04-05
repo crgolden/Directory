@@ -6,6 +6,11 @@
 # Claude Code
 .claude/
 
+# Playwright
+experience.client/playwright-report/
+experience.client/test-results/
+experience.client/e2e/.auth/user.json
+
 # User-specific files
 *.rsuser
 *.suo

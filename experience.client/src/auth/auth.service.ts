@@ -1,11 +1,11 @@
 import { HttpClient } from '@angular/common/http';
-import { Injectable, Signal,  computed, inject } from '@angular/core';
-import { catchError, shareReplay, Observable, defer } from 'rxjs';
-import { of } from 'rxjs';
+import { computed, Injectable, Signal, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
+import { catchError, map, Observable, of, shareReplay, Subject, switchMap, take } from 'rxjs';
+import { Claim } from './claim';
 
-const ANONYMOUS: Session = null;
-const CACHE_SIZE = 1;
+export type { Claim };
+export type Session = Array<Claim>;
 
 @Injectable({
   providedIn: 'root'
@@ -13,42 +13,54 @@ const CACHE_SIZE = 1;
 export class AuthService {
 
   private readonly http = inject(HttpClient);
-  private session$: Observable<Session> | null = null;
+  private readonly _refresh$ = new Subject<void>();
 
-  public silentLoginUrl = '/bff/silent-login';
-  public loginUrl = '/bff/login';
-
-  public session: Signal<Session> = toSignal(
-    defer(() => this.getSession()), // Defer the getSession call
-    { initialValue: ANONYMOUS }
+  // Emits null on error, Array<Claim> on success (even empty).
+  // Nothing emits until _refresh$.next() is called — no I/O at construction time.
+  private readonly _fetchResult$ = this._refresh$.pipe(
+    switchMap(() =>
+      this.http.get<Array<Claim>>('bff/user').pipe(
+        catchError(() => of(null))
+      )
+    ),
+    shareReplay({ bufferSize: 1, refCount: true })
   );
-  // Derived signals using computed that automatically update.
-  public isAuthenticated = computed(() => this.session() !== null);
-  public isAnonymous = computed(() => this.session() === null);
-  public username = computed(() => {
-    const session = this.session();
-    return session ? session.find(c => c.type === 'name')?.value || null : null;
-  });
-  public logoutUrl = computed(() => {
-    const session = this.session();
-    return session ? session.find(c => c.type === 'bff:logout_url')?.value || null : null;
+
+  // Null = not yet loaded or unauthenticated; Array<Claim> = authenticated session.
+  private readonly _fetchResult = toSignal(this._fetchResult$, {
+    initialValue: null as Array<Claim> | null
   });
 
+  public readonly isAuthenticated: Signal<boolean> = computed(() => this._fetchResult() !== null);
+  public readonly isAnonymous: Signal<boolean> = computed(() => this._fetchResult() === null);
+  public readonly session: Signal<Session> = computed(() => this._fetchResult() ?? []);
+  public readonly username: Signal<string | null> = computed(
+    () => this._fetchResult()?.find(x => x.type === 'name')?.value ?? null
+  );
+  public readonly logoutUrl: Signal<string | null> = computed(() => {
+    const s = this._fetchResult();
+    if (!s) return null;
+    const base = s.find(x => x.type === 'bff:logout_url')?.value ?? null;
+    if (!base) return null;
+    const sid = s.find(x => x.type === 'sid')?.value;
+    return sid != null ? `${base}?sid=${sid}` : base;
+  });
 
-  public getSession(ignoreCache: boolean = false): Observable<Session> {
-    if (!this.session$ || ignoreCache) {
-      this.session$ = this.http.get<Session>('bff/user').pipe(
-        catchError(err => of(ANONYMOUS)),
-        shareReplay(CACHE_SIZE)
-      );
-    }
+  public readonly silentLoginUrl: string = '/bff/silent-login';
+  public readonly loginUrl: string = '/bff/login';
 
-    return this.session$;
+  /** Called by provideAppInitializer — triggers the first fetch and returns an
+   *  Observable that completes once the session response is received. */
+  public initialize(): Observable<Session> {
+    this._refresh$.next();
+    return this._fetchResult$.pipe(
+      map(s => s ?? []),
+      take(1)
+    );
+  }
+
+  /** Re-fetches the session and updates all signals. Called after silent login. */
+  public refresh(): void {
+    this._refresh$.next();
   }
 }
-
-export interface Claim {
-  type: string;
-  value: string;
-}
-export type Session = Claim[] | null;
