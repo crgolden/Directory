@@ -1,6 +1,7 @@
 # Experience
 
 [![Build and deploy ASP.Net Core app to Azure Web App - crgolden-experience](https://github.com/crgolden/Experience/actions/workflows/main_crgolden-experience.yml/badge.svg)](https://github.com/crgolden/Experience/actions/workflows/main_crgolden-experience.yml)
+
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=crgolden_Experience&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=crgolden_Experience)
 
 A full-stack single-page application built with **Angular 21** and **ASP.NET Core 10**, using the [Backend-for-Frontend (BFF)](https://www.duendesoftware.com/products/bff) security pattern to handle OIDC authentication on the server side.
