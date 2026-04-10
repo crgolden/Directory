@@ -1,7 +1,6 @@
 namespace Experience.Tests.Infrastructure;
 
 using System.Net;
-using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
@@ -15,8 +14,8 @@ using Microsoft.Extensions.Logging;
 /// <summary>
 /// <see cref="WebApplicationFactory{TEntryPoint}"/> for E2E tests.
 /// Starts a real Kestrel server on a random HTTPS port (for Playwright) alongside the
-/// in-process TestServer. Replaces Serilog and Azure Data Protection with test-safe
-/// equivalents, sets the Kestrel web root to the Angular build output, and registers
+/// in-process TestServer. Replaces Serilog with a test-safe console logger, sets the
+/// Kestrel web root to the Angular build output, and registers
 /// the <see cref="TestStaticFilesStartupFilter"/>.
 /// </summary>
 /// <remarks>
@@ -79,11 +78,6 @@ public sealed class ExperienceWebApplicationFactory : WebApplicationFactory<Prog
                 services.RemoveAll<ILoggerFactory>();
                 services.AddLogging(lb => lb.AddConsole());
             }
-
-            // Replace Azure Blob + Key Vault data protection with ephemeral keys.
-            // UseEphemeralDataProtectionProvider registers a singleton IDataProtectionProvider
-            // that overrides the pipeline registered by Program.cs.
-            services.AddDataProtection().UseEphemeralDataProtectionProvider();
 
             // Inject UseStaticFiles() early in the pipeline (before MapStaticAssets) so the
             // Angular build output is served from the physical web root set above.

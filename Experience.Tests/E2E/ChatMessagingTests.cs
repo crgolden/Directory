@@ -96,9 +96,11 @@ public sealed class ChatMessagingTests(PlaywrightFixture fixture)
             await page.Locator(".chat-item").First.ClickAsync();
 
             // Assert: the previously stored messages are displayed.
-            await Assertions.Expect(page.GetByText("Previously asked question")).ToBeVisibleAsync();
+            // Scope to .message-list to avoid ambiguity with the sidebar chat label,
+            // which also shows the message text as the chat title.
+            await Assertions.Expect(page.Locator(".message-list").GetByText("Previously asked question")).ToBeVisibleAsync();
             await Assertions.Expect(
-                page.GetByText(InMemoryChatsStore.GetMockResponse())).ToBeVisibleAsync();
+                page.Locator(".message-list").GetByText(InMemoryChatsStore.GetMockResponse())).ToBeVisibleAsync();
         }
     }
 

@@ -45,4 +45,12 @@
     </ProjectReference>
   </ItemGroup>
 
+  <Target Name="BuildAngularRelease"
+          BeforeTargets="Build"
+          Condition="'$(Configuration)' == 'Release'"
+          Inputs="$(SpaRoot)\src\**\*"
+          Outputs="$(SpaRoot)\dist\experience.client\browser\index.html">
+    <Exec WorkingDirectory="$(SpaRoot)" Command="npm run build" />
+  </Target>
+
 </Project>

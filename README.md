@@ -55,8 +55,12 @@ In development, user secrets are used (ID `5480cab8-b41b-4dae-8c41-dbc2c01a15e0`
 
 ```jsonc
 {
-  // Azure credential options (DefaultAzureCredential)
-  "TenantId": "<tenant-id>",
+  // Azure credential options (DefaultAzureCredential) — enable az login for local dev
+  "DefaultAzureCredentialOptions": {
+    "TenantId": "<tenant-id>",
+    "ExcludeAzureCliCredential": false,
+    "ExcludeVisualStudioCredential": false
+  },
 
   // Key Vault URI
   "KeyVaultUri": "https://<vault-name>.vault.azure.net/",
@@ -130,20 +134,23 @@ In production, the ASP.NET Core app serves the Angular build output via `UseDefa
 
 ## Testing
 
-**Backend unit tests**
+**Backend unit tests** (no Azure required)
 ```bash
-dotnet test
+dotnet test --project Experience.Tests --configuration Release -- --filter-trait "Category=Unit"
 ```
 
-Tests use [xUnit v3](https://xunit.net/) and [Moq](https://github.com/devlooped/moq). Azure SDK clients (`SecretClient`) are mocked via Moq, which intercepts the internal 4-parameter routing method to avoid requiring live Azure credentials.
+**Backend E2E tests** (Playwright + WebApplicationFactory — requires `az login` + user secrets)
+```bash
+ASPNETCORE_ENVIRONMENT=Development dotnet test --project Experience.Tests --configuration Release -- --filter-trait "Category=E2E"
+```
 
-**Frontend unit tests**
+**Frontend unit tests** (Vitest)
 ```bash
 cd experience.client
 npm test
 ```
 
-Frontend tests use [Vitest](https://vitest.dev/).
+See [TESTING.md](TESTING.md) for full details on the E2E test infrastructure, CI configuration, and local prerequisites.
 
 ## Deployment
 

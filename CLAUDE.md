@@ -35,7 +35,7 @@ Open the solution in Visual Studio and run with the `https` launch profile, whic
 ### Backend (`Experience.Server/`)
 - **Minimal API** pattern: all configuration in `Program.cs`, no `Startup` class.
 - **Duende BFF**: authentication uses `AddBff()` + `AddRemoteApis()`. The session cookie is issued by the BFF; the Angular SPA never holds tokens directly.
-- **Manuals proxy**: `app.MapRemoteBffApiEndpoint("/manuals", manualsApiAddress).WithAccessToken()` forwards all `/manuals/**` requests to the Manuals service, automatically attaching the user's access token. This covers `/manuals/api/chat`, `/manuals/api/chat/stream`, `/manuals/api/chat/conversations`, and the delete conversation endpoint.
+- **Manuals proxy**: `app.MapRemoteBffApiEndpoint("/manuals", manualsApiAddress).WithAccessToken()` forwards all `/manuals/**` requests to the Manuals service, automatically attaching the user's access token. Covers all `/manuals/api/chats/**` routes (see BFF proxy coverage below).
 - In production, ASP.NET serves the Angular build output via `app.UseDefaultFiles()` + `app.MapStaticAssets()`.
 
 ### Frontend (`experience.client/src/`)
