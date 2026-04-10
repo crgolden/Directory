@@ -65,14 +65,17 @@ Open the solution in Visual Studio and run with the `https` launch profile, whic
 ### Chat (`/chat`)
 `src/chat/` — AI-assisted product manual lookup via the Manuals service.
 
-**Conversation lifecycle** (managed by `ChatService`):
-1. On init: `GET /manuals/api/chat/conversations` loads existing conversation IDs into the sidebar.
-2. On init: `POST /manuals/api/chat/conversations` creates a fresh conversation; its ID is prepended to the sidebar list.
-3. Selecting a sidebar item: `GET /manuals/api/chat/conversations/{id}/items` fetches the message history and populates the message list. Items with `role: null` are filtered out; `text ?? ''` guards null text.
-4. `POST /manuals/api/chat/stream` streams responses as SSE deltas; the component appends each delta to the last assistant message in real time.
-5. `DELETE /manuals/api/chat/conversations/{id}` → called on "New Conversation" only if the user explicitly discards. Conversations are **not** deleted on component destroy — they persist in Redis.
+**Chat lifecycle** (managed by `ChatService`):
+1. On init: `GET /manuals/api/chats` loads all existing chats for the user into the sidebar (ordered newest first). Each chat shows its `title` if set, or a truncated `chatId` as fallback.
+2. "+" button: `POST /manuals/api/chats` creates a new chat; it is prepended to the sidebar and selected automatically.
+3. Selecting a sidebar item: `GET /manuals/api/chats/{id}/messages` fetches the full message history. Items with `role: null` are filtered out; `text ?? ''` guards null text.
+4. `POST /manuals/api/chats/{id}/messages/stream` streams responses as SSE deltas; the component appends each delta to the last assistant message in real time. After streaming completes, `GET /manuals/api/chats/{id}` refreshes the chat to pick up the auto-generated title.
+5. `PATCH /manuals/api/chats/{id}` (Content-Type: `application/merge-patch+json`) — updates the chat title.
+6. `DELETE /manuals/api/chats/{id}` — explicit discard only. Chats are **not** deleted on component destroy — they persist in Redis.
 
 **SSE streaming**: uses the Fetch API (not `EventSource`) because the stream endpoint requires a POST body. The `streamMessage()` method in `ChatService` reads `response.body` as a `ReadableStream`, parses `data: {...}\n\n` SSE lines, and emits each `delta.content` string as an `Observable<string>`.
+
+**BFF proxy coverage**: `app.MapRemoteBffApiEndpoint("/manuals", manualsApiAddress).WithAccessToken()` covers all `/manuals/api/chats/**` routes.
 
 **Query param pre-population**: navigating to `/chat?q=...` pre-fills the input box. `ProductDetailComponent` uses this to pass "Help me find the manual for [Name] [Brand] [Model]" when the user clicks "Find Manual".
 

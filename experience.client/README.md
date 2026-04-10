@@ -36,23 +36,17 @@ ng build
 
 This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
 
-## Running unit tests
+## Testing
 
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
-
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
+Frontend unit tests use [Vitest](https://vitest.dev/). Browser-based E2E tests live in the `Experience.Tests` C# project (Playwright). See [../TESTING.md](../TESTING.md) for the full testing guide covering all tiers, local prerequisites, and CI pipeline details.
 
 ```bash
-ng e2e
-```
+# Frontend unit tests (Vitest)
+npx vitest run
 
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
+# Frontend unit tests with coverage
+npx vitest run --coverage
+```
 
 ## Additional Resources
 

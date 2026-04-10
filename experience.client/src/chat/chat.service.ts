@@ -1,39 +1,55 @@
 import { inject, Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { map, Observable } from 'rxjs';
-import { ChatMessage, ChatResponse, ConversationDetails, ConversationItemSummary } from './chat.model';
+import { Observable } from 'rxjs';
+import { Chat, ChatHistoryMessage, ChatResponse } from './chat.model';
 
 @Injectable({ providedIn: 'root' })
 export class ChatService {
 
   private readonly http = inject(HttpClient);
 
-  getConversations(): Observable<string[]> {
-    return this.http.get<string[]>('/manuals/api/chat/conversations');
+  getChats(): Observable<Chat[]> {
+    return this.http.get<Chat[]>('/manuals/api/chats');
   }
 
-  createConversation(): Observable<string> {
-    return this.http
-      .post<{ conversationId: string }>('/manuals/api/chat/conversations', {})
-      .pipe(map(r => r.conversationId));
+  getChat(chatId: string): Observable<Chat> {
+    return this.http.get<Chat>(`/manuals/api/chats/${chatId}`);
   }
 
-  sendMessage(input: string, conversationId: string): Observable<ChatResponse> {
-    return this.http.post<ChatResponse>('/manuals/api/chat', { input, conversationId });
+  createChat(): Observable<Chat> {
+    return this.http.post<Chat>('/manuals/api/chats', {});
   }
 
-  streamMessage(input: string, conversationId: string): Observable<string> {
+  updateChatTitle(chatId: string, title: string): Observable<void> {
+    return this.http.patch<void>(`/manuals/api/chats/${chatId}`, { title }, {
+      headers: { 'Content-Type': 'application/merge-patch+json' },
+    });
+  }
+
+  deleteChat(chatId: string): Observable<void> {
+    return this.http.delete<void>(`/manuals/api/chats/${chatId}`);
+  }
+
+  getChatMessages(chatId: string): Observable<ChatHistoryMessage[]> {
+    return this.http.get<ChatHistoryMessage[]>(`/manuals/api/chats/${chatId}/messages`);
+  }
+
+  sendMessage(chatId: string, input: string): Observable<ChatResponse> {
+    return this.http.post<ChatResponse>(`/manuals/api/chats/${chatId}/messages`, { input });
+  }
+
+  streamMessage(chatId: string, input: string): Observable<string> {
     return new Observable<string>(subscriber => {
       const controller = new AbortController();
 
-      fetch('/manuals/api/chat/stream', {
+      fetch(`/manuals/api/chats/${chatId}/messages/stream`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-CSRF': '1',
         },
         credentials: 'include',
-        body: JSON.stringify({ input, conversationId }),
+        body: JSON.stringify({ input }),
         signal: controller.signal,
       })
         .then(async response => {
@@ -80,21 +96,5 @@ export class ChatService {
 
       return () => controller.abort();
     });
-  }
-
-  getConversation(conversationId: string): Observable<ConversationDetails> {
-    return this.http.get<ConversationDetails>(`/manuals/api/chat/conversations/${conversationId}`);
-  }
-
-  getConversationItems(conversationId: string): Observable<ConversationItemSummary[]> {
-    return this.http.get<ConversationItemSummary[]>(`/manuals/api/chat/conversations/${conversationId}/items`);
-  }
-
-  deleteConversation(conversationId: string): Observable<void> {
-    return this.http.delete<void>(`/manuals/api/chat/conversations/${conversationId}`);
-  }
-
-  buildMessages(messages: ChatMessage[]): ChatMessage[] {
-    return messages;
   }
 }

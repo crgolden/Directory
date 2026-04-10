@@ -18,66 +18,85 @@ describe('ChatService', () => {
 
   afterEach(() => httpMock.verify());
 
-  it('getConversations GETs /manuals/api/chat/conversations and returns id list', async () => {
-    const promise = firstValueFrom(service.getConversations());
-    const req = httpMock.expectOne('/manuals/api/chat/conversations');
+  it('getChats GETs /manuals/api/chats and returns chat list', async () => {
+    const promise = firstValueFrom(service.getChats());
+    const req = httpMock.expectOne('/manuals/api/chats');
     expect(req.request.method).toBe('GET');
-    req.flush(['conv-1', 'conv-2']);
-    expect(await promise).toEqual(['conv-1', 'conv-2']);
+    req.flush([
+      { chatId: 'chat-1', title: 'First Chat', createdAt: 1700000000 },
+      { chatId: 'chat-2', title: null, createdAt: 1699999000 },
+    ]);
+    const result = await promise;
+    expect(result).toHaveLength(2);
+    expect(result[0].chatId).toBe('chat-1');
+    expect(result[0].title).toBe('First Chat');
+    expect(result[1].title).toBeNull();
   });
 
-  it('createConversation POSTs to /manuals/api/chat/conversations and returns id', async () => {
-    const promise = firstValueFrom(service.createConversation());
-    const req = httpMock.expectOne('/manuals/api/chat/conversations');
+  it('getChat GETs the correct URL and returns a chat', async () => {
+    const promise = firstValueFrom(service.getChat('chat-123'));
+    const req = httpMock.expectOne('/manuals/api/chats/chat-123');
+    expect(req.request.method).toBe('GET');
+    req.flush({ chatId: 'chat-123', title: 'My Chat', createdAt: 1700000000 });
+    const result = await promise;
+    expect(result.chatId).toBe('chat-123');
+    expect(result.title).toBe('My Chat');
+  });
+
+  it('createChat POSTs to /manuals/api/chats and returns created chat', async () => {
+    const promise = firstValueFrom(service.createChat());
+    const req = httpMock.expectOne('/manuals/api/chats');
     expect(req.request.method).toBe('POST');
-    req.flush({ conversationId: 'conv-123' });
-    expect(await promise).toBe('conv-123');
+    req.flush({ chatId: 'chat-new', title: null, createdAt: 1700000000 });
+    const result = await promise;
+    expect(result.chatId).toBe('chat-new');
+    expect(result.title).toBeNull();
   });
 
-  it('sendMessage POSTs correct body', async () => {
-    const promise = firstValueFrom(service.sendMessage('Hello', 'conv-123'));
-    const req = httpMock.expectOne('/manuals/api/chat');
-    expect(req.request.method).toBe('POST');
-    expect(req.request.body).toEqual({ input: 'Hello', conversationId: 'conv-123' });
-    req.flush({ output: 'Hi there', conversationId: 'conv-123' });
-    const response = await promise;
-    expect(response.output).toBe('Hi there');
+  it('updateChatTitle PATCHes the correct URL with merge-patch content type', async () => {
+    const promise = firstValueFrom(service.updateChatTitle('chat-123', 'New Title'));
+    const req = httpMock.expectOne('/manuals/api/chats/chat-123');
+    expect(req.request.method).toBe('PATCH');
+    expect(req.request.headers.get('Content-Type')).toContain('application/merge-patch+json');
+    expect(req.request.body).toEqual({ title: 'New Title' });
+    req.flush(null, { status: 204, statusText: 'No Content' });
+    await promise;
   });
 
-  it('deleteConversation DELETEs the correct URL', async () => {
-    const promise = firstValueFrom(service.deleteConversation('conv-123'));
-    const req = httpMock.expectOne('/manuals/api/chat/conversations/conv-123');
+  it('deleteChat DELETEs the correct URL', async () => {
+    const promise = firstValueFrom(service.deleteChat('chat-123'));
+    const req = httpMock.expectOne('/manuals/api/chats/chat-123');
     expect(req.request.method).toBe('DELETE');
     req.flush(null, { status: 204, statusText: 'No Content' });
     await promise;
   });
 
-  it('getConversation GETs the correct URL and returns details', async () => {
-    const promise = firstValueFrom(service.getConversation('conv-123'));
-    const req = httpMock.expectOne('/manuals/api/chat/conversations/conv-123');
-    expect(req.request.method).toBe('GET');
-    req.flush({ conversationId: 'conv-123', createdAt: 1700000000 });
-    const result = await promise;
-    expect(result.conversationId).toBe('conv-123');
-    expect(result.createdAt).toBe(1700000000);
-  });
-
-  it('getConversationItems GETs the correct URL and returns items', async () => {
-    const promise = firstValueFrom(service.getConversationItems('conv-123'));
-    const req = httpMock.expectOne('/manuals/api/chat/conversations/conv-123/items');
+  it('getChatMessages GETs the correct URL and returns messages', async () => {
+    const promise = firstValueFrom(service.getChatMessages('chat-123'));
+    const req = httpMock.expectOne('/manuals/api/chats/chat-123/messages');
     expect(req.request.method).toBe('GET');
     req.flush([
-      { id: 'item-1', role: 'user', text: 'Hello' },
-      { id: 'item-2', role: 'assistant', text: 'Hi there!' },
+      { role: 'user', text: 'Hello' },
+      { role: 'assistant', text: 'Hi there!' },
     ]);
-    const items = await promise;
-    expect(items).toHaveLength(2);
-    expect(items[0].role).toBe('user');
-    expect(items[1].text).toBe('Hi there!');
+    const messages = await promise;
+    expect(messages).toHaveLength(2);
+    expect(messages[0].role).toBe('user');
+    expect(messages[1].text).toBe('Hi there!');
+  });
+
+  it('sendMessage POSTs to the correct URL with input body', async () => {
+    const promise = firstValueFrom(service.sendMessage('chat-123', 'Hello'));
+    const req = httpMock.expectOne('/manuals/api/chats/chat-123/messages');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ input: 'Hello' });
+    req.flush({ output: 'Hi there', chatId: 'chat-123' });
+    const response = await promise;
+    expect(response.output).toBe('Hi there');
+    expect(response.chatId).toBe('chat-123');
   });
 
   it('streamMessage parses SSE deltas and completes on [DONE]', async () => {
-    // Build a minimal ReadableStream that emits SSE lines then [DONE]
     const sseChunk = [
       'data: {"delta":{"content":"Hello"}}\n\n',
       'data: {"delta":{"content":" world"}}\n\n',
@@ -101,7 +120,7 @@ describe('ChatService', () => {
 
     const deltas: string[] = [];
     await new Promise<void>((resolve, reject) => {
-      service.streamMessage('Hi', 'conv-123').subscribe({
+      service.streamMessage('chat-123', 'Hi').subscribe({
         next: d => deltas.push(d),
         complete: resolve,
         error: reject,
@@ -109,6 +128,10 @@ describe('ChatService', () => {
     });
 
     expect(deltas).toEqual(['Hello', ' world']);
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/manuals/api/chats/chat-123/messages/stream',
+      expect.objectContaining({ method: 'POST' })
+    );
     fetchSpy.mockRestore();
   });
 });

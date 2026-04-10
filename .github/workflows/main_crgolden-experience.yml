@@ -105,7 +105,7 @@ jobs:
             /o:"$env:SONAR_ORGANIZATION" `
             /d:sonar.token="$env:SONAR_TOKEN" `
             /d:sonar.host.url="https://sonarcloud.io" `
-            /d:sonar.cs.vscoveragexml.reportsPaths="coverage.xml" `
+            /d:sonar.cs.vscoveragexml.reportsPaths="coverage.xml,coverage-e2e.xml" `
             /d:sonar.javascript.lcov.reportPaths="experience.client/coverage/lcov.info" `
             /d:sonar.scanner.skipJreProvisioning=true
 
@@ -121,6 +121,43 @@ jobs:
       - name: Run UI tests
         working-directory: experience.client
         run: npx vitest run --coverage
+
+      - name: Login to Azure (for E2E tests)
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5  # v2
+        with:
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_C4959774308D40CE9136D90664140CE6 }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_F0CC71E741B84CD68956AF7492EDFBD4 }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_0F2FA3ACCE504398AEA0AB3780B1A7E3 }}
+
+      - name: Set E2E test environment
+        shell: powershell
+        run: |
+          echo "ASPNETCORE_ENVIRONMENT=CI" >> $env:GITHUB_ENV
+          echo "KeyVaultUri=${{ vars.KEYVAULT_URI }}" >> $env:GITHUB_ENV
+          echo "BlobUri=${{ vars.BLOB_URI }}" >> $env:GITHUB_ENV
+          echo "DataProtectionKeyIdentifier=${{ vars.DATA_PROTECTION_KEY_IDENTIFIER }}" >> $env:GITHUB_ENV
+          echo "DefaultAzureCredentialOptions__ExcludeAzureCliCredential=false" >> $env:GITHUB_ENV
+          echo "ElasticsearchNode=${{ vars.ELASTICSEARCH_NODE }}" >> $env:GITHUB_ENV
+          echo "APPLICATIONINSIGHTS_CONNECTION_STRING=${{ vars.APPLICATIONINSIGHTS_CONNECTION_STRING }}" >> $env:GITHUB_ENV
+          echo "OidcAuthority=${{ vars.OIDC_AUTHORITY }}" >> $env:GITHUB_ENV
+          echo "ManualsApiAddress=https://crgolden-manuals.azurewebsites.net/" >> $env:GITHUB_ENV
+
+      - name: Cache Playwright browsers
+        id: cache-playwright
+        uses: actions/cache@v5
+        with:
+          path: ~\AppData\Local\ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('Experience.Tests/Experience.Tests.csproj') }}
+
+      - name: Install Playwright browsers
+        if: steps.cache-playwright.outputs.cache-hit != 'true'
+        run: pwsh "${{ github.workspace }}\Experience.Tests\bin\Release\net10.0\playwright.ps1" install --with-deps chromium
+
+      - name: Run E2E tests with coverage
+        run: |
+          dotnet-coverage collect `
+            "dotnet test --project Experience.Tests --no-build --configuration Release -- --filter-trait Category=E2E --report-xunit-trx --report-xunit-trx-filename e2e-tests.trx" `
+            -f xml -o "coverage-e2e.xml" -s "coverage.settings.xml"
 
       - name: Upload test results
         uses: actions/upload-artifact@v7
@@ -138,7 +175,7 @@ jobs:
           -o ${{ github.workspace  }}\publish
 
       - name: Upload artifact for deployment job
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: .net-app
           path: ${{ github.workspace }}\publish
@@ -153,6 +190,7 @@ jobs:
   deploy:
     runs-on: windows-latest
     needs: build
+    environment: Production
     permissions:
       id-token: write #This is required for requesting the JWT
       contents: read #This is required for actions/checkout
@@ -177,3 +215,75 @@ jobs:
           app-name: 'crgolden-experience'
           slot-name: 'Production'
           package: .
+
+  smoke:
+    name: Post-deploy smoke
+    runs-on: windows-latest
+    needs: deploy
+    if: github.ref == 'refs/heads/main'
+    environment: Production
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up .NET Core
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.x'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v5
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: ${{ runner.os }}-nuget-
+
+      - name: Build Experience.Tests
+        run: dotnet build Experience.Tests --configuration Release
+
+      - name: Login to Azure
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5  # v2
+        with:
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_C4959774308D40CE9136D90664140CE6 }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_F0CC71E741B84CD68956AF7492EDFBD4 }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_0F2FA3ACCE504398AEA0AB3780B1A7E3 }}
+
+      - name: Set smoke test environment
+        shell: powershell
+        run: |
+          echo "ASPNETCORE_ENVIRONMENT=CI" >> $env:GITHUB_ENV
+          echo "KeyVaultUri=${{ vars.KEYVAULT_URI }}" >> $env:GITHUB_ENV
+          echo "BlobUri=${{ vars.BLOB_URI }}" >> $env:GITHUB_ENV
+          echo "DataProtectionKeyIdentifier=${{ vars.DATA_PROTECTION_KEY_IDENTIFIER }}" >> $env:GITHUB_ENV
+          echo "DefaultAzureCredentialOptions__ExcludeAzureCliCredential=false" >> $env:GITHUB_ENV
+          echo "ElasticsearchNode=${{ vars.ELASTICSEARCH_NODE }}" >> $env:GITHUB_ENV
+          echo "APPLICATIONINSIGHTS_CONNECTION_STRING=${{ vars.APPLICATIONINSIGHTS_CONNECTION_STRING }}" >> $env:GITHUB_ENV
+          echo "OidcAuthority=${{ vars.OIDC_AUTHORITY }}" >> $env:GITHUB_ENV
+          echo "ManualsApiAddress=https://crgolden-manuals.azurewebsites.net/" >> $env:GITHUB_ENV
+
+      - name: Cache Playwright browsers
+        id: cache-playwright
+        uses: actions/cache@v5
+        with:
+          path: ~\AppData\Local\ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('Experience.Tests/Experience.Tests.csproj') }}
+
+      - name: Install Playwright browsers
+        if: steps.cache-playwright.outputs.cache-hit != 'true'
+        run: pwsh "${{ github.workspace }}\Experience.Tests\bin\Release\net10.0\playwright.ps1" install --with-deps chromium
+
+      - name: Run smoke tests
+        run: |
+          dotnet test Experience.Tests --no-build --configuration Release `
+            -- --filter-trait Category=Smoke `
+            --report-xunit-trx --report-xunit-trx-filename smoke-tests.trx
+
+      - name: Upload smoke results
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: smoke-test-results
+          path: Experience.Tests/bin/Release/net10.0/TestResults/

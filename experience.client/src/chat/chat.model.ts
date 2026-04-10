@@ -1,3 +1,14 @@
+export interface Chat {
+  chatId: string;
+  title: string | null;
+  createdAt: number;
+}
+
+export interface ChatHistoryMessage {
+  role: string | null;
+  text: string | null;
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
@@ -5,16 +16,5 @@ export interface ChatMessage {
 
 export interface ChatResponse {
   output: string | null;
-  conversationId: string | null;
-}
-
-export interface ConversationDetails {
-  conversationId: string;
-  createdAt: number;
-}
-
-export interface ConversationItemSummary {
-  id: string;
-  role: string | null;
-  text: string | null;
+  chatId: string;
 }

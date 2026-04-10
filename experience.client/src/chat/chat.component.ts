@@ -10,11 +10,12 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { Title } from '@angular/platform-browser';
 import { ChatService } from './chat.service';
-import { ChatMessage, ConversationItemSummary } from './chat.model';
+import { Chat, ChatHistoryMessage, ChatMessage } from './chat.model';
+import { MarkdownPipe } from './markdown.pipe';
 
 @Component({
   selector: 'app-chat',
-  imports: [FormsModule],
+  imports: [FormsModule, MarkdownPipe],
   templateUrl: './chat.component.html',
   styleUrl: './chat.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -28,8 +29,10 @@ export class ChatComponent implements OnInit, OnDestroy {
   readonly messages = signal<ChatMessage[]>([]);
   readonly input = signal('');
   readonly streaming = signal(false);
-  readonly conversationId = signal<string | null>(null);
-  readonly conversations = signal<string[]>([]);
+  readonly chatId = signal<string | null>(null);
+  readonly chats = signal<Chat[]>([]);
+  readonly editingChatId = signal<string | null>(null);
+  readonly editingTitle = signal('');
 
   ngOnInit(): void {
     this.titleService.setTitle('Experience | Chat');
@@ -37,37 +40,29 @@ export class ChatComponent implements OnInit, OnDestroy {
     if (q) {
       this.input.set(q);
     }
-    this.loadConversations();
-    this.startConversation();
+    this.loadChats();
   }
 
   ngOnDestroy(): void {
-    // Do not delete on destroy — conversations persist in Redis for the user.
+    // Do not delete on destroy — chats persist in Redis for the user.
   }
 
-  private loadConversations(): void {
-    this.chatService.getConversations().subscribe(ids => {
-      this.conversations.set(ids);
+  private loadChats(): void {
+    this.chatService.getChats().subscribe(chats => {
+      this.chats.set(chats);
     });
   }
 
-  private startConversation(): void {
-    this.chatService.createConversation().subscribe(id => {
-      this.conversationId.set(id);
-      this.conversations.update(list => (list.includes(id) ? list : [id, ...list]));
-    });
-  }
-
-  selectConversation(id: string): void {
-    if (id === this.conversationId() || this.streaming()) return;
-    this.conversationId.set(id);
+  selectChat(id: string): void {
+    if (id === this.chatId() || this.streaming()) return;
+    this.chatId.set(id);
     this.messages.set([]);
-    this.chatService.getConversationItems(id).subscribe(items => {
+    this.chatService.getChatMessages(id).subscribe(items => {
       this.messages.set(this.itemsToMessages(items));
     });
   }
 
-  private itemsToMessages(items: ConversationItemSummary[]): ChatMessage[] {
+  private itemsToMessages(items: ChatHistoryMessage[]): ChatMessage[] {
     return items
       .filter(item => (item.role === 'user' || item.role === 'assistant') && item.text !== null)
       .map(item => ({ role: item.role as 'user' | 'assistant', content: item.text! }));
@@ -75,7 +70,7 @@ export class ChatComponent implements OnInit, OnDestroy {
 
   send(): void {
     const text = this.input().trim();
-    const id = this.conversationId();
+    const id = this.chatId();
     if (!text || !id || this.streaming()) return;
 
     this.messages.update(msgs => [...msgs, { role: 'user', content: text }]);
@@ -84,7 +79,7 @@ export class ChatComponent implements OnInit, OnDestroy {
 
     this.messages.update(msgs => [...msgs, { role: 'assistant', content: '' }]);
 
-    this.chatService.streamMessage(text, id).subscribe({
+    this.chatService.streamMessage(id, text).subscribe({
       next: delta => {
         this.messages.update(msgs => {
           const updated = [...msgs];
@@ -93,15 +88,68 @@ export class ChatComponent implements OnInit, OnDestroy {
           return updated;
         });
       },
-      complete: () => this.streaming.set(false),
+      complete: () => {
+        this.streaming.set(false);
+        this.refreshChatTitle(id);
+      },
       error: () => this.streaming.set(false),
     });
   }
 
-  newConversation(): void {
-    this.messages.set([]);
-    this.conversationId.set(null);
-    this.startConversation();
+  newChat(): void {
+    this.chatService.createChat().subscribe(chat => {
+      this.chats.update(list => [chat, ...list]);
+      this.chatId.set(chat.chatId);
+      this.messages.set([]);
+    });
+  }
+
+  deleteChat(chatId: string): void {
+    this.chatService.deleteChat(chatId).subscribe(() => {
+      this.chats.update(list => list.filter(c => c.chatId !== chatId));
+      if (this.chatId() === chatId) {
+        this.chatId.set(null);
+        this.messages.set([]);
+      }
+    });
+  }
+
+  startEditing(chat: Chat, event: Event): void {
+    event.stopPropagation();
+    this.editingChatId.set(chat.chatId);
+    this.editingTitle.set(chat.title ?? '');
+    // Focus the input after Angular has rendered it.
+    setTimeout(() => {
+      const input = document.querySelector<HTMLInputElement>('.chat-title-input');
+      input?.focus();
+      input?.select();
+    });
+  }
+
+  commitTitle(chatId: string): void {
+    const title = this.editingTitle().trim();
+    this.editingChatId.set(null);
+    if (!title) return;
+    const current = this.chats().find(c => c.chatId === chatId);
+    if (!current || title === current.title) return;
+    this.chatService.updateChatTitle(chatId, title).subscribe(() => {
+      this.chats.update(list =>
+        list.map(c => c.chatId === chatId ? { ...c, title } : c)
+      );
+    });
+  }
+
+  cancelEditing(): void {
+    this.editingChatId.set(null);
+  }
+
+  onTitleKeydown(event: KeyboardEvent, chatId: string): void {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      this.commitTitle(chatId);
+    } else if (event.key === 'Escape') {
+      this.cancelEditing();
+    }
   }
 
   onKeydown(event: KeyboardEvent): void {
@@ -111,7 +159,19 @@ export class ChatComponent implements OnInit, OnDestroy {
     }
   }
 
+  chatLabel(chat: Chat): string {
+    return chat.title ?? this.truncate(chat.chatId);
+  }
+
   truncate(id: string): string {
     return id.length > 16 ? `${id.slice(0, 16)}…` : id;
+  }
+
+  private refreshChatTitle(chatId: string): void {
+    this.chatService.getChat(chatId).subscribe(updated => {
+      this.chats.update(list =>
+        list.map(c => c.chatId === chatId ? updated : c)
+      );
+    });
   }
 }

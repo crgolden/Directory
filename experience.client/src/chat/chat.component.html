@@ -1,23 +1,43 @@
 <div class="d-flex chat-container">
 
-  <!-- Conversations sidebar -->
+  <!-- Chats sidebar -->
   <div class="conversation-sidebar border-end d-flex flex-column">
     <div class="p-2 border-bottom d-flex justify-content-between align-items-center">
-      <span class="fw-semibold small text-muted text-uppercase">Conversations</span>
-      <button class="btn btn-sm btn-outline-primary" (click)="newConversation()"
-        [disabled]="streaming()" title="New conversation">+</button>
+      <span class="fw-semibold small text-muted text-uppercase">Chats</span>
+      <button class="btn btn-sm btn-outline-primary" (click)="newChat()"
+        [disabled]="streaming()" title="New chat">+</button>
     </div>
     <div class="flex-grow-1 overflow-auto">
-      @if (conversations().length === 0) {
-        <p class="text-muted small p-2 mb-0">No conversations yet.</p>
+      @if (chats().length === 0) {
+        <p class="text-muted small p-2 mb-0">No chats yet.</p>
       }
-      @for (id of conversations(); track id) {
-        <button
-          class="btn btn-sm w-100 text-start rounded-0 conversation-item"
-          [class.active]="conversationId() === id"
-          (click)="selectConversation(id)">
-          {{ truncate(id) }}
-        </button>
+      @for (chat of chats(); track chat.chatId) {
+        <div class="chat-item d-flex align-items-center"
+          [class.active]="chatId() === chat.chatId">
+          @if (editingChatId() === chat.chatId) {
+            <input
+              class="chat-title-input form-control form-control-sm mx-1"
+              [value]="editingTitle()"
+              (input)="editingTitle.set($any($event.target).value)"
+              (keydown)="onTitleKeydown($event, chat.chatId)"
+              (blur)="commitTitle(chat.chatId)" />
+          } @else {
+            <button
+              class="chat-label btn btn-sm text-start flex-grow-1 text-truncate"
+              [class.active]="chatId() === chat.chatId"
+              (click)="selectChat(chat.chatId)">
+              {{ chatLabel(chat) }}
+            </button>
+            <div class="chat-actions">
+              <button class="chat-action" title="Rename chat"
+                [disabled]="streaming()"
+                (click)="startEditing(chat, $event)">&#9998;</button>
+              <button class="chat-action" title="Delete chat"
+                [disabled]="streaming()"
+                (click)="deleteChat(chat.chatId)">&#x2715;</button>
+            </div>
+          }
+        </div>
       }
     </div>
   </div>
@@ -41,8 +61,10 @@
           <div class="message-bubble px-3 py-2 rounded-3"
             [class.user-bubble]="msg.role === 'user'"
             [class.assistant-bubble]="msg.role === 'assistant'">
-            @if (msg.content) {
+            @if (msg.role === 'user') {
               {{ msg.content }}
+            } @else if (msg.content) {
+              <div class="markdown-content" [innerHTML]="msg.content | markdown"></div>
             } @else if (streaming()) {
               <span class="typing-cursor">&#9646;</span>
             }
@@ -60,10 +82,10 @@
           [value]="input()"
           (input)="input.set($any($event.target).value)"
           (keydown)="onKeydown($event)"
-          [disabled]="streaming() || !conversationId()"
+          [disabled]="streaming() || !chatId()"
         ></textarea>
         <button class="btn btn-primary" (click)="send()"
-          [disabled]="!input().trim() || streaming() || !conversationId()">
+          [disabled]="!input().trim() || streaming() || !chatId()">
           Send
         </button>
       </div>

@@ -25,6 +25,7 @@
     "@angular/router": "^21.2.0",
     "bootstrap": "^5.3.3",
     "jest-editor-support": "*",
+    "marked": "^18.0.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
   },

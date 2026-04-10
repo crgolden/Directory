@@ -60,3 +60,14 @@ finally
 {
     await Log.CloseAndFlushAsync();
 }
+
+public partial class Program
+{
+    /// <summary>
+    /// Initializes a new instance of the <see cref="Program"/> class.
+    /// Required for <see cref="Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory{TEntryPoint}"/>.
+    /// </summary>
+    protected Program()
+    {
+    }
+}
