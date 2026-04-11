@@ -190,7 +190,6 @@ jobs:
   deploy:
     runs-on: windows-latest
     needs: build
-    environment: Production
     permissions:
       id-token: write #This is required for requesting the JWT
       contents: read #This is required for actions/checkout
@@ -221,7 +220,6 @@ jobs:
     runs-on: windows-latest
     needs: deploy
     if: github.ref == 'refs/heads/main'
-    environment: Production
     permissions:
       id-token: write
       contents: read
