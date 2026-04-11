@@ -15,8 +15,12 @@ public sealed class PlaywrightFixture : IAsyncLifetime
     private static readonly bool Headless =
         !string.Equals(Environment.GetEnvironmentVariable("PLAYWRIGHT_HEADED"), "1", StringComparison.OrdinalIgnoreCase);
 
+    private static readonly string? TestUsername = Environment.GetEnvironmentVariable("TEST_USERNAME");
+    private static readonly string? TestPassword = Environment.GetEnvironmentVariable("TEST_PASSWORD");
+
     private IPlaywright? _playwright;
     private IBrowser? _browser;
+    private string? _storageStatePath;
 
     public PlaywrightFixture()
     {
@@ -49,6 +53,18 @@ public sealed class PlaywrightFixture : IAsyncLifetime
             Headless = Headless
         });
 
+        if (CI && (TestUsername is null || TestPassword is null))
+        {
+            throw new InvalidOperationException("TEST_USERNAME and TEST_PASSWORD must be set in CI.");
+        }
+
+        if (TestUsername is not null && TestPassword is not null)
+        {
+            await LoginAsync(); // real OIDC; sets _storageStatePath
+        }
+
+        // else: _storageStatePath stays null; NewPageAsync falls back to the /bff/user mock
+
         // Warm up: load /chat once so the server pool and Angular hydration are ready before
         // the first real test runs. NewPageAsync already navigates to /chat and waits for
         // the Angular bootstrap to complete, so no additional waiting is needed here.
@@ -57,17 +73,15 @@ public sealed class PlaywrightFixture : IAsyncLifetime
     }
 
     /// <summary>
-    /// Creates a new browser context and page, registers Playwright route mocks for
-    /// <c>/bff/user</c> (returns a synthetic authenticated session) and all
-    /// <c>/manuals/api/**</c> requests (backed by <see cref="ChatStore"/>), then
-    /// navigates directly to <c>/chat</c> and waits for Angular to bootstrap.
+    /// Creates a new browser context and page, registers Playwright route mocks for all
+    /// <c>/manuals/api/**</c> requests (backed by <see cref="ChatStore"/>), then navigates
+    /// directly to <c>/chat</c> and waits for Angular to bootstrap.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Mocking <c>/bff/user</c> at the Playwright layer is simpler and more reliable than
-    /// establishing a real Duende BFF session: <c>SignInAsync</c> in a startup filter does
-    /// not create a server-side BFF session ticket, so the Angular auth guard would redirect
-    /// to <c>/bff/login</c> on every page load.
+    /// When <c>TEST_USERNAME</c> and <c>TEST_PASSWORD</c> are set the context is loaded with
+    /// the real BFF session cookies saved by <see cref="LoginAsync"/>. Otherwise a synthetic
+    /// <c>/bff/user</c> Playwright route mock is registered as a local development fallback.
     /// </para>
     /// <para>
     /// Call <see cref="InMemoryChatsStore.Clear"/> on <see cref="ChatStore"/> BEFORE calling
@@ -84,7 +98,8 @@ public sealed class PlaywrightFixture : IAsyncLifetime
         var context = await _browser.NewContextAsync(new BrowserNewContextOptions
         {
             BaseURL = BaseAddress,
-            IgnoreHTTPSErrors = true
+            IgnoreHTTPSErrors = true, // Kestrel test server uses a self-signed certificate
+            StorageStatePath = _storageStatePath // null locally → no pre-loaded state; real cookie in CI
         });
         var page = await context.NewPageAsync();
 
@@ -93,24 +108,25 @@ public sealed class PlaywrightFixture : IAsyncLifetime
             page.SetDefaultTimeout(60_000);
         }
 
-        // Intercept /bff/user and return a synthetic authenticated session so the Angular
-        // AuthService sees an authenticated user and the auth guard allows navigation to /chat.
-        // All Manuals API requests are also mocked, so no real BFF token exchange is needed.
-        await page.RouteAsync("**/bff/user", async route =>
+        // Only mock /bff/user when no real session is available (local development fallback).
+        if (_storageStatePath is null)
         {
-            await route.FulfillAsync(new RouteFulfillOptions
+            await page.RouteAsync("**/bff/user", async route =>
             {
-                Status = 200,
-                ContentType = "application/json",
-                Body = JsonSerializer.Serialize(new object[]
+                await route.FulfillAsync(new RouteFulfillOptions
                 {
-                    new { type = "sub", value = "e2e-user-id" },
-                    new { type = "name", value = "E2E Test User" },
-                    new { type = "email", value = "e2e@test.invalid" },
-                    new { type = "sid", value = "e2e-session" },
-                })
+                    Status = 200,
+                    ContentType = "application/json",
+                    Body = JsonSerializer.Serialize(new object[]
+                    {
+                        new { type = "sub", value = "e2e-user-id" },
+                        new { type = "name", value = "E2E Test User" },
+                        new { type = "email", value = "e2e@test.invalid" },
+                        new { type = "sid", value = "e2e-session" },
+                    })
+                });
             });
-        });
+        }
 
         // Register route mocks for all Manuals API calls so no real Manuals server is needed.
         await page.RouteAsync("**/manuals/api/**", async route =>
@@ -125,7 +141,7 @@ public sealed class PlaywrightFixture : IAsyncLifetime
             }
         });
 
-        // Navigate directly to /chat. The /bff/user mock ensures the auth guard passes.
+        // Navigate directly to /chat.
         await page.GotoAsync("/chat");
 
         // Wait for Angular to finish bootstrapping and the auth guard to allow the chat
@@ -146,11 +162,47 @@ public sealed class PlaywrightFixture : IAsyncLifetime
 
         _playwright?.Dispose();
         await Factory.DisposeAsync();
+
+        if (_storageStatePath is not null && File.Exists(_storageStatePath))
+        {
+            File.Delete(_storageStatePath);
+        }
     }
 
     // ---------------------------------------------------------------------------------
     // Private helpers
     // ---------------------------------------------------------------------------------
+
+    private async Task LoginAsync()
+    {
+        _storageStatePath = Path.GetTempFileName();
+
+        await using var context = await _browser!.NewContextAsync(new BrowserNewContextOptions
+        {
+            BaseURL = BaseAddress,
+            IgnoreHTTPSErrors = true // Kestrel test server uses a self-signed certificate
+        });
+        var page = await context.NewPageAsync();
+
+        if (CI)
+        {
+            page.SetDefaultTimeout(60_000);
+        }
+
+        // Kick off the OIDC flow. BFF redirects to the Identity server login page.
+        await page.GotoAsync("/bff/login?returnUrl=%2Fchat");
+
+        // Selectors confirmed from Identity.Api/Pages/Account/Login.cshtml.
+        await page.FillAsync("input[name='Input.Email']", TestUsername!);
+        await page.FillAsync("input[name='Input.Password']", TestPassword!);
+        await page.ClickAsync("button#login-submit");
+
+        // Wait for the BFF callback to complete and land on /chat.
+        await page.WaitForURLAsync("**/chat**");
+
+        // Persist session cookies so every per-test context starts authenticated.
+        await context.StorageStateAsync(new() { Path = _storageStatePath });
+    }
 
     private async Task DispatchManualsRouteAsync(IRoute route)
     {

@@ -85,7 +85,23 @@ Open the solution in Visual Studio and run with the `https` launch profile, whic
 
 ## Testing
 
+Three tiers — see [TESTING.md](TESTING.md) for full commands, CI pipeline details, and infrastructure diagrams.
+
+| Tier | Tool | Trait |
+|------|------|-------|
+| Backend unit | xUnit v3 | `Category=Unit` |
+| Frontend unit | Vitest | — |
+| E2E regression | Playwright | `Category=E2E` |
+| E2E smoke (post-deploy CI only) | Playwright | `Category=Smoke` |
+
+**Frontend unit tests** (`experience.client/`):
 - **Framework**: Vitest with `globals: true`, `environment: jsdom`, setup via `src/test-setup.ts`.
 - **Pattern**: `TestBed.configureTestingModule` with `AuthService` stubs (using `signal()`), `provideRouter(testRoutes)` with a local `DummyComponent`, and `vi.fn()` for service mocks.
 - **Async**: use `firstValueFrom` from `rxjs` to await observables in tests.
 - **Streaming tests**: mock `globalThis.fetch` with `vi.spyOn` and a `ReadableStream` that emits pre-encoded SSE chunks.
+
+**E2E / Smoke tests** (`Experience.Tests/`):
+- `PlaywrightFixture` boots a real Kestrel server via `ExperienceWebApplicationFactory` on a random local HTTPS port. Playwright points its browser at that local server — not any deployed Azure endpoint.
+- `/bff/user` and all `/manuals/api/**` calls are intercepted by Playwright route mocks (`InMemoryChatsStore`). No Identity server or Manuals service is contacted.
+- Azure Key Vault **is** contacted at server startup — `az login` required locally.
+- Always use `ASPNETCORE_ENVIRONMENT=Development` locally. Never use `CI` outside of an actual CI pipeline.

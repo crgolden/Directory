@@ -45,8 +45,9 @@ npx vitest run --coverage  # with LCOV coverage report → coverage/lcov.info
 ### E2E tests (regression — full suite)
 
 ```bash
-# Set environment so the server loads CI-appropriate credentials
-export ASPNETCORE_ENVIRONMENT=CI   # or: $env:ASPNETCORE_ENVIRONMENT = "CI" on PowerShell
+# ASPNETCORE_ENVIRONMENT=Development loads AzureCliCredential + VisualStudioCredential.
+# Never use ASPNETCORE_ENVIRONMENT=CI locally — CI activates pipeline-only steps.
+export ASPNETCORE_ENVIRONMENT=Development
 
 dotnet test --project Experience.Tests --no-build --configuration Release \
   -- --filter-trait "Category=E2E"
@@ -55,6 +56,8 @@ dotnet test --project Experience.Tests --no-build --configuration Release \
 ### E2E tests (smoke subset only)
 
 ```bash
+export ASPNETCORE_ENVIRONMENT=Development
+
 dotnet test --project Experience.Tests --no-build --configuration Release \
   -- --filter-trait "Category=Smoke"
 ```
@@ -148,7 +151,7 @@ In CI, the build job runs `azure/login` before the E2E step and sets `ASPNETCORE
 
 ### Smoke job (post-deploy, `main` only)
 
-Runs after the deploy job, targeting the live Production environment:
+Runs after the deploy job. Uses the GitHub Actions **Production** environment (for OIDC secrets and approval gates) but the tests themselves boot a local `ExperienceWebApplicationFactory` Kestrel server — they do **not** connect to the deployed app. All Manuals API and `/bff/user` calls are intercepted by Playwright route mocks, exactly as in the E2E regression job.
 
 1. Build `Experience.Tests`
 2. Azure login

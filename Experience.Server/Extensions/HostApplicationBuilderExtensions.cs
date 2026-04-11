@@ -84,7 +84,10 @@ public static class HostApplicationBuilderExtensions
                     loggerConfiguration
                         .ReadFrom.Configuration(builder.Configuration)
                         .ReadFrom.Services(sp)
-                        .Enrich.FromLogContext();
+                        .Enrich.FromLogContext()
+                        .Enrich.WithMachineName()
+                        .Enrich.WithEnvironmentName()
+                        .Enrich.WithProperty("ApplicationName", "crgolden-experience");
                     if (builder.Environment.IsProduction())
                     {
                         loggerConfiguration
