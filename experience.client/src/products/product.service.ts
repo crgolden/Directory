@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable, of } from 'rxjs';
 import { Product } from './product.model';
 
-// TODO: Replace mock `of(...)` implementations with real HttpClient calls once
+// NOTE: Replace mock `of(...)` implementations with real HttpClient calls once
 // the Products API is available at /api/products.
 const MOCK_PRODUCTS: Product[] = [
   {

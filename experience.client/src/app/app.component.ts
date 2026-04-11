@@ -36,7 +36,7 @@ export class AppComponent implements AfterViewInit {
   }
 
   onMessage(event: MessageEvent) {
-    if (event.data == null || event.data['source'] !== 'bff-silent-login') {
+    if (event.data?.['source'] !== 'bff-silent-login') {
       return;
     }
 

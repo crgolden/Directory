@@ -7,6 +7,6 @@ export const authGuard: CanActivateFn = () => {
   if (authService.isAuthenticated()) {
     return true;
   }
-  window.location.href = '/bff/login';
+  globalThis.location.href = '/bff/login';
   return false;
 };

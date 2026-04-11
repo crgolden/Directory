@@ -8,7 +8,6 @@ import { ProductService } from '../product.service';
   selector: 'app-product-form',
   imports: [ReactiveFormsModule, RouterLink],
   templateUrl: './product-form.component.html',
-  styleUrl: './product-form.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ProductFormComponent implements OnInit {

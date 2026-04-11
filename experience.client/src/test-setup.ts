@@ -3,8 +3,8 @@ import 'zone.js/testing';
 import { getTestBed } from '@angular/core/testing';
 import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-browser/testing';
 import { ɵresolveComponentResources as resolveComponentResources } from '@angular/core';
-import { readFileSync, readdirSync } from 'fs';
-import { join, resolve } from 'path';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 
 const srcDir = resolve(process.cwd(), 'src');
 

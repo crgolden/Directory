@@ -4,7 +4,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { catchError, map, Observable, of, shareReplay, Subject, switchMap, take } from 'rxjs';
 import { Claim } from './claim';
 
-export type { Claim };
+export type { Claim } from './claim';
 export type Session = Array<Claim>;
 
 @Injectable({
@@ -43,7 +43,7 @@ export class AuthService {
     const base = s.find(x => x.type === 'bff:logout_url')?.value ?? null;
     if (!base) return null;
     const sid = s.find(x => x.type === 'sid')?.value;
-    return sid != null ? `${base}?sid=${sid}` : base;
+    return sid == null ? base : `${base}?sid=${sid}`;
   });
 
   public readonly silentLoginUrl: string = '/bff/silent-login';

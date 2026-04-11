@@ -2,7 +2,6 @@ import {
   ChangeDetectionStrategy,
   Component,
   inject,
-  OnDestroy,
   OnInit,
   signal,
 } from '@angular/core';
@@ -20,7 +19,7 @@ import { MarkdownPipe } from './markdown.pipe';
   styleUrl: './chat.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class ChatComponent implements OnInit, OnDestroy {
+export class ChatComponent implements OnInit {
 
   private readonly titleService = inject(Title);
   private readonly chatService = inject(ChatService);
@@ -41,10 +40,6 @@ export class ChatComponent implements OnInit, OnDestroy {
       this.input.set(q);
     }
     this.loadChats();
-  }
-
-  ngOnDestroy(): void {
-    // Do not delete on destroy — chats persist in Redis for the user.
   }
 
   private loadChats(): void {
@@ -83,7 +78,7 @@ export class ChatComponent implements OnInit, OnDestroy {
       next: delta => {
         this.messages.update(msgs => {
           const updated = [...msgs];
-          const last = updated[updated.length - 1];
+          const last = updated.at(-1)!;
           updated[updated.length - 1] = { ...last, content: last.content + delta };
           return updated;
         });

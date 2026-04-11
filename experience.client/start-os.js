@@ -1,5 +1,5 @@
 'use strict';
-const { spawnSync } = require('child_process');
+const { spawnSync } = require('node:child_process');
 const script = process.platform === 'win32' ? 'start:windows' : 'start:default';
 const result = process.platform === 'win32'
   ? spawnSync('cmd', ['/c', 'npm', 'run', script], { stdio: 'inherit' })

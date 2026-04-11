@@ -1,13 +1,11 @@
-import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, OnInit } from '@angular/core';
 import { Title } from '@angular/platform-browser';
-import { AuthService, Session } from '../auth/auth.service';
-import { Signal } from '@angular/core';
+import { AuthService } from '../auth/auth.service';
 
 @Component({
   selector: 'app-user-session',
   imports: [],
   templateUrl: './user-session.component.html',
-  styleUrl: './user-session.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class UserSessionComponent implements OnInit {

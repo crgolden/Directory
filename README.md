@@ -35,6 +35,18 @@ A full-stack single-page application built with **Angular 21** and **ASP.NET Cor
 - Calls `bff/user` to resolve the authenticated session and display user claims
 - Proxies API requests to the ASP.NET Core backend in development
 
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Framework | ASP.NET Core 10 (Minimal API) |
+| Auth | Duende BFF 7 |
+| Frontend | Angular 21 |
+| Observability | Azure Monitor, OpenTelemetry, Serilog, Elasticsearch |
+| Hosting | Azure App Service |
+| Secrets | Azure Key Vault |
+| Data Protection | Azure Blob Storage + Azure Key Vault |
+
 ## Prerequisites
 
 | Tool | Version |
@@ -49,7 +61,9 @@ A full-stack single-page application built with **Angular 21** and **ASP.NET Cor
 - Azure Monitor workspace (Application Insights connection string)
 - Elasticsearch cluster
 
-## Configuration
+## Getting Started
+
+### 1. Configure User Secrets
 
 In development, user secrets are used (ID `5480cab8-b41b-4dae-8c41-dbc2c01a15e0`). Set the following:
 
@@ -94,7 +108,7 @@ In development, user secrets are used (ID `5480cab8-b41b-4dae-8c41-dbc2c01a15e0`
 | `ExperienceClientId` | OIDC client ID |
 | `ExperienceClientSecret` | OIDC client secret |
 
-## Local Development
+### 2. Run
 
 The easiest way to run the full stack locally is to open the solution in **Visual Studio** and run the `https` launch profile — this starts the ASP.NET Core backend and the Angular dev server together via the SPA proxy.
 
@@ -116,44 +130,52 @@ npm start
 
 The Angular dev server proxies `/bff` and other API paths to `https://localhost:7150` via `src/proxy.conf.js`.
 
-## Building
+## Project Structure
 
-**Backend**
+```
+Experience.Server/     # ASP.NET Core 10 BFF — OIDC session, API proxy, data protection
+experience.client/     # Angular 21 SPA — signals, BFF session, chat and product UI
+Experience.Tests/      # xUnit v3 — unit tests (Moq) and E2E tests (Playwright/Chromium)
+```
+
+## Commands
+
+> **Shell note:** commands that set environment variables inline use bash syntax. On Windows, use Git Bash, WSL, or set the variables separately before running the `dotnet` command.
+
 ```bash
+# Build
 dotnet build
-```
 
-**Frontend**
-```bash
-cd experience.client
-npm run build
+# Build frontend
+cd experience.client && npm run build
 # Output → experience.client/dist/experience.client/browser/
-```
 
-In production, the ASP.NET Core app serves the Angular build output via `UseDefaultFiles()` + `MapStaticAssets()`.
-
-## Testing
-
-**Backend unit tests** (no Azure required)
-```bash
+# Backend unit tests (no Azure required)
 dotnet test --project Experience.Tests --configuration Release -- --filter-trait "Category=Unit"
-```
 
-**Backend E2E tests** (Playwright + WebApplicationFactory — requires `az login` + user secrets)
-```bash
+# Backend E2E tests (Playwright + WebApplicationFactory — requires az login + user secrets)
 ASPNETCORE_ENVIRONMENT=Development dotnet test --project Experience.Tests --configuration Release -- --filter-trait "Category=E2E"
-```
 
-**Frontend unit tests** (Vitest)
-```bash
-cd experience.client
-npm test
+# Frontend unit tests (Vitest)
+cd experience.client && npm test
+
+# Publish web app
+dotnet publish Experience.Server -c Release -o ./publish
 ```
 
 See [TESTING.md](TESTING.md) for full details on the E2E test infrastructure, CI configuration, and local prerequisites.
 
 ## Deployment
 
-The application is deployed to **Azure App Service** via the GitHub Actions workflow at `.github/workflows/main_crgolden-experience.yml`. The workflow triggers on pushes to `main`.
+The GitHub Actions workflow triggers on pushes to `main` and pull requests.
+
+**Build job** — runs on every trigger:
+1. Builds the full solution (`dotnet build --configuration Release`) and the Angular frontend
+2. Runs backend unit tests with coverage and frontend unit tests (Vitest)
+3. Logs in to Azure via OIDC and runs backend E2E tests with `ASPNETCORE_ENVIRONMENT=CI`
+4. Runs SonarCloud analysis, publishes the web app, and uploads the artifact
+
+**Deploy job** — runs after a successful build on `main`:
+1. Deploys the web app to **Azure App Service** `crgolden-experience` (Production slot) via Azure OIDC
 
 Code quality is continuously monitored by [SonarCloud](https://sonarcloud.io/summary/new_code?id=crgolden_Experience).

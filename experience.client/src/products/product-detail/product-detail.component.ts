@@ -8,7 +8,6 @@ import { Product } from '../product.model';
   selector: 'app-product-detail',
   imports: [RouterLink],
   templateUrl: './product-detail.component.html',
-  styleUrl: './product-detail.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ProductDetailComponent implements OnInit {
