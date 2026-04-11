@@ -275,7 +275,7 @@ jobs:
 
       - name: Run smoke tests
         run: |
-          dotnet test Experience.Tests --no-build --configuration Release `
+          dotnet test --project Experience.Tests --no-build --configuration Release `
             -- --filter-trait Category=Smoke `
             --report-xunit-trx --report-xunit-trx-filename smoke-tests.trx
 
