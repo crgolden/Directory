@@ -18,6 +18,8 @@ jobs:
   build:
     name: Build and analyze
     runs-on: windows-latest
+    outputs:
+      playwright-cache-key: ${{ steps.cache-playwright.outputs.cache-primary-key }}
     permissions:
       id-token: write #This is required for requesting the JWT (needed for Azure OIDC in E2E tests)
       contents: read #This is required for actions/checkout
@@ -142,12 +144,20 @@ jobs:
           echo "OidcAuthority=${{ vars.OIDC_AUTHORITY }}" >> $env:GITHUB_ENV
           echo "ManualsApiAddress=${{ vars.MANUALS_API_ADDRESS }}" >> $env:GITHUB_ENV
 
+      - name: Get Playwright version
+        id: playwright-version
+        shell: pwsh
+        run: |
+          $version = (Select-Xml -Path Experience.Tests/Experience.Tests.csproj `
+            -XPath '//PackageReference[@Include="Microsoft.Playwright"]/@Version').Node.Value
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+
       - name: Cache Playwright browsers
         id: cache-playwright
         uses: actions/cache@v5
         with:
           path: ~\AppData\Local\ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('Experience.Tests/Experience.Tests.csproj') }}
+          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}
 
       - name: Install Playwright browsers
         if: steps.cache-playwright.outputs.cache-hit != 'true'
@@ -171,6 +181,7 @@ jobs:
         with:
           name: test-binaries
           path: Experience.Tests/bin/Release/net10.0/
+          include-hidden-files: true
 
       - name: dotnet publish
         run: >
@@ -251,7 +262,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ~\AppData\Local\ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('Experience.Tests/Experience.Tests.csproj') }}
+          key: ${{ needs.build.outputs.playwright-cache-key }}
 
       - name: Install Playwright browsers
         if: steps.cache-playwright.outputs.cache-hit != 'true'
