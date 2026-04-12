@@ -19,7 +19,7 @@ jobs:
     name: Build and analyze
     runs-on: windows-latest
     outputs:
-      playwright-cache-key: ${{ steps.cache-playwright.outputs.cache-primary-key }}
+      playwright-version: ${{ steps.playwright-version.outputs.version }}
     permissions:
       id-token: write #This is required for requesting the JWT (needed for Azure OIDC in E2E tests)
       contents: read #This is required for actions/checkout
@@ -262,7 +262,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ~\AppData\Local\ms-playwright
-          key: ${{ needs.build.outputs.playwright-cache-key }}
+          key: ${{ runner.os }}-playwright-${{ needs.build.outputs.playwright-version }}
 
       - name: Install Playwright browsers
         if: steps.cache-playwright.outputs.cache-hit != 'true'
