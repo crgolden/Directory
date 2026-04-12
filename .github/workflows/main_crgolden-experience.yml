@@ -237,7 +237,7 @@ jobs:
   smoke:
     name: Post-deploy smoke
     runs-on: windows-latest
-    needs: deploy
+    needs: [build, deploy]
     if: github.ref == 'refs/heads/main'
     permissions:
       contents: read
