@@ -1,4 +1,5 @@
 #pragma warning disable SA1200
+using System.Diagnostics;
 using Duende.Bff;
 using Duende.Bff.Yarp;
 using Experience.Server.Extensions;
@@ -57,6 +58,9 @@ try
 
     app.UseHttpsRedirection().UseAuthorization();
     app.MapHealthChecks("Health").DisableHttpMetrics();
+    app.MapGet("/config/telemetry", (IConfiguration configuration) =>
+        Results.Ok(new { connectionString = configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"] }))
+        .DisableHttpMetrics();
     app.UseDefaultFiles();
     app.MapStaticAssets();
     app.UseAuthentication();

@@ -84,7 +84,16 @@ PlaywrightFixture (IAsyncLifetime)
 
 ### Authentication
 
-The Duende BFF's `/bff/user` endpoint is mocked at the Playwright layer — `PlaywrightFixture.NewPageAsync` registers a route intercept that returns a synthetic authenticated user:
+When `TEST_USERNAME` and `TEST_PASSWORD` environment variables are set (always in CI, optionally locally), `PlaywrightFixture.LoginAsync` performs a real OIDC login against the Identity server during fixture initialization:
+
+1. Navigates to `/bff/login?returnUrl=%2Fchat` — starts the Duende BFF OIDC challenge.
+2. Fills the Identity server login form (`Input.Email` / `Input.Password`) and submits.
+3. Waits for the BFF callback to redirect back to `/chat`.
+4. Saves the authenticated browser storage state (cookies) to a temp file.
+
+Each per-test context is then created with `StorageStatePath` set to this file, so every test starts with a real BFF session — the full OIDC flow, BFF session ticket, and auth guard are exercised.
+
+When credentials are **not** set (local development without `TEST_USERNAME` / `TEST_PASSWORD`), the fixture falls back to a Playwright route mock that returns a synthetic `/bff/user` response:
 
 ```
 { type: "sub",   value: "e2e-user-id" }
@@ -93,7 +102,7 @@ The Duende BFF's `/bff/user` endpoint is mocked at the Playwright layer — `Pla
 { type: "sid",   value: "e2e-session" }
 ```
 
-This means the Angular `AuthService` sees an authenticated session and the auth guard allows navigation to `/chat`, without any real OIDC or BFF session being established. No `/test/sign-in` endpoint is needed.
+In CI, missing credentials cause a hard failure (`InvalidOperationException`).
 
 ### Manuals API mocking
 
@@ -151,7 +160,7 @@ In CI, the build job runs `azure/login` before the E2E step and sets `ASPNETCORE
 
 ### Smoke job (post-deploy, `main` only)
 
-Runs after the deploy job. Uses the GitHub Actions **Production** environment (for OIDC secrets and approval gates) but the tests themselves boot a local `ExperienceWebApplicationFactory` Kestrel server — they do **not** connect to the deployed app. All Manuals API and `/bff/user` calls are intercepted by Playwright route mocks, exactly as in the E2E regression job.
+Runs after the deploy job. Uses the GitHub Actions **Production** environment (for OIDC secrets and approval gates) but the tests themselves boot a local `ExperienceWebApplicationFactory` Kestrel server — they do **not** connect to the deployed app. Authentication uses a real OIDC login via `TEST_USERNAME` / `TEST_PASSWORD` (same as the E2E regression job). All `/manuals/api/**` calls are intercepted by Playwright route mocks.
 
 1. Build `Experience.Tests`
 2. Azure login

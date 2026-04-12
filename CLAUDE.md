@@ -102,6 +102,7 @@ Three tiers — see [TESTING.md](TESTING.md) for full commands, CI pipeline deta
 
 **E2E / Smoke tests** (`Experience.Tests/`):
 - `PlaywrightFixture` boots a real Kestrel server via `ExperienceWebApplicationFactory` on a random local HTTPS port. Playwright points its browser at that local server — not any deployed Azure endpoint.
-- `/bff/user` and all `/manuals/api/**` calls are intercepted by Playwright route mocks (`InMemoryChatsStore`). No Identity server or Manuals service is contacted.
+- When `TEST_USERNAME` and `TEST_PASSWORD` are set (always in CI), `PlaywrightFixture.LoginAsync` performs a real OIDC login against the Identity server and saves the session cookies for reuse across tests. When credentials are absent (local dev), a synthetic `/bff/user` Playwright route mock is used as a fallback.
+- All `/manuals/api/**` calls are intercepted by Playwright route mocks (`InMemoryChatsStore`). No real Manuals service is contacted.
 - Azure Key Vault **is** contacted at server startup — `az login` required locally.
 - Always use `ASPNETCORE_ENVIRONMENT=Development` locally. Never use `CI` outside of an actual CI pipeline.
