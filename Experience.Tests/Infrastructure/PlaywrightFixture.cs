@@ -61,17 +61,19 @@ public sealed class PlaywrightFixture : IAsyncLifetime
             Headless = Headless
         });
 
-        if ((CI || SmokeBaseUrl is not null) && (TestUsername is null || TestPassword is null))
+        if (SmokeBaseUrl is not null)
         {
-            throw new InvalidOperationException("TEST_USERNAME and TEST_PASSWORD must be set in CI and when SMOKE_BASE_URL is configured.");
+            if (TestUsername is null || TestPassword is null)
+            {
+                throw new InvalidOperationException("TEST_USERNAME and TEST_PASSWORD must be set when SMOKE_BASE_URL is configured.");
+            }
+
+            await LoginAsync(); // real OIDC against the deployed app; sets _storageStatePath
         }
 
-        if (TestUsername is not null && TestPassword is not null)
-        {
-            await LoginAsync(); // real OIDC; sets _storageStatePath
-        }
-
-        // else: _storageStatePath stays null; NewPageAsync falls back to the /bff/user mock
+        // Factory mode: always use the /bff/user mock — real OIDC login is not possible
+        // because the Kestrel test server listens on a random port that cannot be registered
+        // as a redirect URI. The real auth flow is covered by the smoke tests.
 
         // Warm up: load /chat once so the server pool and Angular hydration are ready before
         // the first real test runs. NewPageAsync already navigates to /chat and waits for

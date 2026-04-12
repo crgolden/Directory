@@ -8,7 +8,7 @@ The Experience test suite is split across three tiers: **backend unit tests** (x
 |------|-------------|---------|-----------------|------------------------|------------|
 | Backend unit | `Category=Unit` | `Experience.Tests` | Yes (Key Vault at startup) | No | Every push/PR |
 | Frontend unit | Vitest | `experience.client` | No | No | Every push/PR |
-| E2E (regression) | `Category=E2E` | `Experience.Tests` | Yes (Key Vault at startup) | Yes | Every push/PR |
+| E2E (regression) | `Category=E2E` | `Experience.Tests` | Yes (Key Vault at startup) | Yes (for static files) | Every push/PR |
 | E2E (smoke) | `Category=Smoke` | `Experience.Tests` | No — targets the deployed app directly | No | Post-deploy only |
 
 Smoke tests are a tagged subset of E2E tests (`[Trait("Category", "Smoke")]` on top of `[Trait("Category", "E2E")]`). They compile into the same binary, but run in a different mode: when `SMOKE_BASE_URL` is set, `PlaywrightFixture` skips `ExperienceWebApplicationFactory` entirely and points Playwright straight at that URL. CI sets `SMOKE_BASE_URL` to the Azure App Service URL emitted by the deploy step.
@@ -101,16 +101,11 @@ In both modes, `/manuals/api/**` requests are intercepted by Playwright route mo
 
 ### Authentication
 
-When `TEST_USERNAME` and `TEST_PASSWORD` environment variables are set (always in CI, optionally locally), `PlaywrightFixture.LoginAsync` performs a real OIDC login against the Identity server during fixture initialization:
+Authentication behaviour differs between factory mode and smoke mode:
 
-1. Navigates to `/bff/login?returnUrl=%2Fchat` — starts the Duende BFF OIDC challenge.
-2. Fills the Identity server login form (`Input.Email` / `Input.Password`) and submits.
-3. Waits for the BFF callback to redirect back to `/chat`.
-4. Saves the authenticated browser storage state (cookies) to a temp file.
+**Factory mode** (`SMOKE_BASE_URL` absent — `Category=E2E` and local smoke runs):
 
-Each per-test context is then created with `StorageStatePath` set to this file, so every test starts with a real BFF session — the full OIDC flow, BFF session ticket, and auth guard are exercised.
-
-When credentials are **not** set (local development without `TEST_USERNAME` / `TEST_PASSWORD`), the fixture falls back to a Playwright route mock that returns a synthetic `/bff/user` response:
+The fixture always uses a Playwright route mock for `/bff/user`, regardless of whether `TEST_USERNAME` / `TEST_PASSWORD` are set. Real OIDC login is not attempted because the Kestrel test server listens on a random port that cannot be pre-registered as a redirect URI in the Identity server. The mock returns a synthetic user:
 
 ```
 { type: "sub",   value: "e2e-user-id" }
@@ -119,7 +114,16 @@ When credentials are **not** set (local development without `TEST_USERNAME` / `T
 { type: "sid",   value: "e2e-session" }
 ```
 
-In CI, missing credentials cause a hard failure (`InvalidOperationException`).
+**Smoke mode** (`SMOKE_BASE_URL` set — `Category=Smoke` in CI):
+
+`PlaywrightFixture.LoginAsync` performs a real OIDC login against the Identity server during fixture initialization. `TEST_USERNAME` and `TEST_PASSWORD` are required; their absence causes a hard failure (`InvalidOperationException`).
+
+1. Navigates to `/bff/login?returnUrl=%2Fchat` — starts the Duende BFF OIDC challenge.
+2. Fills the Identity server login form (`Input.Email` / `Input.Password`) and submits.
+3. Waits for the BFF callback to redirect back to `/chat`.
+4. Saves the authenticated browser storage state (cookies) to a temp file.
+
+Each per-test context is then created with `StorageStatePath` set to this file, so every test starts with a real BFF session — the full OIDC flow, BFF session ticket, and auth guard are exercised.
 
 ### Manuals API mocking
 
