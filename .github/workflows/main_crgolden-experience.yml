@@ -162,11 +162,17 @@ jobs:
             -f xml -o "coverage-e2e.xml" -s "coverage.settings.xml"
 
       - name: Upload test results
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         if: always()
         with:
           name: test-results
           path: Experience.Tests/bin/Release/net10.0/TestResults/
+
+      - name: Upload test binaries
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: test-binaries
+          path: Experience.Tests/bin/Release/net10.0/
 
       - name: dotnet publish
         run: >
@@ -177,7 +183,7 @@ jobs:
           -o ${{ github.workspace  }}\publish
 
       - name: Upload artifact for deployment job
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: .net-app
           path: ${{ github.workspace }}\publish
@@ -192,6 +198,8 @@ jobs:
   deploy:
     runs-on: windows-latest
     needs: build
+    outputs:
+      webapp-url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
     permissions:
       id-token: write #This is required for requesting the JWT
       contents: read #This is required for actions/checkout
@@ -223,46 +231,20 @@ jobs:
     needs: deploy
     if: github.ref == 'refs/heads/main'
     permissions:
-      id-token: write
       contents: read
 
     steps:
-      - uses: actions/checkout@v6
-
-      - name: Set up .NET Core
-        uses: actions/setup-dotnet@v5
+      - name: Download test binaries
+        uses: actions/download-artifact@v7
         with:
-          dotnet-version: '10.x'
-
-      - name: Cache NuGet packages
-        uses: actions/cache@v5
-        with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
-          restore-keys: ${{ runner.os }}-nuget-
-
-      - name: Build Experience.Tests
-        run: dotnet build Experience.Tests --configuration Release
-
-      - name: Login to Azure
-        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5  # v2
-        with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_C4959774308D40CE9136D90664140CE6 }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_F0CC71E741B84CD68956AF7492EDFBD4 }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_0F2FA3ACCE504398AEA0AB3780B1A7E3 }}
+          name: test-binaries
+          path: Experience.Tests/bin/Release/net10.0/
 
       - name: Set smoke test environment
         shell: powershell
         run: |
-          echo "ASPNETCORE_ENVIRONMENT=CI" >> $env:GITHUB_ENV
-          echo "KeyVaultUri=${{ vars.KEYVAULT_URI }}" >> $env:GITHUB_ENV
-          echo "BlobUri=${{ vars.BLOB_URI }}" >> $env:GITHUB_ENV
-          echo "DataProtectionKeyIdentifier=${{ vars.DATA_PROTECTION_KEY_IDENTIFIER }}" >> $env:GITHUB_ENV
-          echo "DefaultAzureCredentialOptions__ExcludeAzureCliCredential=false" >> $env:GITHUB_ENV
-          echo "ElasticsearchNode=${{ vars.ELASTICSEARCH_NODE }}" >> $env:GITHUB_ENV
-          echo "APPLICATIONINSIGHTS_CONNECTION_STRING=${{ vars.APPLICATIONINSIGHTS_CONNECTION_STRING }}" >> $env:GITHUB_ENV
-          echo "OidcAuthority=${{ vars.OIDC_AUTHORITY }}" >> $env:GITHUB_ENV
-          echo "ManualsApiAddress=${{ vars.MANUALS_API_ADDRESS }}" >> $env:GITHUB_ENV
+          echo "CI=true" >> $env:GITHUB_ENV
+          echo "SMOKE_BASE_URL=${{ needs.deploy.outputs.webapp-url }}" >> $env:GITHUB_ENV
           echo "TEST_USERNAME=${{ secrets.TEST_USERNAME }}" >> $env:GITHUB_ENV
           echo "TEST_PASSWORD=${{ secrets.TEST_PASSWORD }}" >> $env:GITHUB_ENV
 
@@ -284,7 +266,7 @@ jobs:
             --report-xunit-trx --report-xunit-trx-filename smoke-tests.trx
 
       - name: Upload smoke results
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         if: always()
         with:
           name: smoke-test-results

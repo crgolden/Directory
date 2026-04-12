@@ -9,9 +9,9 @@ The Experience test suite is split across three tiers: **backend unit tests** (x
 | Backend unit | `Category=Unit` | `Experience.Tests` | Yes (Key Vault at startup) | No | Every push/PR |
 | Frontend unit | Vitest | `experience.client` | No | No | Every push/PR |
 | E2E (regression) | `Category=E2E` | `Experience.Tests` | Yes (Key Vault at startup) | Yes | Every push/PR |
-| E2E (smoke) | `Category=Smoke` | `Experience.Tests` | Yes (Key Vault at startup) | Yes | Post-deploy only |
+| E2E (smoke) | `Category=Smoke` | `Experience.Tests` | No — targets the deployed app directly | No | Post-deploy only |
 
-Smoke tests are a tagged subset of E2E tests (`[Trait("Category", "Smoke")]` on top of `[Trait("Category", "E2E")]`). They compile into the same binary and run in the same way — CI just filters differently.
+Smoke tests are a tagged subset of E2E tests (`[Trait("Category", "Smoke")]` on top of `[Trait("Category", "E2E")]`). They compile into the same binary, but run in a different mode: when `SMOKE_BASE_URL` is set, `PlaywrightFixture` skips `ExperienceWebApplicationFactory` entirely and points Playwright straight at that URL. CI sets `SMOKE_BASE_URL` to the Azure App Service URL emitted by the deploy step.
 
 ---
 
@@ -53,14 +53,19 @@ dotnet test --project Experience.Tests --no-build --configuration Release \
   -- --filter-trait "Category=E2E"
 ```
 
-### E2E tests (smoke subset only)
+### E2E tests (smoke subset only — against a deployed app)
+
+Smoke tests require `SMOKE_BASE_URL` to point Playwright at a running instance. Pass any URL — production, a staging slot, a PR deployment, etc. No Azure CLI login and no Angular build are needed; `ExperienceWebApplicationFactory` is not started.
 
 ```bash
-export ASPNETCORE_ENVIRONMENT=Development
-
+SMOKE_BASE_URL=https://crgolden-experience.azurewebsites.net \
+TEST_USERNAME=<your-username> \
+TEST_PASSWORD=<your-password> \
 dotnet test --project Experience.Tests --no-build --configuration Release \
   -- --filter-trait "Category=Smoke"
 ```
+
+`SMOKE_BASE_URL` is the same value that CI sets from `steps.deploy-to-webapp.outputs.webapp-url`. Credentials are required whenever `SMOKE_BASE_URL` is set — the fixture will throw if `TEST_USERNAME` or `TEST_PASSWORD` is absent.
 
 ### Run all tests in sequence
 
@@ -73,6 +78,9 @@ cd experience.client && npx vitest run --coverage
 
 ## E2E test infrastructure
 
+`PlaywrightFixture` operates in two modes depending on whether `SMOKE_BASE_URL` is set:
+
+**Local / regression mode** (`SMOKE_BASE_URL` absent — used by `Category=E2E` and `Category=Smoke` without the env var):
 ```
 PlaywrightFixture (IAsyncLifetime)
   └── ExperienceWebApplicationFactory (WebApplicationFactory<Program>)
@@ -81,6 +89,15 @@ PlaywrightFixture (IAsyncLifetime)
         │     TestStaticFilesStartupFilter → UseStaticFiles() (serves Angular SPA)
         └── TestServer    ← HttpClient from CreateClient() uses this
 ```
+
+**Smoke / post-deploy mode** (`SMOKE_BASE_URL` set — used by `Category=Smoke` in CI):
+```
+PlaywrightFixture (IAsyncLifetime)
+  └── (no ExperienceWebApplicationFactory)
+  BaseAddress = SMOKE_BASE_URL  ← Playwright browser talks directly to the deployed app
+```
+
+In both modes, `/manuals/api/**` requests are intercepted by Playwright route mocks (backed by `InMemoryChatsStore`) before they reach the server.
 
 ### Authentication
 
@@ -156,14 +173,15 @@ In CI, the build job runs `azure/login` before the E2E step and sets `ASPNETCORE
 5. Cache + install Playwright Chromium
 6. E2E tests with coverage (`dotnet-coverage collect … --filter-trait Category=E2E`)
 7. Upload TRX artifacts (`Experience.Tests/bin/Release/net10.0/TestResults/`)
-8. Publish app + SonarCloud analysis
+8. Upload test binaries artifact (`Experience.Tests/bin/Release/net10.0/`) — consumed by the smoke job
+9. Publish app + SonarCloud analysis
 
 ### Smoke job (post-deploy, `main` only)
 
-Runs after the deploy job. Uses the GitHub Actions **Production** environment (for OIDC secrets and approval gates) but the tests themselves boot a local `ExperienceWebApplicationFactory` Kestrel server — they do **not** connect to the deployed app. Authentication uses a real OIDC login via `TEST_USERNAME` / `TEST_PASSWORD` (same as the E2E regression job). All `/manuals/api/**` calls are intercepted by Playwright route mocks.
+Runs after the deploy job. Downloads the pre-built `test-binaries` artifact from the build job (no source checkout, no rebuild). Sets `SMOKE_BASE_URL` to the deployed Azure App Service URL emitted by the deploy step, and `TEST_USERNAME` / `TEST_PASSWORD` for real OIDC login. All `/manuals/api/**` calls are still intercepted by Playwright route mocks — no real Manuals service is contacted. No Azure CLI login is needed (no Key Vault, no `ExperienceWebApplicationFactory`).
 
-1. Build `Experience.Tests`
-2. Azure login
+1. Download `test-binaries` artifact
+2. Set `SMOKE_BASE_URL`, `TEST_USERNAME`, `TEST_PASSWORD`
 3. Cache + install Playwright Chromium
 4. Run `--filter-trait Category=Smoke` (subset of E2E)
 5. Upload TRX artifacts

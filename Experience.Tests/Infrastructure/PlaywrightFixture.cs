@@ -17,6 +17,7 @@ public sealed class PlaywrightFixture : IAsyncLifetime
 
     private static readonly string? TestUsername = Environment.GetEnvironmentVariable("TEST_USERNAME");
     private static readonly string? TestPassword = Environment.GetEnvironmentVariable("TEST_PASSWORD");
+    private static readonly string? SmokeBaseUrl = Environment.GetEnvironmentVariable("SMOKE_BASE_URL");
 
     private IPlaywright? _playwright;
     private IBrowser? _browser;
@@ -24,12 +25,12 @@ public sealed class PlaywrightFixture : IAsyncLifetime
 
     public PlaywrightFixture()
     {
-        Factory = new ExperienceWebApplicationFactory();
+        Factory = SmokeBaseUrl is null ? new ExperienceWebApplicationFactory() : null;
         ChatStore = new InMemoryChatsStore();
         BaseAddress = string.Empty;
     }
 
-    public ExperienceWebApplicationFactory Factory { get; }
+    public ExperienceWebApplicationFactory? Factory { get; }
 
     public InMemoryChatsStore ChatStore { get; }
 
@@ -38,8 +39,15 @@ public sealed class PlaywrightFixture : IAsyncLifetime
     /// <inheritdoc/>
     public async ValueTask InitializeAsync()
     {
-        Factory.CreateClient(); // triggers server startup; populates Factory.ServerAddress
-        BaseAddress = Factory.ServerAddress;
+        if (SmokeBaseUrl is not null)
+        {
+            BaseAddress = SmokeBaseUrl.TrimEnd('/');
+        }
+        else
+        {
+            Factory!.CreateClient(); // triggers server startup; populates Factory.ServerAddress
+            BaseAddress = Factory.ServerAddress;
+        }
 
         var exitCode = Microsoft.Playwright.Program.Main(["install", "chromium"]);
         if (exitCode != 0)
@@ -53,9 +61,9 @@ public sealed class PlaywrightFixture : IAsyncLifetime
             Headless = Headless
         });
 
-        if (CI && (TestUsername is null || TestPassword is null))
+        if ((CI || SmokeBaseUrl is not null) && (TestUsername is null || TestPassword is null))
         {
-            throw new InvalidOperationException("TEST_USERNAME and TEST_PASSWORD must be set in CI.");
+            throw new InvalidOperationException("TEST_USERNAME and TEST_PASSWORD must be set in CI and when SMOKE_BASE_URL is configured.");
         }
 
         if (TestUsername is not null && TestPassword is not null)
@@ -161,7 +169,10 @@ public sealed class PlaywrightFixture : IAsyncLifetime
         }
 
         _playwright?.Dispose();
-        await Factory.DisposeAsync();
+        if (Factory is not null)
+        {
+            await Factory.DisposeAsync();
+        }
 
         if (_storageStatePath is not null && File.Exists(_storageStatePath))
         {
