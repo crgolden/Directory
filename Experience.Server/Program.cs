@@ -1,5 +1,6 @@
 #pragma warning disable SA1200
 using System.Diagnostics;
+using System.Security.Claims;
 using Duende.Bff;
 using Duende.Bff.Yarp;
 using Experience.Server.Extensions;
@@ -18,6 +19,7 @@ try
     }
 
     var manualsApiAddress = builder.Configuration.GetValue<Uri?>("ManualsApiAddress") ?? throw new InvalidOperationException("Invalid 'ManualsApiAddress'.");
+    var productsApiAddress = builder.Configuration.GetValue<Uri?>("ProductsApiAddress") ?? throw new InvalidOperationException("Invalid 'ProductsApiAddress'.");
     var tokenCredential = await builder.Configuration.ToTokenCredentialAsync();
     var secretClient = builder.Configuration.ToSecretClient(tokenCredential);
     await builder.AddObservabilityAsync(secretClient);
@@ -43,8 +45,8 @@ try
                 return;
             }
 
-            diagnosticContext.Set("TraceId", activity.TraceId.ToString());
-            diagnosticContext.Set("SpanId", activity.SpanId.ToString());
+            diagnosticContext.Set(nameof(Activity.TraceId), activity.TraceId.ToString());
+            diagnosticContext.Set(nameof(Activity.SpanId), activity.SpanId.ToString());
         };
     });
     if (app.Environment.IsDevelopment())
@@ -57,9 +59,28 @@ try
     }
 
     app.UseHttpsRedirection().UseAuthorization();
-    app.MapHealthChecks("Health").DisableHttpMetrics();
+    app.Use((ctx, next) =>
+    {
+        if (ctx.User.Identity?.IsAuthenticated != true)
+        {
+            return next(ctx);
+        }
+
+        using (Serilog.Context.LogContext.PushProperty("UserId", ctx.User.FindFirstValue("sub")))
+        using (Serilog.Context.LogContext.PushProperty("UserEmail", ctx.User.FindFirstValue("email")))
+        {
+            return next(ctx);
+        }
+    });
+    app.MapHealthChecks("/health").DisableHttpMetrics();
     app.MapGet("/config/telemetry", (IConfiguration configuration) =>
-        Results.Ok(new { connectionString = configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"] }))
+        {
+            var value = new
+            {
+                connectionString = configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]
+            };
+            return TypedResults.Ok(value);
+        })
         .DisableHttpMetrics();
     app.UseDefaultFiles();
     app.MapStaticAssets();
@@ -67,6 +88,7 @@ try
     app.UseBff();
     app.MapFallbackToFile("/index.html");
     app.MapRemoteBffApiEndpoint("/manuals", manualsApiAddress).WithAccessToken();
+    app.MapRemoteBffApiEndpoint("/products", productsApiAddress).WithAccessToken();
     await app.RunAsync();
 }
 catch (Exception ex) when (ex is not HostAbortedException)

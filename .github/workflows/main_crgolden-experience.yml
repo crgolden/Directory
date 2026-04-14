@@ -143,6 +143,7 @@ jobs:
           echo "APPLICATIONINSIGHTS_CONNECTION_STRING=${{ vars.APPLICATIONINSIGHTS_CONNECTION_STRING }}" >> $env:GITHUB_ENV
           echo "OidcAuthority=${{ vars.OIDC_AUTHORITY }}" >> $env:GITHUB_ENV
           echo "ManualsApiAddress=${{ vars.MANUALS_API_ADDRESS }}" >> $env:GITHUB_ENV
+          echo "ProductsApiAddress=${{ vars.PRODUCTS_API_ADDRESS }}" >> $env:GITHUB_ENV
 
       - name: Get Playwright version
         id: playwright-version
