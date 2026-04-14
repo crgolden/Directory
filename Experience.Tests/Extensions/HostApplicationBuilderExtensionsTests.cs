@@ -46,10 +46,9 @@ public sealed class HostApplicationBuilderExtensionsTests
 
         // Assert
         Assert.Same(builder.Object, result);
-        builder.VerifyGet(x => x.Configuration, Times.Once);
-        builder.VerifyGet(x => x.Services, Times.Once);
-        builder.VerifyGet(x => x.Configuration, Times.Once);
-        builder.VerifyGet(x => x.Environment, Times.Exactly(2));
+        builder.VerifyGet(x => x.Configuration, Times.Exactly(2));
+        builder.VerifyGet(x => x.Services, Times.Exactly(2));
+        builder.VerifyGet(x => x.Environment, Times.Exactly(3));
         loggingBuilder.VerifyGet(x => x.Services, Times.Exactly(3));
         configuration.Verify(x => x.GetSection(path), Times.Once);
         configurationSection.VerifyGet(x => x.Value, Times.Once);
@@ -57,7 +56,7 @@ public sealed class HostApplicationBuilderExtensionsTests
         secretClient.Verify(x => x.GetSecretAsync(secret1.Name, null, null, TestContext.Current.CancellationToken), Times.Once);
         secretClient.Verify(x => x.GetSecretAsync(secret2.Name, null, null, TestContext.Current.CancellationToken), Times.Once);
         environment.Verify(x => x.ApplicationName, Times.Once);
-        environment.Verify(x => x.EnvironmentName, Times.Once);
+        environment.Verify(x => x.EnvironmentName, Times.Exactly(2));
     }
 
     [Fact]
