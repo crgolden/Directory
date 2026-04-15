@@ -4,9 +4,25 @@
     <a class="btn btn-primary" [routerLink]="['/products/new']">+ New Product</a>
   </div>
 
-  @if (products().length === 0) {
+  <div class="mb-3">
+    <input
+      type="search"
+      class="form-control"
+      placeholder="Search by name&hellip;"
+      [value]="searchTerm()"
+      (input)="onSearch($any($event.target).value)"
+      aria-label="Search products by name" />
+  </div>
+
+  @if (loading()) {
+    <div class="text-muted">Loading&hellip;</div>
+  } @else if (products().length === 0) {
     <div class="alert alert-secondary">
-      No products yet. <a [routerLink]="['/products/new']">Add your first product.</a>
+      @if (searchTerm()) {
+        No products match &ldquo;{{ searchTerm() }}&rdquo;.
+      } @else {
+        No products yet. <a [routerLink]="['/products/new']">Add your first product.</a>
+      }
     </div>
   } @else {
     <div class="table-responsive">
@@ -16,6 +32,7 @@
             <th>Name</th>
             <th>Brand</th>
             <th>Category</th>
+            <th>Price</th>
             <th>Purchase Date</th>
             <th class="text-end">Actions</th>
           </tr>
@@ -23,9 +40,10 @@
         <tbody>
           @for (product of products(); track product.id) {
             <tr>
-              <td>{{ product.name }}</td>
+              <td>{{ product.name ?? '—' }}</td>
               <td>{{ product.brand ?? '—' }}</td>
               <td>{{ product.category ?? '—' }}</td>
+              <td>{{ product.price != null ? ('$' + product.price) : '—' }}</td>
               <td>{{ product.purchaseDate ?? '—' }}</td>
               <td class="text-end">
                 @if (confirmingDeleteId() === product.id) {

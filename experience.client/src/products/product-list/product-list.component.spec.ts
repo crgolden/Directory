@@ -18,12 +18,32 @@ const testRoutes: Routes = [
 
 const mockProducts: Product[] = [
   {
-    id: '1', name: 'TV', brand: 'LG', category: 'Electronics',
-    createdAt: '', updatedAt: ''
+    id: 'aaaaaaaa-0000-0000-0000-000000000001',
+    name: 'TV',
+    price: 999.99,
+    brand: 'LG',
+    modelNumber: null,
+    serialNumber: null,
+    purchaseDate: null,
+    category: 'Electronics',
+    description: null,
+    manualUrl: null,
+    createdAt: '2024-01-01T00:00:00Z',
+    updatedAt: null,
   },
   {
-    id: '2', name: 'Vacuum', brand: 'Dyson', category: 'Home',
-    createdAt: '', updatedAt: ''
+    id: 'aaaaaaaa-0000-0000-0000-000000000002',
+    name: 'Vacuum',
+    price: null,
+    brand: 'Dyson',
+    modelNumber: null,
+    serialNumber: null,
+    purchaseDate: null,
+    category: 'Home',
+    description: null,
+    manualUrl: null,
+    createdAt: '2024-01-02T00:00:00Z',
+    updatedAt: null,
   },
 ];
 
@@ -32,8 +52,10 @@ describe('ProductListComponent', () => {
   let mockService: Partial<ProductService>;
 
   beforeEach(async () => {
+    vi.useFakeTimers();
+
     mockService = {
-      getAll: () => of(mockProducts),
+      getAll: vi.fn(() => of(mockProducts)),
       delete: vi.fn(() => of(void 0)),
     };
 
@@ -46,7 +68,17 @@ describe('ProductListComponent', () => {
     }).compileComponents();
 
     fixture = TestBed.createComponent(ProductListComponent);
+
+    // detectChanges triggers ngOnInit which emits on search$ → debounceTime(300)
     fixture.detectChanges();
+
+    // Advance fake clock past the initial debounce so the product list is populated
+    await vi.runAllTimersAsync();
+    fixture.detectChanges();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('renders a row for each product', () => {
@@ -57,6 +89,38 @@ describe('ProductListComponent', () => {
   it('shows product name in row', () => {
     const firstRow = fixture.debugElement.queryAll(By.css('tbody tr'))[0];
     expect(firstRow.nativeElement.textContent).toContain('TV');
+  });
+
+  it('renders the search input', () => {
+    const input = fixture.debugElement.query(By.css('input[type="search"]'));
+    expect(input).toBeTruthy();
+  });
+
+  it('typing in the search input calls ProductService.getAll with the term', async () => {
+    const input: HTMLInputElement = fixture.debugElement.query(By.css('input[type="search"]')).nativeElement;
+    input.value = 'vacuum';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    await vi.runAllTimersAsync();
+    fixture.detectChanges();
+
+    expect(mockService.getAll).toHaveBeenCalledWith('vacuum');
+  });
+
+  it('shows no-match message when search returns empty list', async () => {
+    (mockService.getAll as ReturnType<typeof vi.fn>).mockReturnValue(of([]));
+
+    const input: HTMLInputElement = fixture.debugElement.query(By.css('input[type="search"]')).nativeElement;
+    input.value = 'xyz';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    await vi.runAllTimersAsync();
+    fixture.detectChanges();
+
+    const alert = fixture.debugElement.query(By.css('.alert-secondary'));
+    expect(alert.nativeElement.textContent).toContain('xyz');
   });
 
   it('clicking Delete shows inline confirmation', () => {
@@ -76,6 +140,6 @@ describe('ProductListComponent', () => {
     const yesBtn = fixture.debugElement.query(By.css('button.btn-danger'));
     yesBtn.nativeElement.click();
 
-    expect(mockService.delete).toHaveBeenCalledWith('1');
+    expect(mockService.delete).toHaveBeenCalledWith('aaaaaaaa-0000-0000-0000-000000000001');
   });
 });
