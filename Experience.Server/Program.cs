@@ -88,7 +88,7 @@ try
     app.UseBff();
     app.MapFallbackToFile("/index.html");
     app.MapRemoteBffApiEndpoint("/manuals", manualsApiAddress).WithAccessToken();
-    app.MapRemoteBffApiEndpoint("/products", productsApiAddress).WithAccessToken();
+    app.MapRemoteBffApiEndpoint("/api/products", productsApiAddress).WithAccessToken();
     await app.RunAsync();
 }
 catch (Exception ex) when (ex is not HostAbortedException)

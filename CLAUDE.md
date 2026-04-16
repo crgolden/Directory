@@ -45,7 +45,7 @@ Open the solution in Visual Studio and run with the `https` launch profile, whic
 - TypeScript strict mode is enabled (`strict`, `noImplicitOverride`, `noImplicitReturns`, `noFallthroughCasesInSwitch`).
 
 ### Dev proxy
-`experience.client/src/proxy.conf.json` routes `/bff/**` and `/manuals/**` from the Angular dev server to `https://localhost:7150`.
+`experience.client/src/proxy.conf.json` routes `/bff/**`, `/manuals/**`, and `/products/**` from the Angular dev server to `https://localhost:7150`.
 
 ## Feature Overview
 
@@ -53,14 +53,32 @@ Open the solution in Visual Studio and run with the `https` launch profile, whic
 `src/home/` — public landing page with hero section and six benefit cards. CTA adapts based on auth state (login link vs. "View My Products").
 
 ### Products (`/products/**`)
-`src/products/` — lazy-loaded product inventory feature. **Service calls are currently mocked** (`of(...)`) to unblock UI development while the real Products API is being built. When the API ships, replace the `of(...)` calls in `product.service.ts` with `HttpClient` calls to `/api/products`.
+`src/products/` — lazy-loaded product inventory feature. Backed by the live Products API (OData / MongoDB) proxied through the BFF.
+
+**OData endpoint paths** (BFF strips `/products` prefix, forwards to Products API):
+
+| Angular calls | Forwards to Products API |
+|---|---|
+| `GET /products/odata/Products` | `GET /odata/Products` |
+| `GET /products/odata/Products(guid)` | `GET /odata/Products(guid)` |
+| `POST /products/odata/Products` | `POST /odata/Products` |
+| `PUT /products/odata/Products(guid)` | `PUT /odata/Products(guid)` |
+| `PATCH /products/odata/Products(guid)` | `PATCH /odata/Products(guid)` |
+| `DELETE /products/odata/Products(guid)` | `DELETE /odata/Products(guid)` |
+
+**OData query parameters**: `odata-query` npm package builds `$filter`, `$orderby`, `$top`, `$skip`. The list endpoint always sends `$orderby=Name`. Search by name uses `contains(tolower(Name), tolower('term'))`.
+
+**Product model** (`product.model.ts`): `id`, `name`, `price`, `brand`, `modelNumber`, `serialNumber`, `purchaseDate` (ISO date string), `category`, `description`, `manualUrl`, `createdAt`, `updatedAt`. All fields except `id` and `createdAt` are nullable. The list response is an OData envelope `{ value: Product[] }` unwrapped by `ProductService.getAll()`.
+
+**`manualUrl` field**: stored in the Products API model but not yet populated. **TODO**: once a product↔manual linking feature is built in the Manuals API, populate `manualUrl` from it. The `ProductDetailComponent` currently shows a "Find Manual" button that passes a free-text query to the Chat feature instead.
 
 | Path | Component |
 |------|-----------|
-| `/products` | `ProductListComponent` — table with inline delete confirmation |
-| `/products/new` | `ProductFormComponent` (create mode) |
-| `/products/:id` | `ProductDetailComponent` — includes "Find Manual" button that pre-populates the Chat |
-| `/products/:id/edit` | `ProductFormComponent` (edit mode) |
+| `/products` | `ProductListComponent` — searchable table with inline delete confirmation |
+| `/products/new` | `ProductFormComponent` (create mode, POSTs to OData collection) |
+| `/products/:id` | `ProductDetailComponent` — 404 navigates to `/products/not-found` |
+| `/products/:id/edit` | `ProductFormComponent` (edit mode, PUTs to OData keyed entity) |
+| `/products/not-found` | `ProductNotFoundComponent` — user-friendly 404 page with "Back to My Products" |
 
 ### Chat (`/chat`)
 `src/chat/` — AI-assisted product manual lookup via the Manuals service.
@@ -102,6 +120,7 @@ Three tiers — see [TESTING.md](TESTING.md) for full commands, CI pipeline deta
 
 **E2E / Smoke tests** (`Experience.Tests/`):
 - `PlaywrightFixture` boots a real Kestrel server via `ExperienceWebApplicationFactory` on a random local HTTPS port. Playwright points its browser at that local server — not any deployed Azure endpoint.
+- All `/products/odata/**` calls are intercepted by Playwright route mocks (`InMemoryProductsStore`). No real Products service is contacted. Use `_fixture.ProductStore.Clear()` + seed calls before each test, then call `_fixture.NewProductsPageAsync()` to navigate to `/products`.
 - When `TEST_USERNAME` and `TEST_PASSWORD` are set (always in CI), `PlaywrightFixture.LoginAsync` performs a real OIDC login against the Identity server and saves the session cookies for reuse across tests. When credentials are absent (local dev), a synthetic `/bff/user` Playwright route mock is used as a fallback.
 - All `/manuals/api/**` calls are intercepted by Playwright route mocks (`InMemoryChatsStore`). No real Manuals service is contacted.
 - Azure Key Vault **is** contacted at server startup — `az login` required locally.
