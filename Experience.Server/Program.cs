@@ -85,7 +85,7 @@ try
     app.UseAuthentication();
     app.UseBff();
     app.MapRemoteBffApiEndpoint("/manuals", manualsApiAddress).WithAccessToken();
-    app.MapRemoteBffApiEndpoint("/products", productsApiAddress).WithAccessToken();
+    app.MapRemoteBffApiEndpoint("/products/api", productsApiAddress).WithAccessToken();
     app.UseDefaultFiles();
     app.MapStaticAssets();
     app.MapFallbackToFile("/index.html");

@@ -167,7 +167,7 @@ public sealed class PlaywrightFixture : IAsyncLifetime
 
     /// <summary>
     /// Creates a new browser context and page, registers Playwright route mocks for all
-    /// <c>/products/odata/**</c> requests (backed by <see cref="ProductStore"/>), then
+    /// <c>/products/api/odata/**</c> requests (backed by <see cref="ProductStore"/>), then
     /// navigates directly to <c>/products</c> and waits for the product list to render.
     /// </summary>
     /// <remarks>
@@ -213,7 +213,7 @@ public sealed class PlaywrightFixture : IAsyncLifetime
             });
         }
 
-        await page.RouteAsync("**/products/odata/**", async route =>
+        await page.RouteAsync("**/products/api/odata/**", async route =>
         {
             try
             {
@@ -477,7 +477,7 @@ public sealed class PlaywrightFixture : IAsyncLifetime
         var method = request.Method.ToUpperInvariant();
         var uri = new Uri(request.Url);
 
-        // Absolute path: /products/odata/Products  or  /products/odata/Products(guid)
+        // Absolute path: /products/api/odata/Products  or  /products/api/odata/Products(guid)
         var path = uri.AbsolutePath;
         var collectionIndex = path.LastIndexOf("/Products", StringComparison.OrdinalIgnoreCase);
         if (collectionIndex < 0)

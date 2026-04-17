@@ -4,7 +4,7 @@ import { Observable, map } from 'rxjs';
 import buildQuery from 'odata-query';
 import { ODataResponse, Product } from './product.model';
 
-const BASE = '/products/odata/Products';
+const BASE = '/products/api/odata/Products';
 
 @Injectable({ providedIn: 'root' })
 export class ProductService {

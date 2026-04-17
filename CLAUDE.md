@@ -55,16 +55,16 @@ Open the solution in Visual Studio and run with the `https` launch profile, whic
 ### Products (`/products/**`)
 `src/products/` — lazy-loaded product inventory feature. Backed by the live Products API (OData / MongoDB) proxied through the BFF.
 
-**OData endpoint paths** (BFF strips `/products` prefix, forwards to Products API):
+**OData endpoint paths** (BFF strips `/products/api` prefix, forwards to Products API):
 
 | Angular calls | Forwards to Products API |
 |---|---|
-| `GET /products/odata/Products` | `GET /odata/Products` |
-| `GET /products/odata/Products(guid)` | `GET /odata/Products(guid)` |
-| `POST /products/odata/Products` | `POST /odata/Products` |
-| `PUT /products/odata/Products(guid)` | `PUT /odata/Products(guid)` |
-| `PATCH /products/odata/Products(guid)` | `PATCH /odata/Products(guid)` |
-| `DELETE /products/odata/Products(guid)` | `DELETE /odata/Products(guid)` |
+| `GET /products/api/odata/Products` | `GET /odata/Products` |
+| `GET /products/api/odata/Products(guid)` | `GET /odata/Products(guid)` |
+| `POST /products/api/odata/Products` | `POST /odata/Products` |
+| `PUT /products/api/odata/Products(guid)` | `PUT /odata/Products(guid)` |
+| `PATCH /products/api/odata/Products(guid)` | `PATCH /odata/Products(guid)` |
+| `DELETE /products/api/odata/Products(guid)` | `DELETE /odata/Products(guid)` |
 
 **OData query parameters**: `odata-query` npm package builds `$filter`, `$orderby`, `$top`, `$skip`. The list endpoint always sends `$orderby=Name`. Search by name uses `contains(tolower(Name), tolower('term'))`.
 
@@ -120,7 +120,7 @@ Three tiers — see [TESTING.md](TESTING.md) for full commands, CI pipeline deta
 
 **E2E / Smoke tests** (`Experience.Tests/`):
 - `PlaywrightFixture` boots a real Kestrel server via `ExperienceWebApplicationFactory` on a random local HTTPS port. Playwright points its browser at that local server — not any deployed Azure endpoint.
-- All `/products/odata/**` calls are intercepted by Playwright route mocks (`InMemoryProductsStore`). No real Products service is contacted. Use `_fixture.ProductStore.Clear()` + seed calls before each test, then call `_fixture.NewProductsPageAsync()` to navigate to `/products`.
+- All `/products/api/odata/**` calls are intercepted by Playwright route mocks (`InMemoryProductsStore`). No real Products service is contacted. Use `_fixture.ProductStore.Clear()` + seed calls before each test, then call `_fixture.NewProductsPageAsync()` to navigate to `/products`.
 - When `TEST_USERNAME` and `TEST_PASSWORD` are set (always in CI), `PlaywrightFixture.LoginAsync` performs a real OIDC login against the Identity server and saves the session cookies for reuse across tests. When credentials are absent (local dev), a synthetic `/bff/user` Playwright route mock is used as a fallback.
 - All `/manuals/api/**` calls are intercepted by Playwright route mocks (`InMemoryChatsStore`). No real Manuals service is contacted.
 - Azure Key Vault **is** contacted at server startup — `az login` required locally.
