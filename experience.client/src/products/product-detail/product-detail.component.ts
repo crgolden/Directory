@@ -17,9 +17,9 @@ export class ProductDetailComponent implements OnInit {
   readonly product = signal<Product | null>(null);
 
   ngOnInit(): void {
-    const p = this.route.snapshot.data['product'] as Product;
-    this.titleService.setTitle(`Experience | ${p.name ?? 'Product'}`);
-    this.product.set(p);
+    const product = this.route.snapshot.data['product'] as Product;
+    this.titleService.setTitle(`Experience | ${product.name ?? 'Product'}`);
+    this.product.set(product);
   }
 
   findManualQuery(p: Product): string {

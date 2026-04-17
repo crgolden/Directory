@@ -11,7 +11,7 @@ import { firstValueFrom } from 'rxjs';
 import { ProductService } from './product.service';
 import { ODataResponse, Product } from './product.model';
 
-const BASE = '/api/products/odata/Products';
+const BASE = '/products/odata/Products';
 
 const mockProduct: Product = {
   id: 'aaaaaaaa-0000-0000-0000-000000000001',

@@ -119,9 +119,7 @@ public sealed class ProductCrudTests
 
             await page.ClickAsync("button[type='submit']");
 
-            // After successful create the component navigates to /products/:id.
-            // The resolver pre-fetches the product before navigation completes, so the
-            // URL change guarantees the product is already in the DOM.
+            // After successful create the component navigates to /products/:id
             await page.WaitForURLAsync(url => url.Contains("/products/") && !url.Contains("/new"));
 
             var pageText = await page.InnerTextAsync("body");
@@ -152,9 +150,7 @@ public sealed class ProductCrudTests
 
             await page.ClickAsync("button[type='submit']");
 
-            // After save, navigates to /products/:id detail page.
-            // The resolver pre-fetches the product before navigation completes, so the
-            // URL change guarantees the product is already in the DOM.
+            // After save, navigates to /products/:id detail page
             await page.WaitForURLAsync($"**/products/{product.Id}");
 
             var pageText = await page.InnerTextAsync("body");

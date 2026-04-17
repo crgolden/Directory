@@ -4,7 +4,6 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Title } from '@angular/platform-browser';
 import { catchError, EMPTY } from 'rxjs';
-import { Product } from '../product.model';
 import { ProductService } from '../product.service';
 
 @Component({
@@ -42,8 +41,10 @@ export class ProductFormComponent implements OnInit {
       this.editId.set(id);
       this.isEdit.set(true);
       this.titleService.setTitle('Experience | Edit Product');
-      const product = this.route.snapshot.data['product'] as Product;
-      this.form.patchValue(product);
+      const product = this.route.snapshot.data['product'];
+      if (product) {
+        this.form.patchValue(product);
+      }
     } else {
       this.titleService.setTitle('Experience | New Product');
     }

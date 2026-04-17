@@ -213,7 +213,7 @@ public sealed class PlaywrightFixture : IAsyncLifetime
             });
         }
 
-        await page.RouteAsync("**/api/products/odata/**", async route =>
+        await page.RouteAsync("**/products/odata/**", async route =>
         {
             try
             {
