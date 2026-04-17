@@ -9,7 +9,7 @@ import {
 } from '@angular/common/http/testing';
 import { firstValueFrom } from 'rxjs';
 import { ProductService } from './product.service';
-import { ODataResponse, Product } from './product.model';
+import { Product } from './product.model';
 
 const BASE = '/products/api/odata/Products';
 
@@ -26,6 +26,22 @@ const mockProduct: Product = {
   manualUrl: null,
   createdAt: '2024-01-01T00:00:00Z',
   updatedAt: null,
+};
+
+// Raw shape returned by the Products OData API (PascalCase property names).
+const mockApiProduct = {
+  Id: mockProduct.id,
+  Name: mockProduct.name,
+  Price: mockProduct.price,
+  Brand: mockProduct.brand,
+  ModelNumber: mockProduct.modelNumber,
+  SerialNumber: mockProduct.serialNumber,
+  PurchaseDate: mockProduct.purchaseDate,
+  Category: mockProduct.category,
+  Description: mockProduct.description,
+  ManualUrl: mockProduct.manualUrl,
+  CreatedAt: mockProduct.createdAt,
+  UpdatedAt: mockProduct.updatedAt,
 };
 
 describe('ProductService', () => {
@@ -53,24 +69,22 @@ describe('ProductService', () => {
 
   describe('getAll', () => {
     it('requests the OData Products collection ordered by Name', () => {
-      const envelope: ODataResponse<Product> = { value: [mockProduct] };
-
       service.getAll().subscribe();
 
       const req = http.expectOne(r => r.urlWithParams.startsWith(BASE));
       expect(params(req.request.urlWithParams).get('$orderby')).toBe('Name');
-      req.flush(envelope);
+      req.flush({ value: [mockApiProduct] });
     });
 
-    it('unwraps the OData value envelope and returns the array', async () => {
-      const envelope: ODataResponse<Product> = { value: [mockProduct] };
+    it('unwraps the OData value envelope and maps PascalCase API response to Product', async () => {
       const promise = firstValueFrom(service.getAll());
 
-      http.expectOne(r => r.urlWithParams.startsWith(BASE)).flush(envelope);
+      http.expectOne(r => r.urlWithParams.startsWith(BASE)).flush({ value: [mockApiProduct] });
 
       const products = await promise;
       expect(products.length).toBe(1);
       expect(products[0].id).toBe(mockProduct.id);
+      expect(products[0].name).toBe(mockProduct.name);
     });
 
     it('applies a tolower contains $filter when search is provided', () => {
@@ -111,15 +125,16 @@ describe('ProductService', () => {
       service.getById(mockProduct.id).subscribe();
 
       const req = http.expectOne(`${BASE}(${mockProduct.id})`);
-      req.flush(mockProduct);
+      req.flush(mockApiProduct);
     });
 
-    it('returns the product', async () => {
+    it('maps PascalCase API response to Product', async () => {
       const promise = firstValueFrom(service.getById(mockProduct.id));
 
-      http.expectOne(`${BASE}(${mockProduct.id})`).flush(mockProduct);
+      http.expectOne(`${BASE}(${mockProduct.id})`).flush(mockApiProduct);
 
       const product = await promise;
+      expect(product.id).toBe(mockProduct.id);
       expect(product.name).toBe('LG OLED C3');
     });
   });
@@ -151,7 +166,7 @@ describe('ProductService', () => {
       const req = http.expectOne(`${BASE}(${mockProduct.id})`);
       expect(req.request.method).toBe('PATCH');
       expect(req.request.body).toEqual({ name: 'Updated Name' });
-      req.flush(mockProduct);
+      req.flush(mockApiProduct);
     });
   });
 

@@ -582,6 +582,10 @@ public sealed class PlaywrightFixture : IAsyncLifetime
                 {
                     Status = 201,
                     ContentType = "application/json",
+                    Headers = new Dictionary<string, string>
+                    {
+                        ["Location"] = $"/products/api/odata/Products({product.Id})"
+                    },
                     Body = JsonSerializer.Serialize(ProductToJson(product))
                 });
                 break;
@@ -699,18 +703,18 @@ public sealed class PlaywrightFixture : IAsyncLifetime
 
     private static object ProductToJson(InMemoryProductsStore.ProductRecord p) => new
     {
-        id = p.Id,
-        name = p.Name,
-        price = p.Price,
-        brand = p.Brand,
-        modelNumber = p.ModelNumber,
-        serialNumber = p.SerialNumber,
-        purchaseDate = p.PurchaseDate,
-        category = p.Category,
-        description = p.Description,
-        manualUrl = p.ManualUrl,
-        createdAt = p.CreatedAt,
-        updatedAt = p.UpdatedAt,
+        Id = p.Id,
+        Name = p.Name,
+        Price = p.Price,
+        Brand = p.Brand,
+        ModelNumber = p.ModelNumber,
+        SerialNumber = p.SerialNumber,
+        PurchaseDate = p.PurchaseDate,
+        Category = p.Category,
+        Description = p.Description,
+        ManualUrl = p.ManualUrl,
+        CreatedAt = p.CreatedAt,
+        UpdatedAt = p.UpdatedAt,
     };
 
     private async Task HandleStreamAsync(IRoute route, string chatId, IRequest request)

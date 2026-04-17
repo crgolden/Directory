@@ -6,6 +6,39 @@ import { ODataResponse, Product } from './product.model';
 
 const BASE = '/products/api/odata/Products';
 
+// The Products OData API returns PascalCase property names per its EDM model.
+interface ApiProduct {
+  Id: string;
+  Name: string | null;
+  Price: number | null;
+  Brand: string | null;
+  ModelNumber: string | null;
+  SerialNumber: string | null;
+  PurchaseDate: string | null;
+  Category: string | null;
+  Description: string | null;
+  ManualUrl: string | null;
+  CreatedAt: string;
+  UpdatedAt: string | null;
+}
+
+function fromApi(raw: ApiProduct): Product {
+  return {
+    id: raw.Id,
+    name: raw.Name,
+    price: raw.Price,
+    brand: raw.Brand,
+    modelNumber: raw.ModelNumber,
+    serialNumber: raw.SerialNumber,
+    purchaseDate: raw.PurchaseDate,
+    category: raw.Category,
+    description: raw.Description,
+    manualUrl: raw.ManualUrl,
+    createdAt: raw.CreatedAt,
+    updatedAt: raw.UpdatedAt,
+  };
+}
+
 @Injectable({ providedIn: 'root' })
 export class ProductService {
 
@@ -17,17 +50,17 @@ export class ProductService {
       : undefined;
     const qs = buildQuery({ filter, orderBy: 'Name' });
     return this.http
-      .get<ODataResponse<Product>>(`${BASE}${qs}`)
-      .pipe(map(r => r.value));
+      .get<ODataResponse<ApiProduct>>(`${BASE}${qs}`)
+      .pipe(map(r => r.value.map(fromApi)));
   }
 
   getById(id: string): Observable<Product> {
-    return this.http.get<Product>(`${BASE}(${id})`);
+    return this.http.get<ApiProduct>(`${BASE}(${id})`).pipe(map(fromApi));
   }
 
   create(product: Partial<Product>): Observable<string> {
-    return this.http.post<Product>(BASE, product, { observe: 'response' }).pipe(
-      map((response: HttpResponse<Product>) => {
+    return this.http.post<ApiProduct>(BASE, product, { observe: 'response' }).pipe(
+      map((response: HttpResponse<ApiProduct>) => {
         const location = response.headers.get('Location') ?? '';
         const match = location.match(/\(([^)]+)\)$/);
         return match?.[1] ?? '';
@@ -36,7 +69,7 @@ export class ProductService {
   }
 
   patch(id: string, changes: Partial<Product>): Observable<Product> {
-    return this.http.patch<Product>(`${BASE}(${id})`, changes);
+    return this.http.patch<ApiProduct>(`${BASE}(${id})`, changes).pipe(map(fromApi));
   }
 
   delete(id: string): Observable<void> {
