@@ -82,13 +82,13 @@ try
             return TypedResults.Ok(value);
         })
         .DisableHttpMetrics();
-    app.UseDefaultFiles();
-    app.MapStaticAssets();
     app.UseAuthentication();
     app.UseBff();
-    app.MapFallbackToFile("/index.html");
     app.MapRemoteBffApiEndpoint("/manuals", manualsApiAddress).WithAccessToken();
-    app.MapRemoteBffApiEndpoint("/api/products", productsApiAddress).WithAccessToken();
+    app.MapRemoteBffApiEndpoint("/products", productsApiAddress).WithAccessToken();
+    app.UseDefaultFiles();
+    app.MapStaticAssets();
+    app.MapFallbackToFile("/index.html");
     await app.RunAsync();
 }
 catch (Exception ex) when (ex is not HostAbortedException)
