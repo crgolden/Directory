@@ -1,5 +1,5 @@
 import { inject, Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpResponse } from '@angular/common/http';
 import { Observable, map } from 'rxjs';
 import buildQuery from 'odata-query';
 import { ODataResponse, Product } from './product.model';
@@ -25,12 +25,14 @@ export class ProductService {
     return this.http.get<Product>(`${BASE}(${id})`);
   }
 
-  create(product: Partial<Product>): Observable<Product> {
-    return this.http.post<Product>(BASE, product);
-  }
-
-  put(id: string, product: Partial<Product>): Observable<Product> {
-    return this.http.put<Product>(`${BASE}(${id})`, product);
+  create(product: Partial<Product>): Observable<string> {
+    return this.http.post<Product>(BASE, product, { observe: 'response' }).pipe(
+      map((response: HttpResponse<Product>) => {
+        const location = response.headers.get('Location') ?? '';
+        const match = location.match(/\(([^)]+)\)$/);
+        return match?.[1] ?? '';
+      })
+    );
   }
 
   patch(id: string, changes: Partial<Product>): Observable<Product> {

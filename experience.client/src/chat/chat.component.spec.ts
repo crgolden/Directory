@@ -18,7 +18,6 @@ describe('ChatComponent', () => {
   const setup = async (queryParam: string | null = null, existingChats: Chat[] = []) => {
     streamSubject = new Subject<string>();
     mockService = {
-      getChats: vi.fn(() => of(existingChats)),
       createChat: vi.fn(() => of(newChat)),
       getChat: vi.fn((chatId: string) => of({ chatId, title: null, createdAt: 0 })),
       streamMessage: vi.fn(() => streamSubject.asObservable()),
@@ -37,6 +36,7 @@ describe('ChatComponent', () => {
           useValue: {
             snapshot: {
               queryParamMap: { get: (key: string) => (key === 'q' ? queryParam : null) },
+              data: { chats: existingChats },
             },
           },
         },
@@ -49,7 +49,6 @@ describe('ChatComponent', () => {
 
   it('loads existing chats on init', async () => {
     await setup(null, [chat1, chat2]);
-    expect(mockService.getChats).toHaveBeenCalledOnce();
     const buttons = fixture.debugElement.queryAll(By.css('button.chat-label'));
     expect(buttons).toHaveLength(2);
   });

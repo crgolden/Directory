@@ -29,7 +29,7 @@ export class ChatComponent implements OnInit {
   readonly input = signal('');
   readonly streaming = signal(false);
   readonly chatId = signal<string | null>(null);
-  readonly chats = signal<Chat[]>([]);
+  readonly chats = signal<Chat[]>(this.route.snapshot.data['chats'] as Chat[]);
   readonly editingChatId = signal<string | null>(null);
   readonly editingTitle = signal('');
 
@@ -39,13 +39,6 @@ export class ChatComponent implements OnInit {
     if (q) {
       this.input.set(q);
     }
-    this.loadChats();
-  }
-
-  private loadChats(): void {
-    this.chatService.getChats().subscribe(chats => {
-      this.chats.set(chats);
-    });
   }
 
   selectChat(id: string): void {

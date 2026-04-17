@@ -40,10 +40,7 @@ export class AuthService {
   public readonly logoutUrl: Signal<string | null> = computed(() => {
     const s = this._fetchResult();
     if (!s) return null;
-    const base = s.find(x => x.type === 'bff:logout_url')?.value ?? null;
-    if (!base) return null;
-    const sid = s.find(x => x.type === 'sid')?.value;
-    return sid == null ? base : `${base}?sid=${sid}`;
+    return s.find(x => x.type === 'bff:logout_url')?.value ?? null;
   });
 
   public readonly silentLoginUrl: string = '/bff/silent-login';

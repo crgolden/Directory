@@ -84,7 +84,7 @@ try
         .DisableHttpMetrics();
     app.UseAuthentication();
     app.UseBff();
-    app.MapRemoteBffApiEndpoint("/manuals", manualsApiAddress).WithAccessToken();
+    app.MapRemoteBffApiEndpoint("/manuals/api", manualsApiAddress).WithAccessToken();
     app.MapRemoteBffApiEndpoint("/products/api", productsApiAddress).WithAccessToken();
     app.UseDefaultFiles();
     app.MapStaticAssets();

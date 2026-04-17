@@ -105,9 +105,9 @@ describe('AuthService', () => {
     expect(service.logoutUrl()).toBeNull();
   });
 
-  it('should append sid to logoutUrl when sid claim is present', async () => {
+  it('should return logoutUrl as-is when sid claim is present', async () => {
     const mockSession: Claim[] = [
-      { type: 'bff:logout_url', value: '/logout' },
+      { type: 'bff:logout_url', value: '/bff/logout?sid=abc123' },
       { type: 'sid', value: 'abc123' },
     ];
 
@@ -115,6 +115,6 @@ describe('AuthService', () => {
     httpTestingController.expectOne('bff/user').flush(mockSession);
     await result;
 
-    expect(service.logoutUrl()).toBe('/logout?sid=abc123');
+    expect(service.logoutUrl()).toBe('/bff/logout?sid=abc123');
   });
 });

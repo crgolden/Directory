@@ -74,3 +74,46 @@ describe('ProductDetailComponent', () => {
     expect(query).toContain('OLED65C3');
   });
 });
+
+describe('ProductDetailComponent — with manualUrl', () => {
+  let fixture: ComponentFixture<ProductDetailComponent>;
+
+  const productWithManual: Product = {
+    ...mockProduct,
+    manualUrl: 'https://example.com/lg-tv-manual.pdf',
+  };
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [ProductDetailComponent],
+      providers: [
+        provideRouter(testRoutes),
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            snapshot: {
+              paramMap: { get: () => productWithManual.id },
+              data: { product: productWithManual },
+            },
+          },
+        },
+      ],
+    }).compileComponents();
+
+    fixture = TestBed.createComponent(ProductDetailComponent);
+    fixture.detectChanges();
+  });
+
+  it('renders "View Manual" button linking to manualUrl', () => {
+    const link = fixture.debugElement.query(By.css('a.btn-primary[target="_blank"]'));
+    expect(link).toBeTruthy();
+    expect(link.nativeElement.getAttribute('href')).toBe(productWithManual.manualUrl);
+    expect(link.nativeElement.textContent).toContain('View Manual');
+  });
+
+  it('renders "Update Manual" chat link instead of "Find Manual"', () => {
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Update Manual');
+    expect(text).not.toContain('Find Manual');
+  });
+});

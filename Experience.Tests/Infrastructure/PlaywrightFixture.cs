@@ -19,6 +19,12 @@ public sealed class PlaywrightFixture : IAsyncLifetime
     private static readonly string? TestPassword = Environment.GetEnvironmentVariable("TEST_PASSWORD");
     private static readonly string? SmokeBaseUrl = Environment.GetEnvironmentVariable("SMOKE_BASE_URL");
 
+    /// <summary>
+    /// <see langword="true"/> when <c>SMOKE_BASE_URL</c> is set — the suite is targeting a real
+    /// deployed instance rather than the local <see cref="ExperienceWebApplicationFactory"/>.
+    /// </summary>
+    public static bool IsSmoke => SmokeBaseUrl is not null;
+
     private IPlaywright? _playwright;
     private IBrowser? _browser;
     private string? _storageStatePath;
@@ -166,13 +172,20 @@ public sealed class PlaywrightFixture : IAsyncLifetime
     }
 
     /// <summary>
-    /// Creates a new browser context and page, registers Playwright route mocks for all
+    /// Creates a new browser context and page, optionally registers Playwright route mocks for
     /// <c>/products/api/odata/**</c> requests (backed by <see cref="ProductStore"/>), then
     /// navigates directly to <c>/products</c> and waits for the product list to render.
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// Route mocks are only registered when running in local E2E mode (no <c>SMOKE_BASE_URL</c>).
+    /// In smoke mode the real Products API is contacted so that integration with the live service
+    /// is fully exercised.
+    /// </para>
+    /// <para>
     /// Call <see cref="InMemoryProductsStore.Clear"/> on <see cref="ProductStore"/> BEFORE
     /// calling this method to ensure each test starts with a clean state.
+    /// </para>
     /// </remarks>
     public async Task<(IBrowserContext Context, IPage Page)> NewProductsPageAsync()
     {
@@ -213,17 +226,21 @@ public sealed class PlaywrightFixture : IAsyncLifetime
             });
         }
 
-        await page.RouteAsync("**/products/api/odata/**", async route =>
+        // In smoke mode the real Products API is used — no mock needed.
+        if (!IsSmoke)
         {
-            try
+            await page.RouteAsync("**/products/api/odata/**", async route =>
             {
-                await DispatchProductsRouteAsync(route);
-            }
-            catch
-            {
-                await route.FulfillAsync(new RouteFulfillOptions { Status = 500 });
-            }
-        });
+                try
+                {
+                    await DispatchProductsRouteAsync(route);
+                }
+                catch
+                {
+                    await route.FulfillAsync(new RouteFulfillOptions { Status = 500 });
+                }
+            });
+        }
 
         await page.GotoAsync("/products");
 

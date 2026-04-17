@@ -33,6 +33,7 @@ export class ProductFormComponent implements OnInit {
     purchaseDate: [null as string | null],
     category: [null as string | null],
     description: [null as string | null],
+    manualUrl: [null as string | null],
   });
 
   ngOnInit(): void {
@@ -62,12 +63,12 @@ export class ProductFormComponent implements OnInit {
     };
 
     if (id) {
-      this.productService.put(id, value).pipe(catchError(onError)).subscribe(() => {
+      this.productService.patch(id, value).pipe(catchError(onError)).subscribe(() => {
         this.router.navigate(['/products', id]);
       });
     } else {
-      this.productService.create(value).pipe(catchError(onError)).subscribe(created => {
-        this.router.navigate(['/products', created.id]);
+      this.productService.create(value).pipe(catchError(onError)).subscribe(id => {
+        this.router.navigate(['/products', id]);
       });
     }
   }

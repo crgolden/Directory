@@ -38,7 +38,7 @@ describe('ProductFormComponent — create mode', () => {
   beforeEach(async () => {
     mockService = {
       getById: vi.fn(),
-      create: vi.fn(() => of(mockProduct)),
+      create: vi.fn(() => of(mockProduct.id)),
       put: vi.fn(),
     };
 
@@ -94,7 +94,7 @@ describe('ProductFormComponent — edit mode', () => {
     mockService = {
       getById: vi.fn(),
       create: vi.fn(),
-      put: vi.fn(() => of(mockProduct)),
+      patch: vi.fn(() => of(mockProduct)),
     };
 
     await TestBed.configureTestingModule({
@@ -128,9 +128,9 @@ describe('ProductFormComponent — edit mode', () => {
     expect(priceInput.value).toBe('999.99');
   });
 
-  it('submit calls ProductService.put in edit mode', () => {
+  it('submit calls ProductService.patch in edit mode', () => {
     fixture.debugElement.query(By.css('form')).triggerEventHandler('ngSubmit');
-    expect(mockService.put).toHaveBeenCalledWith(
+    expect(mockService.patch).toHaveBeenCalledWith(
       'aaaaaaaa-0000-0000-0000-000000000042',
       expect.any(Object)
     );

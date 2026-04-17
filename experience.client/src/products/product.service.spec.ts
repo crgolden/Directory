@@ -131,26 +131,16 @@ describe('ProductService', () => {
       const req = http.expectOne(BASE);
       expect(req.request.method).toBe('POST');
       expect(req.request.body).toEqual({ name: 'New Item' });
-      req.flush(mockProduct);
+      req.flush(null, { headers: { Location: `${BASE}(${mockProduct.id})` }, status: 201, statusText: 'Created' });
     });
 
-    it('returns the created product from the server', async () => {
+    it('extracts the id from the Location header', async () => {
       const promise = firstValueFrom(service.create({ name: 'New Item' }));
 
-      http.expectOne(BASE).flush(mockProduct);
+      http.expectOne(BASE).flush(null, { headers: { Location: `${BASE}(${mockProduct.id})` }, status: 201, statusText: 'Created' });
 
-      const product = await promise;
-      expect(product.id).toBe(mockProduct.id);
-    });
-  });
-
-  describe('put', () => {
-    it('PUTs to the keyed entity URL with the full product', () => {
-      service.put(mockProduct.id, mockProduct).subscribe();
-
-      const req = http.expectOne(`${BASE}(${mockProduct.id})`);
-      expect(req.request.method).toBe('PUT');
-      req.flush(mockProduct);
+      const id = await promise;
+      expect(id).toBe(mockProduct.id);
     });
   });
 
