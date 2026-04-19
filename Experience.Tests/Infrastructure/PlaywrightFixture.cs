@@ -31,6 +31,19 @@ public sealed class PlaywrightFixture : IAsyncLifetime
 
     public PlaywrightFixture()
     {
+        // AzureCliCredential's default 13s ProcessTimeout is not enough on this Windows dev
+        // machine — `az account get-access-token` spawned as a child of the test host
+        // routinely takes 20–40s. Set the timeout before the factory constructs the host
+        // so that `builder.Configuration.ToTokenCredentialAsync()` and every subsequent
+        // Key Vault call picks up the widened window. Programmatic setting avoids any
+        // ambiguity about whether shell env vars propagated through `cmd /c` wrappers.
+        if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DefaultAzureCredentialOptions__CredentialProcessTimeout")))
+        {
+            Environment.SetEnvironmentVariable(
+                "DefaultAzureCredentialOptions__CredentialProcessTimeout",
+                "00:03:00");
+        }
+
         Factory = SmokeBaseUrl is null ? new ExperienceWebApplicationFactory() : null;
         ChatStore = new InMemoryChatsStore();
         ProductStore = new InMemoryProductsStore();
@@ -45,30 +58,42 @@ public sealed class PlaywrightFixture : IAsyncLifetime
 
     public string BaseAddress { get; private set; }
 
+    private static void Stage(string msg) =>
+        Console.WriteLine($"[{DateTime.UtcNow:HH:mm:ss.fff}] PlaywrightFixture: {msg}");
+
     /// <inheritdoc/>
     public async ValueTask InitializeAsync()
     {
+        Stage("InitializeAsync enter");
         if (SmokeBaseUrl is not null)
         {
             BaseAddress = SmokeBaseUrl.TrimEnd('/');
+            Stage($"smoke mode base={BaseAddress}");
         }
         else
         {
-            Factory!.CreateClient(); // triggers server startup; populates Factory.ServerAddress
+            Stage("Factory.StartAsync() enter");
+            await Factory!.StartAsync();
             BaseAddress = Factory.ServerAddress;
+            Stage($"Factory.StartAsync() done base={BaseAddress}");
         }
 
+        Stage("playwright install chromium enter");
         var exitCode = Microsoft.Playwright.Program.Main(["install", "chromium"]);
+        Stage($"playwright install exit={exitCode}");
         if (exitCode != 0)
         {
             throw new InvalidOperationException($"Playwright install failed with exit code {exitCode}.");
         }
 
+        Stage("Playwright.CreateAsync enter");
         _playwright = await Playwright.CreateAsync();
+        Stage("Chromium.LaunchAsync enter");
         _browser = await _playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
         {
             Headless = Headless
         });
+        Stage("Chromium.LaunchAsync done");
 
         if (SmokeBaseUrl is not null)
         {
@@ -77,98 +102,23 @@ public sealed class PlaywrightFixture : IAsyncLifetime
                 throw new InvalidOperationException("TEST_USERNAME and TEST_PASSWORD must be set when SMOKE_BASE_URL is configured.");
             }
 
+            Stage("LoginAsync enter");
             await LoginAsync(); // real OIDC against the deployed app; sets _storageStatePath
+            Stage("LoginAsync done");
         }
 
         // Factory mode: always use the /bff/user mock — real OIDC login is not possible
         // because the Kestrel test server listens on a random port that cannot be registered
         // as a redirect URI. The real auth flow is covered by the smoke tests.
 
-        // Warm up: load /chat once so the server pool and Angular hydration are ready before
-        // the first real test runs. NewPageAsync already navigates to /chat and waits for
-        // the Angular bootstrap to complete, so no additional waiting is needed here.
-        var warmup = await NewPageAsync();
+        // Warm up: load /products once so the server pool and Angular hydration are ready
+        // before the first real test runs. NewProductsPageAsync already navigates to /products
+        // and waits for the Angular bootstrap to complete, so no additional waiting is needed.
+        Stage("warmup NewProductsPageAsync enter");
+        var warmup = await NewProductsPageAsync();
+        Stage("warmup NewProductsPageAsync done");
         await using (warmup.Context) { }
-    }
-
-    /// <summary>
-    /// Creates a new browser context and page, registers Playwright route mocks for all
-    /// <c>/manuals/api/**</c> requests (backed by <see cref="ChatStore"/>), then navigates
-    /// directly to <c>/chat</c> and waits for Angular to bootstrap.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// When <c>TEST_USERNAME</c> and <c>TEST_PASSWORD</c> are set the context is loaded with
-    /// the real BFF session cookies saved by <see cref="LoginAsync"/>. Otherwise a synthetic
-    /// <c>/bff/user</c> Playwright route mock is registered as a local development fallback.
-    /// </para>
-    /// <para>
-    /// Call <see cref="InMemoryChatsStore.Clear"/> on <see cref="ChatStore"/> BEFORE calling
-    /// this method to ensure each test starts with a clean state.
-    /// </para>
-    /// </remarks>
-    public async Task<(IBrowserContext Context, IPage Page)> NewPageAsync()
-    {
-        if (_browser is null)
-        {
-            throw new InvalidOperationException("Browser is not initialized. Ensure InitializeAsync has been awaited.");
-        }
-
-        var context = await _browser.NewContextAsync(new BrowserNewContextOptions
-        {
-            BaseURL = BaseAddress,
-            IgnoreHTTPSErrors = true, // Kestrel test server uses a self-signed certificate
-            StorageStatePath = _storageStatePath // null locally → no pre-loaded state; real cookie in CI
-        });
-        var page = await context.NewPageAsync();
-
-        if (CI)
-        {
-            page.SetDefaultTimeout(60_000);
-        }
-
-        // Only mock /bff/user when no real session is available (local development fallback).
-        if (_storageStatePath is null)
-        {
-            await page.RouteAsync("**/bff/user", async route =>
-            {
-                await route.FulfillAsync(new RouteFulfillOptions
-                {
-                    Status = 200,
-                    ContentType = "application/json",
-                    Body = JsonSerializer.Serialize(new object[]
-                    {
-                        new { type = "sub", value = "e2e-user-id" },
-                        new { type = "name", value = "E2E Test User" },
-                        new { type = "email", value = "e2e@test.invalid" },
-                        new { type = "sid", value = "e2e-session" },
-                    })
-                });
-            });
-        }
-
-        // Register route mocks for all Manuals API calls so no real Manuals server is needed.
-        await page.RouteAsync("**/manuals/api/**", async route =>
-        {
-            try
-            {
-                await DispatchManualsRouteAsync(route);
-            }
-            catch
-            {
-                await route.FulfillAsync(new RouteFulfillOptions { Status = 500 });
-            }
-        });
-
-        // Navigate directly to /chat.
-        await page.GotoAsync("/chat");
-
-        // Wait for Angular to finish bootstrapping and the auth guard to allow the chat
-        // component to mount. The "Chats" sidebar label is only rendered after the guard
-        // passes, so this guarantees the "+" button and chat list are in the DOM.
-        await page.WaitForSelectorAsync("span:has-text('Chats')");
-
-        return (context, page);
+        Stage("InitializeAsync exit");
     }
 
     /// <summary>
@@ -202,10 +152,15 @@ public sealed class PlaywrightFixture : IAsyncLifetime
         });
         var page = await context.NewPageAsync();
 
-        if (CI)
-        {
-            page.SetDefaultTimeout(60_000);
-        }
+        // Always use a generous default timeout. Cold-start Kestrel + Angular bundle on this
+        // machine can legitimately take >30s even when everything is healthy; a tighter cap
+        // just produces false negatives.
+        page.SetDefaultTimeout(60_000);
+
+        // Log every request/response so we can tell why a navigation is hanging.
+        page.Request += (_, req) => Stage($"REQ {req.Method} {req.Url}");
+        page.Response += (_, resp) => Stage($"RESP {resp.Status} {resp.Url}");
+        page.RequestFailed += (_, req) => Stage($"FAIL {req.Method} {req.Url} err={req.Failure}");
 
         if (_storageStatePath is null)
         {
@@ -240,13 +195,35 @@ public sealed class PlaywrightFixture : IAsyncLifetime
                     await route.FulfillAsync(new RouteFulfillOptions { Status = 500 });
                 }
             });
+
+            await page.RouteAsync("**/manuals/api/**", async route =>
+            {
+                try
+                {
+                    await DispatchManualsRouteAsync(route);
+                }
+                catch
+                {
+                    await route.FulfillAsync(new RouteFulfillOptions { Status = 500 });
+                }
+            });
         }
 
-        await page.GotoAsync("/products");
+        await page.GotoAsync("/products", new PageGotoOptions
+        {
+            // "Load" requires EVERY subresource to finish — in tests, a single hanging
+            // analytics beacon is enough to exceed the timeout. "DOMContentLoaded" is
+            // sufficient for our assertions and avoids that flakiness.
+            WaitUntil = WaitUntilState.DOMContentLoaded,
+            Timeout = 60_000
+        });
 
         // Wait for the product list heading to confirm Angular has bootstrapped and the
         // auth guard has passed.
-        await page.WaitForSelectorAsync("h2:has-text('My Products')");
+        await page.WaitForSelectorAsync("h2:has-text('My Products')", new PageWaitForSelectorOptions
+        {
+            Timeout = 60_000
+        });
 
         return (context, page);
     }
@@ -292,15 +269,15 @@ public sealed class PlaywrightFixture : IAsyncLifetime
         }
 
         // Kick off the OIDC flow. BFF redirects to the Identity server login page.
-        await page.GotoAsync("/bff/login?returnUrl=%2Fchat");
+        await page.GotoAsync("/bff/login?returnUrl=%2Fproducts");
 
         // Selectors confirmed from Identity.Api/Pages/Account/Login.cshtml.
         await page.FillAsync("input[name='Input.Email']", TestUsername!);
         await page.FillAsync("input[name='Input.Password']", TestPassword!);
         await page.ClickAsync("button#login-submit");
 
-        // Wait for the BFF callback to complete and land on /chat.
-        await page.WaitForURLAsync("**/chat**");
+        // Wait for the BFF callback to complete and land on /products.
+        await page.WaitForURLAsync("**/products**");
 
         // Persist session cookies so every per-test context starts authenticated.
         await context.StorageStateAsync(new() { Path = _storageStatePath });

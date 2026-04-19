@@ -1,98 +1,115 @@
 namespace Experience.Tests.Infrastructure;
 
 using System.Net;
+using Experience.Server;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http.Features;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 /// <summary>
-/// <see cref="WebApplicationFactory{TEntryPoint}"/> for E2E tests.
-/// Starts a real Kestrel server on a random HTTPS port (for Playwright) alongside the
-/// in-process TestServer. Replaces Serilog with a test-safe console logger, sets the
-/// Kestrel web root to the Angular build output, and registers
-/// the <see cref="TestStaticFilesStartupFilter"/>.
+/// Builds a single <see cref="WebApplication"/> that hosts the Experience BFF on a real
+/// Kestrel loopback port for Playwright-driven E2E tests. Shares startup wiring with
+/// <c>Program.cs</c> via <see cref="AppHost"/> so there is no double-build cost. Applies a
+/// small set of test-only customizations (static web root, test-safe logger, early
+/// <c>UseStaticFiles</c>).
 /// </summary>
 /// <remarks>
 /// Requires Azure login (<c>az login</c> locally; <c>azure/login</c> in CI) because
-/// <c>Experience.Server/Program.cs</c> calls Azure Key Vault at startup.
+/// startup calls Azure Key Vault.
 /// </remarks>
-public sealed class ExperienceWebApplicationFactory : WebApplicationFactory<Program>
+public sealed class ExperienceWebApplicationFactory : IAsyncDisposable
 {
-    private IHost? _kestrelHost;
+    private WebApplication? _app;
     private string? _serverAddress;
 
     public string ServerAddress => _serverAddress
-        ?? throw new InvalidOperationException("Server address is not available. Call CreateClient() first.");
+        ?? throw new InvalidOperationException("Server address is not available. Call StartAsync() first.");
 
-    /// <inheritdoc/>
-    protected override IHost CreateHost(IHostBuilder builder)
+    private static void Stage(string msg) =>
+        Console.WriteLine($"[{DateTime.UtcNow:HH:mm:ss.fff}] Factory: {msg}");
+
+    /// <summary>
+    /// Builds and starts the test host. Safe to call multiple times; subsequent calls are no-ops.
+    /// </summary>
+    public async Task StartAsync()
     {
-        // Build the in-memory TestHost used by CreateClient().
-        var testHost = builder.Build();
+        if (_app is not null)
+        {
+            return;
+        }
 
-        // Build a second host with a real Kestrel socket for Playwright.
-        builder.ConfigureWebHost(b => b.UseKestrel(o => o.Listen(IPAddress.Loopback, 0, lo => lo.UseHttps())));
-        _kestrelHost = builder.Build();
-        _kestrelHost.Start();
+        Stage("StartAsync enter: creating builder");
 
-        var server = _kestrelHost.Services.GetRequiredService<IServer>();
-        var addresses = server.Features.GetRequiredFeature<IServerAddressesFeature>();
-        _serverAddress = addresses.Addresses.First().TrimEnd('/');
+        // WebApplicationFactory normally infers ContentRoot from the entry assembly's solution
+        // layout; doing it ourselves since we no longer inherit from it.
+        var contentRoot = Path.GetFullPath(
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "Experience.Server"));
 
-        return testHost;
-    }
-
-    /// <inheritdoc/>
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
-    {
         // Point the web root at the Angular build output so UseStaticFiles() can serve
-        // index.html and the JS/CSS bundles. The path is relative to the test assembly
-        // output directory (bin/Release/net10.0/), going up four levels to the solution
-        // root and then into the Angular dist directory.
+        // index.html and the JS/CSS bundles.
         var distPath = Path.GetFullPath(
             Path.Combine(
                 AppContext.BaseDirectory,
                 "..", "..", "..", "..",
                 "experience.client", "dist", "experience.client", "browser"));
 
-        if (Directory.Exists(distPath))
+        var options = new WebApplicationOptions
         {
-            builder.UseWebRoot(distPath);
+            EnvironmentName = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Development",
+            ContentRootPath = contentRoot,
+            ApplicationName = "Experience.Server",
+            WebRootPath = Directory.Exists(distPath) ? distPath : null
+        };
+        var builder = WebApplication.CreateBuilder(options);
+
+        // Real Kestrel socket on a random HTTPS loopback port for Playwright.
+        builder.WebHost.ConfigureKestrel(o => o.Listen(IPAddress.Loopback, 0, lo => lo.UseHttps()));
+
+        // Prevent background service exceptions from killing the host mid-test.
+        builder.Services.Configure<HostOptions>(opts =>
+            opts.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.Ignore);
+
+        // Replace Serilog (which connects to Elasticsearch) with a plain console logger in
+        // non-Production environments.
+        if (!builder.Environment.IsEnvironment("Production"))
+        {
+            builder.Services.RemoveAll<ILoggerFactory>();
+            builder.Services.AddLogging(lb => lb.AddConsole());
         }
 
-        builder.ConfigureServices((ctx, services) =>
-        {
-            // Prevent background service exceptions from killing the Kestrel host mid-test.
-            services.Configure<HostOptions>(opts =>
-                opts.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.Ignore);
+        // Inject UseStaticFiles() early in the pipeline (before MapStaticAssets) so the
+        // Angular build output is served from the physical web root set above.
+        builder.Services.AddSingleton<IStartupFilter, TestStaticFilesStartupFilter>();
 
-            if (!ctx.HostingEnvironment.IsEnvironment("Production"))
-            {
-                // Replace Serilog (which connects to Elasticsearch) with a plain console logger.
-                services.RemoveAll<ILoggerFactory>();
-                services.AddLogging(lb => lb.AddConsole());
-            }
+        Stage("Calling AppHost.ConfigureServicesAsync");
+        var (manualsApiAddress, productsApiAddress) = await AppHost.ConfigureServicesAsync(builder);
+        Stage("Services configured; building app");
 
-            // Inject UseStaticFiles() early in the pipeline (before MapStaticAssets) so the
-            // Angular build output is served from the physical web root set above.
-            services.AddSingleton<IStartupFilter, TestStaticFilesStartupFilter>();
-        });
+        _app = builder.Build();
+        AppHost.ConfigurePipeline(_app, manualsApiAddress, productsApiAddress);
+
+        Stage("App built; starting");
+        await _app.StartAsync();
+
+        var server = _app.Services.GetRequiredService<IServer>();
+        var addresses = server.Features.GetRequiredFeature<IServerAddressesFeature>();
+        _serverAddress = addresses.Addresses.First().TrimEnd('/');
+        Stage($"StartAsync exit: {_serverAddress}");
     }
 
-    /// <inheritdoc/>
-    protected override void Dispose(bool disposing)
+    public async ValueTask DisposeAsync()
     {
-        if (disposing)
+        if (_app is not null)
         {
-            _kestrelHost?.Dispose();
+            await _app.StopAsync();
+            await _app.DisposeAsync();
+            _app = null;
         }
-
-        base.Dispose(disposing);
     }
 }

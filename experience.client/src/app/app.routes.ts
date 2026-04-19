@@ -1,6 +1,5 @@
 import { Routes } from '@angular/router';
 import { authGuard } from '../auth/auth.guard';
-import { chatsResolver } from '../chat/chat.resolver';
 
 export const routes: Routes = [
   {
@@ -13,13 +12,6 @@ export const routes: Routes = [
     canActivate: [authGuard],
     loadChildren: () =>
       import('../products/products.routes').then(m => m.productRoutes),
-  },
-  {
-    path: 'chat',
-    canActivate: [authGuard],
-    resolve: { chats: chatsResolver },
-    loadComponent: () =>
-      import('../chat/chat.component').then(m => m.ChatComponent),
   },
   {
     path: 'user-session',

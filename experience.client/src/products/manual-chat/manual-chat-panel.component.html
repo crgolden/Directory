@@ -1,0 +1,34 @@
+@if (!isOpen()) {
+  <button
+    type="button"
+    class="manual-chat-toggle btn btn-primary shadow"
+    (click)="open()"
+    aria-label="Open manual finder">
+    <span class="toggle-icon" aria-hidden="true">&#128270;</span>
+    <span class="toggle-label">Find Manual</span>
+  </button>
+}
+
+@if (isOpen()) {
+  <div
+    class="manual-chat-panel shadow"
+    [class.panel-narrow]="isNarrow()"
+    role="dialog"
+    aria-label="Manual finder">
+    <div class="panel-header d-flex align-items-center justify-content-between border-bottom px-3 py-2">
+      <h5 class="mb-0">Manual Finder</h5>
+      <button
+        type="button"
+        class="btn-close"
+        aria-label="Close manual finder"
+        (click)="close()">
+      </button>
+    </div>
+    <div class="panel-body flex-grow-1 d-flex flex-column">
+      <app-manual-chat
+        [productContext]="productContext()"
+        (manualUrlSelected)="onUrlSelected($event)">
+      </app-manual-chat>
+    </div>
+  </div>
+}

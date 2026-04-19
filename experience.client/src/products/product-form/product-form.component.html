@@ -72,3 +72,8 @@
     </div>
   </form>
 </div>
+
+<app-manual-chat-panel
+  [productContext]="productContext()"
+  (manualUrlSelected)="onManualUrlSelected($event)">
+</app-manual-chat-panel>

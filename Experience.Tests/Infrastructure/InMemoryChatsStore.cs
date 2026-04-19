@@ -9,8 +9,23 @@ using System.Collections.Concurrent;
 /// </summary>
 public sealed class InMemoryChatsStore
 {
-    private static readonly string MockResponse = "This is a test response from the mock Manuals service.";
-    private static readonly string[] StreamDeltas = ["This is a test response ", "from the mock Manuals service."];
+    /// <summary>
+    /// Canned URL embedded in both the completion and stream mock responses. The embedded
+    /// manual-chat UI surfaces this as a clickable "Use this URL" chip that populates the
+    /// product form's Manual URL field.
+    /// </summary>
+    public const string MockManualUrl = "https://example.com/manuals/test-manual.pdf";
+
+    private static readonly string MockResponse =
+        $"This is a test response from the mock Manuals service. Try {MockManualUrl} for the product manual.";
+
+    private static readonly string[] StreamDeltas =
+    [
+        "This is a test response ",
+        "from the mock Manuals service. ",
+        $"Try {MockManualUrl} ",
+        "for the product manual.",
+    ];
 
     private readonly ConcurrentDictionary<string, ChatRecord> _chats = new();
     private readonly ConcurrentDictionary<string, List<MessageRecord>> _messages = new();

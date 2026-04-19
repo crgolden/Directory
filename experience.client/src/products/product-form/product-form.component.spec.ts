@@ -3,6 +3,8 @@ import { ProductFormComponent } from './product-form.component';
 import { ProductService } from '../product.service';
 import { By } from '@angular/platform-browser';
 import { provideRouter, Routes, ActivatedRoute } from '@angular/router';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { Component } from '@angular/core';
 import { of } from 'rxjs';
 import { Product } from '../product.model';
@@ -47,6 +49,8 @@ describe('ProductFormComponent — create mode', () => {
       providers: [
         { provide: ProductService, useValue: mockService },
         provideRouter(testRoutes),
+        provideHttpClient(),
+        provideHttpClientTesting(),
       ],
     }).compileComponents();
 
@@ -84,6 +88,32 @@ describe('ProductFormComponent — create mode', () => {
     const priceInput = fixture.debugElement.query(By.css('#price'));
     expect(priceInput).toBeTruthy();
   });
+
+  it('embeds the manual-chat panel (collapsed by default)', () => {
+    const panel = fixture.debugElement.query(By.css('app-manual-chat-panel'));
+    expect(panel).toBeTruthy();
+    // Panel starts collapsed → only the toggle button is in the DOM, not the full chat UI.
+    expect(fixture.debugElement.query(By.css('button.manual-chat-toggle'))).toBeTruthy();
+    expect(fixture.debugElement.query(By.css('.manual-chat-panel'))).toBeNull();
+  });
+
+  it('onManualUrlSelected patches the manualUrl control and marks it dirty', () => {
+    const component = fixture.componentInstance;
+    component.onManualUrlSelected('https://example.com/manual.pdf');
+    expect(component.form.controls.manualUrl.value).toBe('https://example.com/manual.pdf');
+    expect(component.form.controls.manualUrl.dirty).toBe(true);
+  });
+
+  it('productContext() reflects the current form values', () => {
+    const component = fixture.componentInstance;
+    component.form.patchValue({ name: 'My Laptop', brand: 'Dell', modelNumber: 'XPS-15' });
+    fixture.detectChanges();
+    const ctx = component.productContext();
+    expect(ctx.name).toBe('My Laptop');
+    expect(ctx.brand).toBe('Dell');
+    expect(ctx.modelNumber).toBe('XPS-15');
+    expect(ctx.id).toBeNull();
+  });
 });
 
 describe('ProductFormComponent — edit mode', () => {
@@ -102,6 +132,8 @@ describe('ProductFormComponent — edit mode', () => {
       providers: [
         { provide: ProductService, useValue: mockService },
         provideRouter(testRoutes),
+        provideHttpClient(),
+        provideHttpClientTesting(),
         {
           provide: ActivatedRoute,
           useValue: {
@@ -134,5 +166,12 @@ describe('ProductFormComponent — edit mode', () => {
       'aaaaaaaa-0000-0000-0000-000000000042',
       expect.any(Object)
     );
+  });
+
+  it('productContext() includes the product id in edit mode', () => {
+    const component = fixture.componentInstance;
+    const ctx = component.productContext();
+    expect(ctx.id).toBe('aaaaaaaa-0000-0000-0000-000000000042');
+    expect(ctx.name).toBe('Test TV');
   });
 });

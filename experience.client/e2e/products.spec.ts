@@ -64,12 +64,11 @@ test.describe('Products', () => {
       await expect(page.getByRole('link', { name: /find manual/i })).toBeVisible();
     });
 
-    test('"Find Manual" navigates to chat with pre-populated query', async ({ page }) => {
+    test('"Find Manual" navigates to the edit form (which embeds the manual finder)', async ({ page }) => {
       await page.getByRole('cell', { name: productName }).click();
       await page.getByRole('link', { name: /find manual/i }).click();
-      await expect(page).toHaveURL(/\/chat\?q=/);
-      const input = page.locator('textarea, input[type="text"]').first();
-      await expect(input).toHaveValue(new RegExp(productName));
+      await expect(page).toHaveURL(/\/products\/.+\/edit$/);
+      await expect(page.getByRole('button', { name: /find manual/i })).toBeVisible();
     });
   });
 });

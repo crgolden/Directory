@@ -1,85 +1,5 @@
-.chat-container {
-  height: calc(100vh - 72px); /* subtract navbar height */
-}
-
-.conversation-sidebar {
-  width: 200px;
-  min-width: 200px;
-  background: #f8f9fa;
-}
-
-.chat-item {
-  font-size: 0.8rem;
-  color: #495057;
-  border-bottom: 1px solid #dee2e6;
-  position: relative;
-}
-
-.chat-item:hover {
-  background: #e9ecef;
-}
-
-.chat-item.active {
-  background: #0d6efd;
-  color: #fff;
-}
-
-.chat-label {
-  border: none;
-  background: none;
-  padding: 0.5rem 0.75rem;
-  font-size: 0.8rem;
-  color: inherit;
-  min-width: 0; /* allows text-truncate to work inside flexbox */
-}
-
-.chat-label:focus {
-  outline: none;
-  box-shadow: none;
-}
-
-.chat-actions {
-  display: none;
-  gap: 1px;
-  padding-right: 4px;
-  flex-shrink: 0;
-}
-
-.chat-item:hover .chat-actions,
-.chat-item.active .chat-actions {
-  display: flex;
-}
-
-.chat-action {
-  border: none;
-  background: none;
-  padding: 2px 5px;
-  font-size: 0.75rem;
-  line-height: 1;
-  color: inherit;
-  opacity: 0.5;
-  border-radius: 3px;
-  cursor: pointer;
-}
-
-.chat-action:hover:not(:disabled) {
-  opacity: 1;
-  background: rgba(0, 0, 0, 0.08);
-}
-
-.chat-item.active .chat-action:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.chat-action:disabled {
-  cursor: not-allowed;
-  opacity: 0.3;
-}
-
-.chat-title-input {
-  font-size: 0.8rem;
-  padding: 0.2rem 0.4rem;
-  height: auto;
+.manual-chat {
+  min-height: 0; /* allow child .message-list to scroll inside the flex parent */
 }
 
 .message-list {
@@ -87,7 +7,7 @@
 }
 
 .message-bubble {
-  max-width: 75%;
+  max-width: 85%;
   word-break: break-word;
 }
 
@@ -108,6 +28,11 @@
 
 @keyframes blink {
   50% { opacity: 0; }
+}
+
+.url-chips .url-chip {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.55rem;
 }
 
 /* Markdown rendered inside assistant bubbles */

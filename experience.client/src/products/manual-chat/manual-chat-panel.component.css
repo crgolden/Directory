@@ -1,0 +1,58 @@
+/* Collapsed tab: vertical pill anchored to the right edge, centered vertically */
+.manual-chat-toggle {
+  position: fixed;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  writing-mode: vertical-rl;
+  padding: 0.6rem 0.45rem;
+  z-index: 1040;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.manual-chat-toggle .toggle-icon {
+  writing-mode: horizontal-tb;
+  font-size: 1rem;
+}
+
+.manual-chat-toggle .toggle-label {
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+}
+
+/* Expanded panel — desktop: fixed side drawer. */
+.manual-chat-panel {
+  position: fixed;
+  top: 72px; /* navbar height */
+  right: 0;
+  bottom: 0;
+  width: 420px;
+  max-width: 100vw;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  z-index: 1050;
+  border-left: 1px solid #dee2e6;
+}
+
+/* Expanded panel — mobile: full-screen overlay. */
+.manual-chat-panel.panel-narrow {
+  top: 0;
+  left: 0;
+  width: 100vw;
+  border-left: none;
+}
+
+.panel-header {
+  flex-shrink: 0;
+  background: #f8f9fa;
+}
+
+.panel-body {
+  min-height: 0;
+  overflow: hidden;
+}

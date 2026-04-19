@@ -55,13 +55,10 @@
     <div class="d-flex gap-2">
       @if (p.manualUrl) {
         <a class="btn btn-primary" [href]="p.manualUrl" target="_blank" rel="noopener">View Manual</a>
-        <a class="btn btn-outline-primary" [routerLink]="['/chat']"
-          [queryParams]="{ q: findManualQuery(p) }">Update Manual</a>
-      } @else {
-        <a class="btn btn-outline-primary" [routerLink]="['/chat']"
-          [queryParams]="{ q: findManualQuery(p) }">Find Manual</a>
       }
-      <a class="btn btn-outline-secondary" [routerLink]="['/products', p.id, 'edit']">Edit</a>
+      <a class="btn btn-outline-primary" [routerLink]="['/products', p.id, 'edit']">
+        {{ p.manualUrl ? 'Edit' : 'Find Manual' }}
+      </a>
     </div>
   </div>
 } @else {

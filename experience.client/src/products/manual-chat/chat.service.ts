@@ -8,10 +8,6 @@ export class ChatService {
 
   private readonly http = inject(HttpClient);
 
-  getChats(): Observable<Chat[]> {
-    return this.http.get<Chat[]>('/manuals/api/chats');
-  }
-
   getChat(chatId: string): Observable<Chat> {
     return this.http.get<Chat>(`/manuals/api/chats/${chatId}`);
   }

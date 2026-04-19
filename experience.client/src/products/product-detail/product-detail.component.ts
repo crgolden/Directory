@@ -21,10 +21,4 @@ export class ProductDetailComponent implements OnInit {
     this.titleService.setTitle(`Experience | ${product.name ?? 'Product'}`);
     this.product.set(product);
   }
-
-  findManualQuery(p: Product): string {
-    return ['Help me find the manual for', p.name, p.brand, p.modelNumber]
-      .filter(Boolean)
-      .join(' ');
-  }
 }

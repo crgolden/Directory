@@ -118,21 +118,22 @@ The fixture always uses a Playwright route mock for `/bff/user`, regardless of w
 
 `PlaywrightFixture.LoginAsync` performs a real OIDC login against the Identity server during fixture initialization. `TEST_USERNAME` and `TEST_PASSWORD` are required; their absence causes a hard failure (`InvalidOperationException`).
 
-1. Navigates to `/bff/login?returnUrl=%2Fchat` — starts the Duende BFF OIDC challenge.
+1. Navigates to `/bff/login?returnUrl=%2Fproducts` — starts the Duende BFF OIDC challenge.
 2. Fills the Identity server login form (`Input.Email` / `Input.Password`) and submits.
-3. Waits for the BFF callback to redirect back to `/chat`.
+3. Waits for the BFF callback to redirect back to `/products`.
 4. Saves the authenticated browser storage state (cookies) to a temp file.
 
 Each per-test context is then created with `StorageStatePath` set to this file, so every test starts with a real BFF session — the full OIDC flow, BFF session ticket, and auth guard are exercised.
 
 ### Manuals API mocking
 
-All `/manuals/api/**` requests are intercepted by Playwright before they reach the BFF proxy, backed by `InMemoryChatsStore` — a thread-safe in-memory store that mirrors the Manuals service data model. Each test calls `fixture.ChatStore.Clear()` before `NewPageAsync()` to ensure a clean state.
+All `/manuals/api/**` requests are intercepted by Playwright before they reach the BFF proxy, backed by `InMemoryChatsStore` — a thread-safe in-memory store that mirrors the Manuals service data model. Each test calls `fixture.ChatStore.Clear()` before `NewProductsPageAsync()` to ensure a clean state.
 
 `InMemoryChatsStore` provides:
+- `MockManualUrl` *(const)* — canned URL (`https://example.com/manuals/test-manual.pdf`) embedded in both the completion and stream mock responses so the embedded `ManualChatPanelComponent`'s "Use this URL" chip has a deterministic target.
 - `CreateChat()` — creates a new in-memory chat
 - `CompleteMessage(chatId, input)` — stores user + assistant messages, sets auto-title on first message
-- `CompleteStream(chatId, input)` — same as `CompleteMessage` but also returns an SSE body
+- `CompleteStream(chatId, input)` — same as `CompleteMessage` but also returns an SSE body with three deltas ending in `[DONE]`; the middle delta includes `MockManualUrl`
 - `GetMockResponse()` — returns the canned assistant response text used by both completion and stream routes
 
 ### Key Vault at startup
@@ -145,24 +146,17 @@ In CI, the build job runs `azure/login` before the E2E step and sets `ASPNETCORE
 
 ## E2E test coverage
 
-### `E2E/ChatCrudTests.cs` — `[Trait("Category", "E2E")]` + `[Trait("Category", "Smoke")]`
+### `E2E/ProductManualChatTests.cs` — `[Trait("Category", "E2E")]`
+
+Covers the embedded `ManualChatPanelComponent` on `/products/new`. All `/manuals/api/**` calls are Playwright-mocked via `InMemoryChatsStore`.
 
 | Test | What it verifies |
 |------|-----------------|
-| `CanLoadChatPage` | Sidebar label "Chats" and "+" button are visible on `/chat` |
-| `EmptyStateShowsNoChatMessage` | "No chats yet." message appears when the chat list is empty |
-| `CanCreateChat` | Clicking "+" creates a chat and a `.chat-item` appears in the sidebar |
-| `CanDeleteChat` | Deleting a chat and reloading the page shows "No chats yet." |
-
-### `E2E/ChatMessagingTests.cs` — `[Trait("Category", "E2E")]`
-
-| Test | What it verifies |
-|------|-----------------|
-| `CanSendMessageAndSeeResponse` *(Smoke)* | Sending a message displays the mock assistant reply |
-| `AutoTitleSetsAfterFirstMessage` | After the first message, the sidebar item updates to show the input text as the title |
-| `StreamingResponseAppearsAfterSend` | The SSE stream endpoint accumulates into the visible assistant bubble |
-| `MessageHistoryReloadsOnResume` | Pre-seeded messages appear when selecting an existing chat |
-| `MultipleChatsOrderedNewestFirst` | Sidebar orders three pre-seeded chats newest-first |
+| `Manual_chat_panel_toggle_is_visible_on_create_form` | The collapsed `.manual-chat-toggle` button renders on the create form; the expanded panel does not. |
+| `Manual_chat_panel_opens_and_closes` | Clicking the toggle opens the panel; the panel's close button collapses it again. |
+| `Sending_message_streams_response_and_shows_url_chip` | Sending a message triggers the SSE stream; a "Use this URL" chip appears with `title == InMemoryChatsStore.MockManualUrl`. |
+| `Clicking_url_chip_populates_manual_url_field` | Clicking a URL chip writes `MockManualUrl` into the form's `#manualUrl` input. |
+| `Submitting_form_after_chip_click_persists_manual_url_on_product` | After chip selection + form submit, the created product (in `InMemoryProductsStore`) has `ManualUrl == MockManualUrl`. |
 
 ---
 

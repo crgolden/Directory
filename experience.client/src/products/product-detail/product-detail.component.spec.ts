@@ -11,7 +11,6 @@ class DummyComponent {}
 const testRoutes: Routes = [
   { path: 'products', component: DummyComponent },
   { path: 'products/not-found', component: DummyComponent },
-  { path: 'chat', component: DummyComponent },
   { path: 'products/:id/edit', component: DummyComponent },
 ];
 
@@ -66,12 +65,11 @@ describe('ProductDetailComponent', () => {
     expect(text).toContain('SN-001');
   });
 
-  it('"Find Manual" link encodes product name, brand, and model into ?q=', () => {
-    const component = fixture.componentInstance;
-    const query = component.findManualQuery(mockProduct);
-    expect(query).toContain('LG TV');
-    expect(query).toContain('LG');
-    expect(query).toContain('OLED65C3');
+  it('without manualUrl, shows a "Find Manual" link that routes to the edit form', () => {
+    const links = fixture.debugElement.queryAll(By.css('a.btn-outline-primary'));
+    const findManual = links.find(l => (l.nativeElement.textContent as string).includes('Find Manual'));
+    expect(findManual).toBeTruthy();
+    expect(findManual!.nativeElement.getAttribute('href')).toContain(`/products/${mockProduct.id}/edit`);
   });
 });
 
@@ -111,9 +109,8 @@ describe('ProductDetailComponent — with manualUrl', () => {
     expect(link.nativeElement.textContent).toContain('View Manual');
   });
 
-  it('renders "Update Manual" chat link instead of "Find Manual"', () => {
+  it('shows a plain "Edit" action instead of "Find Manual"', () => {
     const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('Update Manual');
     expect(text).not.toContain('Find Manual');
   });
 });

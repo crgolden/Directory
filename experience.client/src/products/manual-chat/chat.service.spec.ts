@@ -18,21 +18,6 @@ describe('ChatService', () => {
 
   afterEach(() => httpMock.verify());
 
-  it('getChats GETs /manuals/api/chats and returns chat list', async () => {
-    const promise = firstValueFrom(service.getChats());
-    const req = httpMock.expectOne('/manuals/api/chats');
-    expect(req.request.method).toBe('GET');
-    req.flush([
-      { chatId: 'chat-1', title: 'First Chat', createdAt: 1700000000 },
-      { chatId: 'chat-2', title: null, createdAt: 1699999000 },
-    ]);
-    const result = await promise;
-    expect(result).toHaveLength(2);
-    expect(result[0].chatId).toBe('chat-1');
-    expect(result[0].title).toBe('First Chat');
-    expect(result[1].title).toBeNull();
-  });
-
   it('getChat GETs the correct URL and returns a chat', async () => {
     const promise = firstValueFrom(service.getChat('chat-123'));
     const req = httpMock.expectOne('/manuals/api/chats/chat-123');

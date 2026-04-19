@@ -55,7 +55,6 @@ class DummyComponent {}
 const testRoutes: Routes = [
   { path: '', component: DummyComponent },
   { path: 'products', component: DummyComponent },
-  { path: 'chat', component: DummyComponent },
 ];
 
 class AuthServiceStub {

@@ -70,36 +70,34 @@ Open the solution in Visual Studio and run with the `https` launch profile, whic
 
 **Product model** (`product.model.ts`): `id`, `name`, `price`, `brand`, `modelNumber`, `serialNumber`, `purchaseDate` (ISO date string), `category`, `description`, `manualUrl`, `createdAt`, `updatedAt`. All fields except `id` and `createdAt` are nullable. The list response is an OData envelope `{ value: Product[] }` unwrapped by `ProductService.getAll()`.
 
-**`manualUrl` field**: stored in the Products API model but not yet populated. **TODO**: once a product↔manual linking feature is built in the Manuals API, populate `manualUrl` from it. The `ProductDetailComponent` currently shows a "Find Manual" button that passes a free-text query to the Chat feature instead.
+**`manualUrl` field**: populated via the embedded Manual Chat Panel on the product create/edit form (see below). Rendered on `ProductDetailComponent` as a "View Manual" external link when set.
 
 | Path | Component |
 |------|-----------|
 | `/products` | `ProductListComponent` — searchable table with inline delete confirmation |
-| `/products/new` | `ProductFormComponent` (create mode, POSTs to OData collection) |
+| `/products/new` | `ProductFormComponent` (create mode, POSTs to OData collection) — embeds `ManualChatPanelComponent` |
 | `/products/:id` | `ProductDetailComponent` — 404 navigates to `/products/not-found` |
-| `/products/:id/edit` | `ProductFormComponent` (edit mode, PUTs to OData keyed entity) |
+| `/products/:id/edit` | `ProductFormComponent` (edit mode, PUTs to OData keyed entity) — embeds `ManualChatPanelComponent` |
 | `/products/not-found` | `ProductNotFoundComponent` — user-friendly 404 page with "Back to My Products" |
 
-### Chat (`/chat`)
-`src/chat/` — AI-assisted product manual lookup via the Manuals service.
+#### Manual Chat Panel (`src/products/manual-chat/`)
+A retractable, AI-assisted manual-finder embedded in `ProductFormComponent` (create + edit). It is the only surface for the Manuals chat feature — there is no standalone `/chat` route.
 
-**Chat lifecycle** (managed by `ChatService`):
-1. On init: `GET /manuals/api/chats` loads all existing chats for the user into the sidebar (ordered newest first). Each chat shows its `title` if set, or a truncated `chatId` as fallback.
-2. "+" button: `POST /manuals/api/chats` creates a new chat; it is prepended to the sidebar and selected automatically.
-3. Selecting a sidebar item: `GET /manuals/api/chats/{id}/messages` fetches the full message history. Items with `role: null` are filtered out; `text ?? ''` guards null text.
-4. `POST /manuals/api/chats/{id}/messages/stream` streams responses as SSE deltas; the component appends each delta to the last assistant message in real time. After streaming completes, `GET /manuals/api/chats/{id}` refreshes the chat to pick up the auto-generated title.
-5. `PATCH /manuals/api/chats/{id}` (Content-Type: `application/merge-patch+json`) — updates the chat title.
-6. `DELETE /manuals/api/chats/{id}` — explicit discard only. Chats are **not** deleted on component destroy — they persist in Redis.
+**UI pattern**: collapsed by default as a fixed-position tab button (`.manual-chat-toggle`) anchored to the right edge. Clicking opens a 420px side panel on desktop (≥768px) or a full-screen overlay on mobile (<768px, detected via `window.matchMedia('(max-width: 767px)')`). A close button returns to the collapsed state without unmounting form state.
 
-**SSE streaming**: uses the Fetch API (not `EventSource`) because the stream endpoint requires a POST body. The `streamMessage()` method in `ChatService` reads `response.body` as a `ReadableStream`, parses `data: {...}\n\n` SSE lines, and emits each `delta.content` string as an `Observable<string>`.
+**Chat lifecycle** (managed by `ChatService` in `src/products/manual-chat/chat.service.ts`):
+1. On first user message, if no `chatId` yet, `POST /manuals/api/chats` creates a new chat, then `PATCH /manuals/api/chats/{id}` sets the title to `"Manual: {name} {brand} {modelNumber}"` (truncated to 60 chars) so the chat is recognizable when revisited via the Manuals service.
+2. `POST /manuals/api/chats/{id}/messages/stream` streams assistant responses as SSE deltas; each delta is appended to the last assistant message in real time.
+3. After each assistant reply lands, a URL regex (`/\bhttps?:\/\/[^\s)>\]"']+/g`) extracts any URLs and renders them as "Use this URL" chip buttons beneath the message. Clicking a chip emits `manualUrlSelected` up to `ProductFormComponent`, which patches `form.controls.manualUrl` and marks it dirty.
+4. Each form session starts a fresh chat — there is no product-id index on the Manuals side yet to link existing chats back. Chats still persist in the Manuals API so users can revisit them from that service if needed.
+
+**SSE streaming**: uses the Fetch API (not `EventSource`) because the stream endpoint requires a POST body. `ChatService.streamMessage()` reads `response.body` as a `ReadableStream`, parses `data: {...}\n\n` SSE lines, and emits each `delta.content` string as an `Observable<string>`.
 
 **BFF proxy coverage**: `app.MapRemoteBffApiEndpoint("/manuals", manualsApiAddress).WithAccessToken()` covers all `/manuals/api/chats/**` routes.
 
-**Query param pre-population**: navigating to `/chat?q=...` pre-fills the input box. `ProductDetailComponent` uses this to pass "Help me find the manual for [Name] [Brand] [Model]" when the user clicks "Find Manual".
-
 ## Auth Guard
 
-`src/auth/auth.guard.ts` — functional `CanActivateFn` that reads `AuthService.isAuthenticated()` signal. Redirects to `/bff/login` via `window.location.href` if the user is anonymous. Applied to `/products/**` and `/chat`.
+`src/auth/auth.guard.ts` — functional `CanActivateFn` that reads `AuthService.isAuthenticated()` signal. Redirects to `/bff/login` via `window.location.href` if the user is anonymous. Applied to `/products/**`.
 
 ## Testing
 
