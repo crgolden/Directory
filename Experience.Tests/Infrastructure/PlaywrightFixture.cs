@@ -47,6 +47,7 @@ public sealed class PlaywrightFixture : IAsyncLifetime
         Factory = SmokeBaseUrl is null ? new ExperienceWebApplicationFactory() : null;
         ChatStore = new InMemoryChatsStore();
         ProductStore = new InMemoryProductsStore();
+        CatalogStore = new InMemoryCatalogStore();
         BaseAddress = string.Empty;
     }
 
@@ -55,6 +56,8 @@ public sealed class PlaywrightFixture : IAsyncLifetime
     public InMemoryChatsStore ChatStore { get; }
 
     public InMemoryProductsStore ProductStore { get; }
+
+    public InMemoryCatalogStore CatalogStore { get; }
 
     public string BaseAddress { get; private set; }
 
@@ -228,6 +231,64 @@ public sealed class PlaywrightFixture : IAsyncLifetime
         return (context, page);
     }
 
+    /// <summary>
+    /// Creates a new browser context and page, registers Playwright route mocks for
+    /// <c>/catalog/api/odata/**</c> requests (backed by <see cref="CatalogStore"/>), then
+    /// navigates to <c>/catalog</c> and waits for the catalog list to render.
+    /// </summary>
+    /// <remarks>
+    /// The catalog is publicly accessible — no auth guard and no <c>/bff/user</c> mock is
+    /// registered. The BFF returns an empty claims array for the unauthenticated request,
+    /// which causes the nav to show the Login link instead of My Products.
+    /// </remarks>
+    public async Task<(IBrowserContext Context, IPage Page)> NewCatalogPageAsync()
+    {
+        if (_browser is null)
+        {
+            throw new InvalidOperationException("Browser is not initialized. Ensure InitializeAsync has been awaited.");
+        }
+
+        var context = await _browser.NewContextAsync(new BrowserNewContextOptions
+        {
+            BaseURL = BaseAddress,
+            IgnoreHTTPSErrors = true,
+        });
+        var page = await context.NewPageAsync();
+        page.SetDefaultTimeout(60_000);
+
+        page.Request += (_, req) => Stage($"REQ {req.Method} {req.Url}");
+        page.Response += (_, resp) => Stage($"RESP {resp.Status} {resp.Url}");
+        page.RequestFailed += (_, req) => Stage($"FAIL {req.Method} {req.Url} err={req.Failure}");
+
+        if (!IsSmoke)
+        {
+            await page.RouteAsync("**/catalog/api/odata/**", async route =>
+            {
+                try
+                {
+                    await DispatchCatalogRouteAsync(route);
+                }
+                catch
+                {
+                    await route.FulfillAsync(new RouteFulfillOptions { Status = 500 });
+                }
+            });
+        }
+
+        await page.GotoAsync("/catalog", new PageGotoOptions
+        {
+            WaitUntil = WaitUntilState.DOMContentLoaded,
+            Timeout = 60_000
+        });
+
+        await page.WaitForSelectorAsync("h2:has-text('Product Catalog')", new PageWaitForSelectorOptions
+        {
+            Timeout = 60_000
+        });
+
+        return (context, page);
+    }
+
     /// <inheritdoc/>
     public async ValueTask DisposeAsync()
     {
@@ -282,6 +343,171 @@ public sealed class PlaywrightFixture : IAsyncLifetime
         // Persist session cookies so every per-test context starts authenticated.
         await context.StorageStateAsync(new() { Path = _storageStatePath });
     }
+
+    private async Task DispatchCatalogRouteAsync(IRoute route)
+    {
+        var request = route.Request;
+        var method = request.Method.ToUpperInvariant();
+        var uri = new Uri(request.Url);
+
+        var path = uri.AbsolutePath;
+        var collectionIndex = path.LastIndexOf("/Products", StringComparison.OrdinalIgnoreCase);
+        if (collectionIndex < 0)
+        {
+            await route.FulfillAsync(new RouteFulfillOptions { Status = 404 });
+            return;
+        }
+
+        var remainder = path[(collectionIndex + "/Products".Length)..];
+
+        if (remainder.Length == 0 || remainder == "/")
+        {
+            if (method == "GET")
+            {
+                await HandleCatalogCollectionAsync(route, uri);
+            }
+            else
+            {
+                await route.FulfillAsync(new RouteFulfillOptions { Status = 405 });
+            }
+        }
+        else if (remainder.StartsWith('(') && remainder.EndsWith(')'))
+        {
+            var idStr = remainder[1..^1];
+            if (!Guid.TryParse(idStr, out var id))
+            {
+                await route.FulfillAsync(new RouteFulfillOptions { Status = 400 });
+                return;
+            }
+
+            if (method == "GET")
+            {
+                var product = CatalogStore.GetProduct(id);
+                if (product is null)
+                {
+                    await route.FulfillAsync(new RouteFulfillOptions { Status = 404 });
+                    return;
+                }
+
+                await route.FulfillAsync(new RouteFulfillOptions
+                {
+                    Status = 200,
+                    ContentType = "application/json",
+                    Body = JsonSerializer.Serialize(CatalogRecordToJson(product))
+                });
+            }
+            else
+            {
+                await route.FulfillAsync(new RouteFulfillOptions { Status = 405 });
+            }
+        }
+        else
+        {
+            await route.FulfillAsync(new RouteFulfillOptions { Status = 404 });
+        }
+    }
+
+    private async Task HandleCatalogCollectionAsync(IRoute route, Uri uri)
+    {
+        var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
+
+        // Parse $filter for name search
+        string? nameFilter = null;
+        if (query.TryGetValue("$filter", out var fv))
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(
+                fv.ToString(),
+                @"tolower\('([^']+)'\)\s*\)",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (match.Success)
+            {
+                nameFilter = match.Groups[1].Value;
+            }
+        }
+
+        // Parse $orderby (e.g. "Name asc", "Price desc")
+        var orderBy = "Name";
+        var orderDesc = false;
+        if (query.TryGetValue("$orderby", out var obv))
+        {
+            var parts = obv.ToString().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length >= 1)
+            {
+                orderBy = parts[0];
+            }
+
+            if (parts.Length >= 2)
+            {
+                orderDesc = parts[1].Equals("desc", StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        // Parse $top and $skip
+        var top = int.MaxValue;
+        var skip = 0;
+        if (query.TryGetValue("$top", out var tv) && int.TryParse(tv.ToString(), out var topVal))
+        {
+            top = topVal;
+        }
+
+        if (query.TryGetValue("$skip", out var sv) && int.TryParse(sv.ToString(), out var skipVal))
+        {
+            skip = skipVal;
+        }
+
+        // Parse $count
+        var includeCount = query.TryGetValue("$count", out var cv) &&
+            cv.ToString().Equals("true", StringComparison.OrdinalIgnoreCase);
+
+        var allProducts = CatalogStore.GetProducts(nameFilter);
+        var totalCount = allProducts.Count;
+
+        IEnumerable<InMemoryCatalogStore.CatalogRecord> ordered = orderBy switch
+        {
+            "Price" when !orderDesc => allProducts.OrderBy(p => p.Price),
+            "Price" => allProducts.OrderByDescending(p => p.Price),
+            "Brand" when !orderDesc => allProducts.OrderBy(p => p.Brand),
+            "Brand" => allProducts.OrderByDescending(p => p.Brand),
+            "Category" when !orderDesc => allProducts.OrderBy(p => p.Category),
+            "Category" => allProducts.OrderByDescending(p => p.Category),
+            _ when orderDesc => allProducts.OrderByDescending(p => p.Name),
+            _ => allProducts.OrderBy(p => p.Name),
+        };
+
+        var pageItems = ordered.Skip(skip).Take(top).Select(CatalogRecordToJson).ToArray();
+
+        var responseDict = new Dictionary<string, object?>
+        {
+            ["value"] = pageItems
+        };
+        if (includeCount)
+        {
+            responseDict["@odata.count"] = totalCount;
+        }
+
+        await route.FulfillAsync(new RouteFulfillOptions
+        {
+            Status = 200,
+            ContentType = "application/json",
+            Body = JsonSerializer.Serialize(responseDict)
+        });
+    }
+
+    private static object CatalogRecordToJson(InMemoryCatalogStore.CatalogRecord p) => new
+    {
+        Id = p.Id,
+        Name = p.Name,
+        Price = p.Price,
+        Brand = p.Brand,
+        ModelNumber = (string?)null,
+        SerialNumber = (string?)null,
+        PurchaseDate = (string?)null,
+        Category = p.Category,
+        Description = (string?)null,
+        ManualUrl = p.ManualUrl,
+        CreatedAt = p.CreatedAt,
+        UpdatedAt = (DateTimeOffset?)null,
+    };
 
     private async Task DispatchManualsRouteAsync(IRoute route)
     {

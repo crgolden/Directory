@@ -41,7 +41,7 @@ describe('ProductFormComponent — create mode', () => {
     mockService = {
       getById: vi.fn(),
       create: vi.fn(() => of(mockProduct.id)),
-      put: vi.fn(),
+      patch: vi.fn(),
     };
 
     await TestBed.configureTestingModule({

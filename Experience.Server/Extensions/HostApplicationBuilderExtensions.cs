@@ -2,7 +2,6 @@
 
 using Azure.Core;
 using Azure.Monitor.OpenTelemetry.AspNetCore;
-using Azure.Security.KeyVault.Secrets;
 using Duende.Bff;
 using Duende.Bff.DynamicFrontends;
 using Duende.Bff.Yarp;
@@ -26,16 +25,10 @@ public static class HostApplicationBuilderExtensions
 {
     extension(IHostApplicationBuilder builder)
     {
-        public async Task<IHostApplicationBuilder> AddObservabilityAsync(SecretClient secretClient, CancellationToken cancellationToken = default)
+        public IHostApplicationBuilder AddObservability(string elasticsearchUsername, string elasticsearchPassword)
         {
             var applicationName = builder.Configuration["WEBSITE_SITE_NAME"];
             var elasticsearchNode = builder.Configuration.GetValue<Uri?>("ElasticsearchNode") ?? throw new InvalidOperationException("Invalid 'ElasticsearchNode'.");
-            var tasks = new[]
-            {
-                secretClient.GetSecretAsync("ElasticsearchUsername", cancellationToken: cancellationToken),
-                secretClient.GetSecretAsync("ElasticsearchPassword", cancellationToken: cancellationToken),
-            };
-            var result = await Task.WhenAll(tasks);
             builder.Logging.AddOpenTelemetry(openTelemetryLoggerOptions =>
             {
                 openTelemetryLoggerOptions.IncludeFormattedMessage = true;
@@ -111,7 +104,7 @@ public static class HostApplicationBuilderExtensions
                             },
                             transportConfiguration =>
                             {
-                                var header = new BasicAuthentication(result[0].Value.Value, result[1].Value.Value);
+                                var header = new BasicAuthentication(elasticsearchUsername, elasticsearchPassword);
                                 transportConfiguration.Authentication(header);
                             });
                 }
@@ -119,15 +112,9 @@ public static class HostApplicationBuilderExtensions
             return builder;
         }
 
-        public async Task<IHostApplicationBuilder> AddAuthAsync(SecretClient secretClient, CancellationToken cancellationToken = default)
+        public IHostApplicationBuilder AddAuth(string clientId, string clientSecret)
         {
             var authority = builder.Configuration.GetValue<Uri?>("OidcAuthority") ?? throw new InvalidOperationException("Invalid 'OidcAuthority'.");
-            var tasks = new[]
-            {
-                secretClient.GetSecretAsync("ExperienceClientId", cancellationToken: cancellationToken),
-                secretClient.GetSecretAsync("ExperienceClientSecret", cancellationToken: cancellationToken)
-            };
-            var result = await Task.WhenAll(tasks);
             builder.Services
                 .AddAuthentication(options =>
                 {
@@ -143,8 +130,8 @@ public static class HostApplicationBuilderExtensions
                         .GetSection(nameof(OpenIdConnectOptions))
                         .Get<OpenIdConnectOptions>() ?? throw new InvalidOperationException($"Invalid '{nameof(OpenIdConnectOptions)}' section.");
                     options.Authority = authority.ToString();
-                    options.ClientId = result[0].Value.Value;
-                    options.ClientSecret = result[1].Value.Value;
+                    options.ClientId = clientId;
+                    options.ClientSecret = clientSecret;
                     foreach (var scope in openIdConnectOptions.Scope)
                     {
                         options.Scope.Add(scope);

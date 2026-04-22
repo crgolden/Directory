@@ -4,11 +4,14 @@
     <p class="lead mb-4">
       Keep track of everything you own — so you're ready for anything.
     </p>
-    @if (authService.isAuthenticated()) {
-      <a class="btn btn-primary btn-lg" [routerLink]="['/products']">View My Products</a>
-    } @else {
-      <a class="btn btn-primary btn-lg" href="/bff/login">Get Started &mdash; Log In</a>
-    }
+    <div class="d-flex gap-3 justify-content-center flex-wrap">
+      <a class="btn btn-outline-primary btn-lg" [routerLink]="['/catalog']">Browse Catalog</a>
+      @if (authService.isAuthenticated()) {
+        <a class="btn btn-primary btn-lg" [routerLink]="['/products']">View My Products</a>
+      } @else {
+        <a class="btn btn-primary btn-lg" href="/bff/login">Get Started &mdash; Log In</a>
+      }
+    </div>
   </div>
 </section>
 

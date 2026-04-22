@@ -1,8 +1,6 @@
 namespace Experience.Tests.Extensions;
 
-using Azure;
 using Azure.Core;
-using Azure.Security.KeyVault.Secrets;
 using Experience.Server.Extensions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,7 +12,7 @@ using Moq;
 public sealed class HostApplicationBuilderExtensionsTests
 {
     [Fact]
-    public async Task AddObservabilityAsync_WithValidConfig_ReturnsBuilder()
+    public void AddObservability_WithValidConfig_ReturnsBuilder()
     {
         // Arrange
         var builder = new Mock<IHostApplicationBuilder>();
@@ -33,16 +31,9 @@ public sealed class HostApplicationBuilderExtensionsTests
         builder.SetupGet(x => x.Logging).Returns(loggingBuilder.Object);
         builder.SetupGet(x => x.Environment).Returns(environment.Object);
         builder.SetupGet(x => x.Services).Returns(serviceCollection);
-        var secret1 = new KeyVaultSecret("ElasticsearchUsername", Guid.NewGuid().ToString());
-        var secret2 = new KeyVaultSecret("ElasticsearchPassword", Guid.NewGuid().ToString());
-        var response1 = Response.FromValue(secret1, Mock.Of<Response>());
-        var response2 = Response.FromValue(secret2, Mock.Of<Response>());
-        var secretClient = new Mock<SecretClient>();
-        secretClient.Setup(x => x.GetSecretAsync(secret1.Name, null, null, TestContext.Current.CancellationToken)).ReturnsAsync(response1);
-        secretClient.Setup(x => x.GetSecretAsync(secret2.Name, null, null, TestContext.Current.CancellationToken)).ReturnsAsync(response2);
 
         // Act
-        var result = await builder.Object.AddObservabilityAsync(secretClient.Object, TestContext.Current.CancellationToken);
+        var result = builder.Object.AddObservability(Guid.NewGuid().ToString(), Guid.NewGuid().ToString());
 
         // Assert
         Assert.Same(builder.Object, result);
@@ -53,14 +44,12 @@ public sealed class HostApplicationBuilderExtensionsTests
         configuration.Verify(x => x.GetSection(path), Times.Once);
         configurationSection.VerifyGet(x => x.Value, Times.Once);
         configurationSection.VerifyGet(x => x.Path, Times.Once);
-        secretClient.Verify(x => x.GetSecretAsync(secret1.Name, null, null, TestContext.Current.CancellationToken), Times.Once);
-        secretClient.Verify(x => x.GetSecretAsync(secret2.Name, null, null, TestContext.Current.CancellationToken), Times.Once);
         environment.Verify(x => x.ApplicationName, Times.Once);
         environment.Verify(x => x.EnvironmentName, Times.Exactly(2));
     }
 
     [Fact]
-    public async Task AddObservabilityAsync_WithMissingElasticsearchNode_ThrowsInvalidOperationException()
+    public void AddObservability_WithMissingElasticsearchNode_ThrowsInvalidOperationException()
     {
         // Arrange
         var builder = new Mock<IHostApplicationBuilder>();
@@ -71,15 +60,14 @@ public sealed class HostApplicationBuilderExtensionsTests
         configurationSection.SetupGet(x => x.Value).Returns((string?)null);
         configuration.Setup(x => x.GetSection(path)).Returns(configurationSection.Object);
         builder.SetupGet(x => x.Configuration).Returns(configuration.Object);
-        var secretClient = new Mock<SecretClient>();
 
         // Act & Assert
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            builder.Object.AddObservabilityAsync(secretClient.Object, TestContext.Current.CancellationToken));
+        Assert.Throws<InvalidOperationException>(() =>
+            builder.Object.AddObservability(Guid.NewGuid().ToString(), Guid.NewGuid().ToString()));
     }
 
     [Fact]
-    public async Task AddAuthAsync_WithValidSecrets_ReturnsBuilder()
+    public void AddAuth_WithValidSecrets_ReturnsBuilder()
     {
         // Arrange
         var builder = new Mock<IHostApplicationBuilder>();
@@ -92,16 +80,9 @@ public sealed class HostApplicationBuilderExtensionsTests
         configuration.Setup(x => x.GetSection(oidcAuthorityKey)).Returns(configurationSection.Object);
         builder.SetupGet(x => x.Configuration).Returns(configuration.Object);
         builder.SetupGet(x => x.Services).Returns(serviceCollection);
-        var secret1 = new KeyVaultSecret("ExperienceClientId", Guid.NewGuid().ToString());
-        var secret2 = new KeyVaultSecret("ExperienceClientSecret", Guid.NewGuid().ToString());
-        var response1 = Response.FromValue(secret1, Mock.Of<Response>());
-        var response2 = Response.FromValue(secret2, Mock.Of<Response>());
-        var secretClient = new Mock<SecretClient>();
-        secretClient.Setup(x => x.GetSecretAsync(secret1.Name, null, null, TestContext.Current.CancellationToken)).ReturnsAsync(response1);
-        secretClient.Setup(x => x.GetSecretAsync(secret2.Name, null, null, TestContext.Current.CancellationToken)).ReturnsAsync(response2);
 
         // Act
-        var result = await builder.Object.AddAuthAsync(secretClient.Object, TestContext.Current.CancellationToken);
+        var result = builder.Object.AddAuth(Guid.NewGuid().ToString(), Guid.NewGuid().ToString());
 
         // Assert
         Assert.Same(builder.Object, result);
@@ -110,8 +91,6 @@ public sealed class HostApplicationBuilderExtensionsTests
         configuration.Verify(x => x.GetSection(oidcAuthorityKey), Times.Once);
         configurationSection.VerifyGet(x => x.Value, Times.Once);
         configurationSection.VerifyGet(x => x.Path, Times.Once);
-        secretClient.Verify(x => x.GetSecretAsync(secret1.Name, null, null, TestContext.Current.CancellationToken), Times.Once);
-        secretClient.Verify(x => x.GetSecretAsync(secret2.Name, null, null, TestContext.Current.CancellationToken), Times.Once);
     }
 
     [Fact]

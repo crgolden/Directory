@@ -3,16 +3,16 @@ import { ActivatedRouteSnapshot, provideRouter, Router, RouterStateSnapshot } fr
 import { of, throwError, firstValueFrom, EmptyError, Observable } from 'rxjs';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component } from '@angular/core';
-import { productResolver } from './product.resolver';
-import { ProductService } from './product.service';
-import { Product } from './product.model';
+import { catalogResolver } from './catalog.resolver';
+import { CatalogService } from './catalog.service';
+import { Product } from '../products/product.model';
 
 @Component({ template: '' })
 class DummyComponent {}
 
 const testRoutes = [
-  { path: 'products', component: DummyComponent },
-  { path: 'products/not-found', component: DummyComponent },
+  { path: 'catalog', component: DummyComponent },
+  { path: 'catalog/not-found', component: DummyComponent },
 ];
 
 const mockProduct: Product = {
@@ -20,7 +20,7 @@ const mockProduct: Product = {
   name: 'LG TV',
   price: 1299.99,
   brand: 'LG',
-  modelNumber: 'OLED65C3',
+  modelNumber: null,
   serialNumber: null,
   purchaseDate: null,
   category: null,
@@ -34,28 +34,28 @@ function makeSnapshot(id: string): ActivatedRouteSnapshot {
   return { paramMap: { get: (key: string) => (key === 'id' ? id : null) } } as unknown as ActivatedRouteSnapshot;
 }
 
-describe('productResolver', () => {
+describe('catalogResolver', () => {
   it('returns the product when getById succeeds', async () => {
     TestBed.configureTestingModule({
       providers: [
-        { provide: ProductService, useValue: { getById: () => of(mockProduct) } },
+        { provide: CatalogService, useValue: { getById: () => of(mockProduct) } },
         provideRouter(testRoutes),
       ],
     });
 
     const result$ = TestBed.runInInjectionContext(() =>
-      productResolver(makeSnapshot(mockProduct.id!), {} as RouterStateSnapshot)
+      catalogResolver(makeSnapshot(mockProduct.id!), {} as RouterStateSnapshot)
     ) as Observable<Product>;
 
     const product = await firstValueFrom(result$);
     expect(product).toEqual(mockProduct);
   });
 
-  it('navigates to /products/not-found when getById returns 404', async () => {
+  it('navigates to /catalog/not-found when getById returns 404', async () => {
     TestBed.configureTestingModule({
       providers: [
         {
-          provide: ProductService,
+          provide: CatalogService,
           useValue: {
             getById: () =>
               throwError(() => new HttpErrorResponse({ status: 404, statusText: 'Not Found' })),
@@ -69,18 +69,18 @@ describe('productResolver', () => {
     const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
 
     const result$ = TestBed.runInInjectionContext(() =>
-      productResolver(makeSnapshot('missing-id'), {} as RouterStateSnapshot)
+      catalogResolver(makeSnapshot('missing-id'), {} as RouterStateSnapshot)
     ) as Observable<Product>;
 
     await expect(firstValueFrom(result$)).rejects.toBeInstanceOf(EmptyError);
-    expect(navigateSpy).toHaveBeenCalledWith(['/products/not-found']);
+    expect(navigateSpy).toHaveBeenCalledWith(['/catalog/not-found']);
   });
 
-  it('navigates to /products when getById returns a non-404 error', async () => {
+  it('navigates to /catalog when getById returns a non-404 error', async () => {
     TestBed.configureTestingModule({
       providers: [
         {
-          provide: ProductService,
+          provide: CatalogService,
           useValue: {
             getById: () =>
               throwError(() => new HttpErrorResponse({ status: 500, statusText: 'Server Error' })),
@@ -94,10 +94,10 @@ describe('productResolver', () => {
     const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
 
     const result$ = TestBed.runInInjectionContext(() =>
-      productResolver(makeSnapshot('any-id'), {} as RouterStateSnapshot)
+      catalogResolver(makeSnapshot('any-id'), {} as RouterStateSnapshot)
     ) as Observable<Product>;
 
     await expect(firstValueFrom(result$)).rejects.toBeInstanceOf(EmptyError);
-    expect(navigateSpy).toHaveBeenCalledWith(['/products']);
+    expect(navigateSpy).toHaveBeenCalledWith(['/catalog']);
   });
 });

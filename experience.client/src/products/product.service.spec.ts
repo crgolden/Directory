@@ -9,7 +9,7 @@ import {
 } from '@angular/common/http/testing';
 import { firstValueFrom } from 'rxjs';
 import { ProductService } from './product.service';
-import { Product } from './product.model';
+import { ODataResponse, Product } from './product.model';
 
 const BASE = '/products/api/odata/Products';
 

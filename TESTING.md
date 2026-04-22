@@ -17,13 +17,27 @@ Smoke tests are a tagged subset of E2E tests (`[Trait("Category", "Smoke")]` on 
 
 ## Running tests locally
 
+### Build configurations
+
+`Experience.Server.csproj` has two Angular build targets:
+
+| MSBuild configuration | Angular build | When to use |
+|---|---|---|
+| `Debug` (default) | `ng build --configuration development` — no optimization, fast (~1 min) | **Local development and local test runs** |
+| `Release` | `ng build --configuration production` — AOT, minification, tree-shaking (~4–5 min) | CI and production deployments only |
+
+Always use `--configuration Debug` for local test runs. There is no reason to pay the production build cost just to run tests — Playwright only needs the files to exist and load in a browser.
+
 ### Prerequisites
 
 ```bash
-az login                          # Azure CLI — required for Key Vault at startup
-cd experience.client && npm ci    # install Angular dependencies (first time)
-npm run build                     # build Angular SPA into dist/ (required for E2E)
+az login                                              # Azure CLI — required for Key Vault at startup
+az account get-access-token --resource https://vault.azure.net  # pre-warm token cache (saves ~2–3 min)
+cd experience.client && npm ci                        # install Angular dependencies (first time)
+dotnet build --configuration Debug                    # builds Angular (dev mode) + C# into bin/Debug/
 ```
+
+**`az account get-access-token` is required, not optional.** Each Azure SDK client spawns a fresh `az` CLI process on this Windows dev machine which takes 20–30 seconds cold. The E2E fixture startup makes ~4 Key Vault calls; without the pre-warm, fixture initialization alone takes ~2–3 minutes and individual calls can exceed the 13-second default `CredentialProcessTimeout`. After the pre-warm, the CLI token cache is hot and each subsequent call takes under a second.
 
 The Angular build output must exist at `experience.client/dist/experience.client/browser/` before running E2E tests. The test factory sets the Kestrel web root to that directory at runtime; if it is absent the server still starts but serves no static files.
 
@@ -33,6 +47,27 @@ The Angular build output must exist at `experience.client/dist/experience.client
 dotnet test --project Experience.Tests --configuration Release \
   -- --filter-trait "Category=Unit"
 ```
+
+### E2E tests (critical pre-commit subset — ~3 tests, ~3 min)
+
+A `Category=Critical` trait is applied to the 5 highest-signal E2E tests — the ones most likely to catch a real regression in under 3 minutes. Run these before every check-in instead of the full 21-test suite:
+
+```bash
+export ASPNETCORE_ENVIRONMENT=Development
+
+dotnet test --project Experience.Tests --no-build --configuration Debug \
+  -- --filter-trait "Category=Critical"
+```
+
+| Test | File |
+|------|------|
+| `Create_product_navigates_to_detail_on_success` | `ProductCrudTests.cs` |
+| `Edit_product_updates_name_and_returns_to_detail` | `ProductCrudTests.cs` |
+| `Delete_product_removes_it_from_the_list` | `ProductCrudTests.cs` |
+| `Sending_message_streams_response_and_shows_url_chip` | `ProductManualChatTests.cs` |
+| `Catalog_navigates_to_detail_page_when_View_clicked` | `CatalogTests.cs` |
+
+Run the full `Category=E2E` suite before merging a branch or after any infrastructure change.
 
 ### Frontend unit tests
 
@@ -49,7 +84,8 @@ npx vitest run --coverage  # with LCOV coverage report → coverage/lcov.info
 # Never use ASPNETCORE_ENVIRONMENT=CI locally — CI activates pipeline-only steps.
 export ASPNETCORE_ENVIRONMENT=Development
 
-dotnet test --project Experience.Tests --no-build --configuration Release \
+# Use --configuration Debug locally (matches the build above; no production bundle needed).
+dotnet test --project Experience.Tests --no-build --configuration Debug \
   -- --filter-trait "Category=E2E"
 ```
 
@@ -70,7 +106,8 @@ dotnet test --project Experience.Tests --no-build --configuration Release \
 ### Run all tests in sequence
 
 ```bash
-dotnet test --project Experience.Tests --configuration Release
+# Debug for local runs — fast Angular dev build, no production optimisation needed.
+dotnet test --project Experience.Tests --configuration Debug
 cd experience.client && npx vitest run --coverage
 ```
 

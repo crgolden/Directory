@@ -103,6 +103,7 @@ public sealed class ProductCrudTests
     // -------------------------------------------------------------------------
 
     [Fact]
+    [Trait("Category", "Critical")]
     public async Task Create_product_navigates_to_detail_on_success()
     {
         _fixture.ProductStore.Clear();
@@ -132,6 +133,7 @@ public sealed class ProductCrudTests
     // -------------------------------------------------------------------------
 
     [Fact]
+    [Trait("Category", "Critical")]
     public async Task Edit_product_updates_name_and_returns_to_detail()
     {
         _fixture.ProductStore.Clear();
@@ -163,6 +165,7 @@ public sealed class ProductCrudTests
     // -------------------------------------------------------------------------
 
     [Fact]
+    [Trait("Category", "Critical")]
     public async Task Delete_product_removes_it_from_the_list()
     {
         _fixture.ProductStore.Clear();

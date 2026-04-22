@@ -121,5 +121,4 @@ Three tiers — see [TESTING.md](TESTING.md) for full commands, CI pipeline deta
 - All `/products/api/odata/**` calls are intercepted by Playwright route mocks (`InMemoryProductsStore`). No real Products service is contacted. Use `_fixture.ProductStore.Clear()` + seed calls before each test, then call `_fixture.NewProductsPageAsync()` to navigate to `/products`.
 - When `TEST_USERNAME` and `TEST_PASSWORD` are set (always in CI), `PlaywrightFixture.LoginAsync` performs a real OIDC login against the Identity server and saves the session cookies for reuse across tests. When credentials are absent (local dev), a synthetic `/bff/user` Playwright route mock is used as a fallback.
 - All `/manuals/api/**` calls are intercepted by Playwright route mocks (`InMemoryChatsStore`). No real Manuals service is contacted.
-- Azure Key Vault **is** contacted at server startup — `az login` required locally.
-- Always use `ASPNETCORE_ENVIRONMENT=Development` locally. Never use `CI` outside of an actual CI pipeline.
+- Azure Key Vault **is** contacted at server startup — `az login` required locally. See [../CLAUDE.md](../CLAUDE.md) for Azure CLI token warmup, `ASPNETCORE_ENVIRONMENT` requirements, and credential setup common to all projects.

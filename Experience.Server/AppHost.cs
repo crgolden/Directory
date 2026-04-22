@@ -31,10 +31,18 @@ public static class AppHost
         var productsApiAddress = builder.Configuration.GetValue<Uri?>("ProductsApiAddress") ?? throw new InvalidOperationException("Invalid 'ProductsApiAddress'.");
         var tokenCredential = await builder.Configuration.ToTokenCredentialAsync();
         var secretClient = builder.Configuration.ToSecretClient(tokenCredential);
-        await builder.AddObservabilityAsync(secretClient);
+
+        // Fetch all Key Vault secrets in one parallel batch to avoid sequential round trips.
+        var results = await Task.WhenAll(
+            secretClient.GetSecretAsync("ElasticsearchUsername"),
+            secretClient.GetSecretAsync("ElasticsearchPassword"),
+            secretClient.GetSecretAsync("ExperienceClientId"),
+            secretClient.GetSecretAsync("ExperienceClientSecret"));
+
+        builder.AddObservability(results[0].Value.Value, results[1].Value.Value);
         builder.Services.AddHealthChecks();
         builder.AddDataProtection(tokenCredential);
-        await builder.AddAuthAsync(secretClient);
+        builder.AddAuth(results[2].Value.Value, results[3].Value.Value);
         builder.Services.Configure<ForwardedHeadersOptions>(forwardedHeadersOptions =>
         {
             forwardedHeadersOptions.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
@@ -106,6 +114,9 @@ public static class AppHost
         app.UseBff();
         app.MapRemoteBffApiEndpoint("/manuals/api", manualsApiAddress).WithAccessToken();
         app.MapRemoteBffApiEndpoint("/products/api", productsApiAddress).WithAccessToken();
+
+        // Public catalog: no access token required — Products API returns all products for anonymous requests.
+        app.MapRemoteBffApiEndpoint("/catalog/api", productsApiAddress);
         app.UseDefaultFiles();
         app.MapStaticAssets();
         app.MapFallbackToFile("/index.html");

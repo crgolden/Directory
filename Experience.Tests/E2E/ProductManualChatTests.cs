@@ -55,6 +55,7 @@ public sealed class ProductManualChatTests
     }
 
     [Fact]
+    [Trait("Category", "Critical")]
     public async Task Sending_message_streams_response_and_shows_url_chip()
     {
         _fixture.ProductStore.Clear();
