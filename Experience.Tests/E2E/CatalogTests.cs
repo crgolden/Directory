@@ -138,10 +138,20 @@ public sealed class CatalogTests
         {
             await page.ClickAsync("tbody tr:first-child a:has-text('View')");
 
-            await page.WaitForURLAsync($"**/catalog/{product.Id}");
+            // Use a DOM-presence assertion rather than WaitForURLAsync.
+            //
+            // WaitForURLAsync listens for a future navigation event. In CI, the resolver
+            // mock returns in ~4ms, so history.pushState can fire before WaitForURLAsync
+            // registers its listener — causing a 60-second timeout waiting for a navigation
+            // that already happened. ToBeVisibleAsync polls the DOM on every retry tick,
+            // resolving as soon as the product heading appears regardless of when pushState
+            // fired. The URL is then verified after content is confirmed, by which point the
+            // navigation has unambiguously committed.
+            await Assertions.Expect(
+                page.Locator($"h2:has-text('{product.Name}')")
+            ).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 60_000 });
 
-            var pageText = await page.InnerTextAsync("body");
-            Assert.Contains("Sony OLED TV", pageText);
+            Assert.Contains($"/catalog/{product.Id}", page.Url);
         }
     }
 
