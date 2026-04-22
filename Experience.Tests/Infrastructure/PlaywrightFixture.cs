@@ -237,9 +237,12 @@ public sealed class PlaywrightFixture : IAsyncLifetime
     /// navigates to <c>/catalog</c> and waits for the catalog list to render.
     /// </summary>
     /// <remarks>
-    /// The catalog is publicly accessible — no auth guard and no <c>/bff/user</c> mock is
-    /// registered. The BFF returns an empty claims array for the unauthenticated request,
-    /// which causes the nav to show the Login link instead of My Products.
+    /// The catalog is publicly accessible — no auth guard is applied. A <c>/bff/user</c>
+    /// mock returning 401 is registered so that <see cref="AuthService"/> sees the user as
+    /// anonymous without contacting the real BFF. Omitting this mock in CI causes Duende BFF
+    /// 4.x's DPoP negotiation to fire on the anonymous request, which can fail with a
+    /// <c>TaskCanceledException</c> and disrupt subsequent BFF proxy calls made by the
+    /// catalog resolver.
     /// </remarks>
     public async Task<(IBrowserContext Context, IPage Page)> NewCatalogPageAsync()
     {
@@ -262,6 +265,14 @@ public sealed class PlaywrightFixture : IAsyncLifetime
 
         if (!IsSmoke)
         {
+            // Return 401 so AuthService.catchError emits null → isAuthenticated = false.
+            // This prevents the BFF from processing an anonymous /bff/user request in CI,
+            // which otherwise triggers DPoP negotiation that can cascade into proxy failures.
+            await page.RouteAsync("**/bff/user", async route =>
+            {
+                await route.FulfillAsync(new RouteFulfillOptions { Status = 401 });
+            });
+
             await page.RouteAsync("**/catalog/api/odata/**", async route =>
             {
                 try
