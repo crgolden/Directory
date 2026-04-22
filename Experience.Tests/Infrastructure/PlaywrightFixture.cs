@@ -266,11 +266,32 @@ public sealed class PlaywrightFixture : IAsyncLifetime
         if (!IsSmoke)
         {
             // Return 401 so AuthService.catchError emits null → isAuthenticated = false.
-            // This prevents the BFF from processing an anonymous /bff/user request in CI,
-            // which otherwise triggers DPoP negotiation that can cascade into proxy failures.
             await page.RouteAsync("**/bff/user", async route =>
             {
                 await route.FulfillAsync(new RouteFulfillOptions { Status = 401 });
+            });
+
+            // AppComponent.ngAfterViewInit sets an iframe with src="/bff/login?prompt=none"
+            // whenever isAuthenticated = false. Without this mock the iframe request reaches the
+            // real BFF, which tries OIDC silent login to Identity and gets "Invalid redirect_uri"
+            // (the random Kestrel test port is not registered). The hanging/errored iframe request
+            // prevents Playwright's WaitUntil=Load event from firing and causes WaitForURLAsync
+            // to time out. Intercepting the iframe with an HTML page that immediately posts the
+            // expected postMessage causes AppComponent.onMessage() to set iframeVisible=false,
+            // removing the iframe from the DOM before any assertion runs.
+            await page.RouteAsync("**/bff/login**", async route =>
+            {
+                await route.FulfillAsync(new RouteFulfillOptions
+                {
+                    Status = 200,
+                    ContentType = "text/html",
+                    Body = """
+                        <!doctype html>
+                        <html><body>
+                        <script>window.parent.postMessage({ source: 'bff-silent-login', isLoggedIn: false }, '*');</script>
+                        </body></html>
+                        """
+                });
             });
 
             await page.RouteAsync("**/catalog/api/odata/**", async route =>
