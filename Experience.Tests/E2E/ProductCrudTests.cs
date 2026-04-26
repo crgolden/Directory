@@ -47,7 +47,7 @@ public sealed class ProductCrudTests
         var (ctx, page) = await _fixture.NewProductsPageAsync();
         await using (ctx)
         {
-            await Assertions.Expect(page.Locator(".alert-secondary")).ToBeVisibleAsync();
+            await Assertions.Expect(page.Locator(".empty-state")).ToBeVisibleAsync();
             await Assertions.Expect(page.Locator("tbody tr")).ToHaveCountAsync(0);
         }
     }
@@ -94,7 +94,7 @@ public sealed class ProductCrudTests
             await Task.Delay(400, TestContext.Current.CancellationToken);
             await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
-            await Assertions.Expect(page.Locator(".alert-secondary")).ToContainTextAsync("zzznomatch");
+            await Assertions.Expect(page.Locator(".empty-state")).ToContainTextAsync("zzznomatch");
         }
     }
 
