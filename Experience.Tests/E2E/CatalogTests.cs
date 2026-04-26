@@ -165,8 +165,10 @@ public sealed class CatalogTests
         {
             await page.GotoAsync("/catalog/00000000-0000-0000-0000-000000000000");
 
-            await page.WaitForURLAsync("**/catalog/not-found");
-            await Assertions.Expect(page.Locator("h2")).ToContainTextAsync("Product Not Found");
+            await Assertions.Expect(
+                page.Locator("h2:has-text('Product Not Found')")
+            ).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 60_000 });
+            Assert.Contains("/catalog/not-found", page.Url);
         }
     }
 }
