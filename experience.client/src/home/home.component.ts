@@ -17,32 +17,32 @@ export class HomeComponent implements OnInit {
 
   readonly benefits = [
     {
-      icon: '🛡️',
+      icon: 'bi-shield-check',
       title: 'Insurance Claims',
       body: 'Serial numbers and purchase dates on hand when you need them most — speed up claims and maximize your payouts.'
     },
     {
-      icon: '🔧',
+      icon: 'bi-tools',
       title: 'Maintenance Scheduling',
       body: 'Track every appliance, vehicle, and device so you never miss a service interval or void a warranty.'
     },
     {
-      icon: '📜',
+      icon: 'bi-file-earmark-text',
       title: 'Estate & Will Preparation',
       body: 'An organized inventory simplifies asset documentation and saves your loved ones hours of guesswork.'
     },
     {
-      icon: '📖',
+      icon: 'bi-book',
       title: 'User Manual Access',
       body: 'AI-powered search locates any product manual instantly — no more hunting through boxes or manufacturer sites.'
     },
     {
-      icon: '✅',
+      icon: 'bi-calendar2-check',
       title: 'Warranty Tracking',
       body: 'Know exactly what is covered, for how long, and when to act — before coverage lapses.'
     },
     {
-      icon: '💰',
+      icon: 'bi-currency-dollar',
       title: 'Resale Value',
       body: 'Accurate records with serial numbers and service history boost buyer confidence and command higher prices.'
     }

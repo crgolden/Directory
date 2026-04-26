@@ -16,11 +16,14 @@
   @if (loading()) {
     <div class="text-muted">Loading&hellip;</div>
   } @else if (items().length === 0) {
-    <div class="alert alert-secondary">
+    <div class="empty-state text-center py-5">
       @if (searchTerm()) {
-        No products match &ldquo;{{ searchTerm() }}&rdquo;.
+        <i class="bi bi-search fs-1 text-secondary mb-3 d-block"></i>
+        <h5>No products match</h5>
+        <p class="text-muted small">&ldquo;{{ searchTerm() }}&rdquo;</p>
       } @else {
-        No products in the catalog yet.
+        <i class="bi bi-grid fs-1 text-secondary mb-3 d-block"></i>
+        <h5>No products in the catalog yet</h5>
       }
     </div>
   } @else {

@@ -36,7 +36,7 @@
   display: flex;
   flex-direction: column;
   z-index: 1050;
-  border-left: 1px solid #dee2e6;
+  border-left: 1px solid #e2e8f0;
 }
 
 /* Expanded panel — mobile: full-screen overlay. */
@@ -49,7 +49,7 @@
 
 .panel-header {
   flex-shrink: 0;
-  background: #f8f9fa;
+  background: #f8fafc;
 }
 
 .panel-body {

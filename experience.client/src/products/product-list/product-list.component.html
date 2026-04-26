@@ -17,11 +17,17 @@
   @if (loading()) {
     <div class="text-muted">Loading&hellip;</div>
   } @else if (products().length === 0) {
-    <div class="alert alert-secondary">
+    <div class="empty-state text-center py-5">
       @if (searchTerm()) {
-        No products match &ldquo;{{ searchTerm() }}&rdquo;.
+        <i class="bi bi-search fs-1 text-secondary mb-3 d-block"></i>
+        <h5>No products match</h5>
+        <p class="text-muted small">&ldquo;{{ searchTerm() }}&rdquo;</p>
       } @else {
-        No products yet. <a [routerLink]="['/products/new']">Add your first product.</a>
+        <i class="bi bi-box-seam fs-1 text-secondary mb-3 d-block"></i>
+        <h5>No products yet</h5>
+        <p class="text-muted small">
+          <a [routerLink]="['/products/new']">Add your first product</a> to get started.
+        </p>
       }
     </div>
   } @else {

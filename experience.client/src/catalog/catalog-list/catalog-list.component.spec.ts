@@ -163,8 +163,8 @@ describe('CatalogListComponent', () => {
     await vi.runAllTimersAsync();
     fixture.detectChanges();
 
-    const alert = fixture.debugElement.query(By.css('.alert-secondary'));
-    expect(alert.nativeElement.textContent).toContain('xyz');
+    const emptyState = fixture.debugElement.query(By.css('.empty-state'));
+    expect(emptyState.nativeElement.textContent).toContain('xyz');
   });
 
   it('Next Page button is enabled and navigates to page 2 when total exceeds page size', async () => {

@@ -1,6 +1,6 @@
 <header>
   <nav
-    class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3"
+    class="navbar navbar-expand-sm navbar-toggleable-sm navbar-dark navbar-app box-shadow mb-3"
   >
     <div class="container">
       <a class="navbar-brand" [routerLink]="['/']">Experience</a>
@@ -24,28 +24,28 @@
               routerLinkActive="link-active"
               [routerLinkActiveOptions]="{ exact: true }"
           >
-            <a class="nav-link text-dark" [routerLink]="['/']">Home</a>
+            <a class="nav-link" [routerLink]="['/']">Home</a>
           </li>
 
           <li class="nav-item"
               routerLinkActive="link-active">
-            <a class="nav-link text-dark" [routerLink]="['/catalog']">Catalog</a>
+            <a class="nav-link" [routerLink]="['/catalog']">Catalog</a>
           </li>
 
           @if (isAuthenticated()) {
             <li class="nav-item"
                 routerLinkActive="link-active">
-              <a class="nav-link text-dark" [routerLink]="['/products']">My Products</a>
+              <a class="nav-link" [routerLink]="['/products']">My Products</a>
             </li>
           } @else {
             <li class="nav-item">
-              <a class="nav-link text-dark" href="/bff/login">Login</a>
+              <a class="nav-link" href="/bff/login">Login</a>
             </li>
           }
 
           @if (isAuthenticated()) {
             <li class="nav-item">
-              <a class="nav-link text-dark" [href]="logoutUrl()">Signout</a>
+              <a class="nav-link" [href]="logoutUrl()">Signout</a>
             </li>
           }
         </ul>

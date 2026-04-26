@@ -119,8 +119,8 @@ describe('ProductListComponent', () => {
     await vi.runAllTimersAsync();
     fixture.detectChanges();
 
-    const alert = fixture.debugElement.query(By.css('.alert-secondary'));
-    expect(alert.nativeElement.textContent).toContain('xyz');
+    const emptyState = fixture.debugElement.query(By.css('.empty-state'));
+    expect(emptyState.nativeElement.textContent).toContain('xyz');
   });
 
   it('clicking Delete shows inline confirmation', () => {

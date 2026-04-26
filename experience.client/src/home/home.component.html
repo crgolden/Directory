@@ -23,7 +23,9 @@
         <div class="col">
           <div class="card h-100 shadow-sm">
             <div class="card-body">
-              <div class="fs-2 mb-2">{{ benefit.icon }}</div>
+              <div class="icon-well mb-3 mx-auto">
+                <i [class]="'bi ' + benefit.icon + ' fs-4'"></i>
+              </div>
               <h5 class="card-title">{{ benefit.title }}</h5>
               <p class="card-text text-muted">{{ benefit.body }}</p>
             </div>

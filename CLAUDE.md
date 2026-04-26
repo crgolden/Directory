@@ -99,6 +99,10 @@ A retractable, AI-assisted manual-finder embedded in `ProductFormComponent` (cre
 
 `src/auth/auth.guard.ts` — functional `CanActivateFn` that reads `AuthService.isAuthenticated()` signal. Redirects to `/bff/login` via `window.location.href` if the user is anonymous. Applied to `/products/**`.
 
+## Styling
+
+The Angular app uses a neutral Slate design system built on Bootstrap 5 Sass — see [DESIGN.md](DESIGN.md) for the full token reference, icon system, empty-state patterns, and preserved layout rules.
+
 ## Testing
 
 Three tiers — see [TESTING.md](TESTING.md) for full commands, CI pipeline details, and infrastructure diagrams.

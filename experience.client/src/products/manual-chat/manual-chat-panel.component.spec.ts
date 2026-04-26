@@ -2,6 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { By } from '@angular/platform-browser';
+import { vi } from 'vitest';
 import { ManualChatPanelComponent } from './manual-chat-panel.component';
 
 describe('ManualChatPanelComponent', () => {
@@ -78,5 +79,67 @@ describe('ManualChatPanelComponent', () => {
 
     const panel = fixture.debugElement.query(By.css('.manual-chat-panel'));
     expect(panel.nativeElement.classList.contains('panel-narrow')).toBe(false);
+  });
+
+  describe('responsive matchMedia behaviour', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('sets isNarrow to true when matchMedia reports a narrow viewport at init', () => {
+      const mockMql = {
+        matches: true,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      } as unknown as MediaQueryList;
+      vi.stubGlobal('matchMedia', vi.fn(() => mockMql));
+
+      const narrowFixture = TestBed.createComponent(ManualChatPanelComponent);
+      narrowFixture.detectChanges();
+
+      expect(narrowFixture.componentInstance.isNarrow()).toBe(true);
+      narrowFixture.destroy();
+    });
+
+    it('sets isNarrow to false when matchMedia reports a wide viewport at init', () => {
+      const mockMql = {
+        matches: false,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      } as unknown as MediaQueryList;
+      vi.stubGlobal('matchMedia', vi.fn(() => mockMql));
+
+      const wideFixture = TestBed.createComponent(ManualChatPanelComponent);
+      wideFixture.detectChanges();
+
+      expect(wideFixture.componentInstance.isNarrow()).toBe(false);
+      wideFixture.destroy();
+    });
+
+    it('updates isNarrow when matchMedia fires a change event', () => {
+      let capturedListener: ((e: MediaQueryListEvent) => void) | null = null;
+      const mockMql = {
+        matches: false,
+        addEventListener: vi.fn((_type: string, fn: (e: MediaQueryListEvent) => void) => {
+          capturedListener = fn;
+        }),
+        removeEventListener: vi.fn(),
+      } as unknown as MediaQueryList;
+      vi.stubGlobal('matchMedia', vi.fn(() => mockMql));
+
+      const f = TestBed.createComponent(ManualChatPanelComponent);
+      const c = f.componentInstance;
+      f.detectChanges();
+
+      expect(c.isNarrow()).toBe(false);
+
+      capturedListener!({ matches: true } as MediaQueryListEvent);
+      expect(c.isNarrow()).toBe(true);
+
+      capturedListener!({ matches: false } as MediaQueryListEvent);
+      expect(c.isNarrow()).toBe(false);
+
+      f.destroy();
+    });
   });
 });
