@@ -30,6 +30,10 @@
   top: 72px; /* navbar height */
   right: 0;
   bottom: 0;
+  /* <dialog> UA stylesheet sets height: fit-content, which wins over top+bottom when not
+     overridden. height: auto lets CSS resolve the constrained height from top and bottom
+     instead, keeping the panel within the viewport as message content grows. */
+  height: auto;
   width: 420px;
   max-width: 100vw;
   background: #fff;

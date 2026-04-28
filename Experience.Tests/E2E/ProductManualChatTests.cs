@@ -143,10 +143,15 @@ public sealed class ProductManualChatTests
 
             // Send several messages so the transcript definitely exceeds panel height
             // (each round produces a user bubble + 4-line assistant reply + URL chip).
+            // Force bypasses Playwright's viewport check on each interaction — this loop
+            // is setup to accumulate overflow content, not to assert UI interactability.
+            // If the panel overflows the viewport, the layout assertions below are what
+            // should fail, with a clear diagnostic message, not a confusing ClickAsync
+            // timeout about the element being outside the viewport.
             for (var i = 0; i < 6; i++)
             {
-                await page.FillAsync(".manual-chat-panel textarea", $"message {i}");
-                await page.ClickAsync(".manual-chat-panel button:has-text('Send')");
+                await page.FillAsync(".manual-chat-panel textarea", $"message {i}", new PageFillOptions { Force = true });
+                await page.ClickAsync(".manual-chat-panel button:has-text('Send')", new PageClickOptions { Force = true });
                 var chips = page.Locator(".manual-chat-panel button.url-chip");
                 await Assertions.Expect(chips).ToHaveCountAsync(i + 1, new LocatorAssertionsToHaveCountOptions
                 {
