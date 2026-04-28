@@ -109,6 +109,7 @@ jobs:
             /d:sonar.host.url="https://sonarcloud.io" `
             /d:sonar.cs.vscoveragexml.reportsPaths="coverage.xml,coverage-e2e.xml" `
             /d:sonar.javascript.lcov.reportPaths="experience.client/coverage/lcov.info" `
+            /d:sonar.exclusions="experience.client/aspnetcore-https.js,experience.client/start-os.js" `
             /d:sonar.scanner.skipJreProvisioning=true
 
       - name: Build with dotnet
@@ -252,11 +253,14 @@ jobs:
 
       - name: Set smoke test environment
         shell: powershell
+        env:
+          TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
+          TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
         run: |
           echo "CI=true" >> $env:GITHUB_ENV
           echo "SMOKE_BASE_URL=${{ needs.deploy.outputs.webapp-url }}" >> $env:GITHUB_ENV
-          echo "TEST_USERNAME=${{ secrets.TEST_USERNAME }}" >> $env:GITHUB_ENV
-          echo "TEST_PASSWORD=${{ secrets.TEST_PASSWORD }}" >> $env:GITHUB_ENV
+          echo "TEST_USERNAME=$env:TEST_USERNAME" >> $env:GITHUB_ENV
+          echo "TEST_PASSWORD=$env:TEST_PASSWORD" >> $env:GITHUB_ENV
 
       - name: Cache Playwright browsers
         id: cache-playwright

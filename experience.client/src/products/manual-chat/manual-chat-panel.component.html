@@ -10,10 +10,10 @@
 }
 
 @if (isOpen()) {
-  <div
+  <dialog
     class="manual-chat-panel shadow"
     [class.panel-narrow]="isNarrow()"
-    role="dialog"
+    open
     aria-label="Manual finder">
     <div class="panel-header d-flex align-items-center justify-content-between border-bottom px-3 py-2">
       <h5 class="mb-0">Manual Finder</h5>
@@ -30,5 +30,5 @@
         (manualUrlSelected)="onUrlSelected($event)">
       </app-manual-chat>
     </div>
-  </div>
+  </dialog>
 }

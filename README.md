@@ -6,6 +6,17 @@
 
 A full-stack single-page application built with **Angular 21** and **ASP.NET Core 10**, using the [Backend-for-Frontend (BFF)](https://www.duendesoftware.com/products/bff) security pattern to handle OIDC authentication on the server side.
 
+## Sibling Applications
+
+Experience is the **end-user surface** of a five-app system. The BFF holds the OIDC session; the SPA never sees an access token directly.
+
+| Repo | Role | How Experience interacts |
+|---|---|---|
+| [Identity](https://github.com/crgolden/Identity) | OIDC Identity Provider | OIDC client — login / logout / silent refresh via Duende BFF |
+| [Manuals](https://github.com/crgolden/Manuals) | Azure OpenAI chat API | BFF proxies `/manuals/api/**` with access token (scope `manuals`) |
+| [Products](https://github.com/crgolden/Products) | OData v4 product catalog API | BFF proxies `/products/api/**` with access token (scope `products`); `/catalog/api/**` proxies anonymously for the public catalog |
+| [Infrastructure](https://github.com/crgolden/Infrastructure) | Health monitoring dashboard | Polls Experience's `/health` endpoint |
+
 ## Architecture
 
 ```
@@ -31,9 +42,18 @@ A full-stack single-page application built with **Angular 21** and **ASP.NET Cor
 - Structured logging via **Serilog** → Elasticsearch (production) / console (development)
 
 **Frontend (`experience.client/`)**
-- Angular signals for reactive session state
-- Calls `bff/user` to resolve the authenticated session and display user claims
+- Angular signals for reactive session state, **zoneless** change detection
+- Calls `/bff/user` to resolve the authenticated session and display user claims
 - Proxies API requests to the ASP.NET Core backend in development
+
+**Feature areas**
+
+| Route | Auth | Backed by |
+|---|---|---|
+| `/` | anonymous | static (home / landing) |
+| `/catalog`, `/catalog/:id` | anonymous | [Products API](https://github.com/crgolden/Products) (read-only OData) via BFF (`/catalog/api/**` → Products `/odata/**`) |
+| `/products`, `/products/new`, `/products/:id`, `/products/:id/edit` | authenticated | [Products API](https://github.com/crgolden/Products) via BFF (`/products/api/**` → Products `/odata/**`), with access token attached |
+| `/products/new`, `/products/:id/edit` (embedded `ManualChatPanel`) | authenticated | [Manuals API](https://github.com/crgolden/Manuals) via BFF (`/manuals/api/**` → Manuals `/api/**`), with access token attached |
 
 ## Tech Stack
 
@@ -128,7 +148,7 @@ npm start
 # Available at https://localhost:50212
 ```
 
-The Angular dev server proxies `/bff` and other API paths to `https://localhost:7150` via `src/proxy.conf.js`.
+The Angular dev server proxies `/bff` and other API paths to `https://localhost:7150` via `src/proxy.conf.json`.
 
 ## Project Structure
 

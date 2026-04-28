@@ -44,11 +44,11 @@ export class ManualChatPanelComponent implements OnInit {
 
   ngOnInit(): void {
     // Guard against non-browser environments (SSR, jsdom without matchMedia).
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    if (typeof globalThis.window === 'undefined' || typeof globalThis.matchMedia !== 'function') {
       return;
     }
 
-    const media = window.matchMedia('(max-width: 767px)');
+    const media = globalThis.matchMedia('(max-width: 767px)');
     this.isNarrow.set(media.matches);
 
     const listener = (event: MediaQueryListEvent) => this.isNarrow.set(event.matches);

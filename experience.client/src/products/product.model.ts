@@ -12,7 +12,6 @@ export interface Product {
   category: string | null;
   description: string | null;
 
-  // TODO: Populate from the Manuals API once a product↔manual linking feature is built.
   manualUrl: string | null;
 
   createdAt: string;

@@ -1,13 +1,14 @@
 namespace Experience.Tests.Infrastructure;
 
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.Playwright;
 
 /// <summary>
 /// xUnit collection fixture that owns the <see cref="ExperienceWebApplicationFactory"/>,
 /// the Playwright browser, and provides per-test page creation with Manuals API route mocks.
 /// </summary>
-public sealed class PlaywrightFixture : IAsyncLifetime
+public sealed partial class PlaywrightFixture : IAsyncLifetime
 {
     private static readonly bool CI =
         bool.TryParse(Environment.GetEnvironmentVariable("CI"), out var isCi) && isCi;
@@ -447,10 +448,7 @@ public sealed class PlaywrightFixture : IAsyncLifetime
         string? nameFilter = null;
         if (query.TryGetValue("$filter", out var fv))
         {
-            var match = System.Text.RegularExpressions.Regex.Match(
-                fv.ToString(),
-                @"tolower\('([^']+)'\)\s*\)",
-                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            var match = ODataFilterRegex().Match(fv.ToString());
             if (match.Success)
             {
                 nameFilter = match.Groups[1].Value;
@@ -750,10 +748,7 @@ public sealed class PlaywrightFixture : IAsyncLifetime
             if (!string.IsNullOrEmpty(filter))
             {
                 // Extract the search term from: contains(tolower(Name), tolower('term'))
-                var match = System.Text.RegularExpressions.Regex.Match(
-                    filter,
-                    @"tolower\('([^']+)'\)\s*\)",
-                    System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                var match = ODataFilterRegex().Match(filter);
                 if (match.Success)
                 {
                     nameFilter = match.Groups[1].Value;
@@ -966,4 +961,7 @@ public sealed class PlaywrightFixture : IAsyncLifetime
             Body = sseBody
         });
     }
+
+    [GeneratedRegex(@"tolower\('([^']+)'\)\s*\)", RegexOptions.IgnoreCase)]
+    private static partial Regex ODataFilterRegex();
 }

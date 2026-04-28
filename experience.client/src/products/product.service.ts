@@ -62,7 +62,7 @@ export class ProductService {
     return this.http.post<ApiProduct>(BASE, product, { observe: 'response' }).pipe(
       map((response: HttpResponse<ApiProduct>) => {
         const location = response.headers.get('Location') ?? '';
-        const match = location.match(/\(([^)]+)\)$/);
+        const match = /\(([^)]+)\)$/.exec(location);
         return match?.[1] ?? '';
       })
     );

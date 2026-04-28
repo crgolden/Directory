@@ -193,6 +193,7 @@ Covers the embedded `ManualChatPanelComponent` on `/products/new`. All `/manuals
 | `Manual_chat_panel_opens_and_closes` | Clicking the toggle opens the panel; the panel's close button collapses it again. |
 | `Sending_message_streams_response_and_shows_url_chip` | Sending a message triggers the SSE stream; a "Use this URL" chip appears with `title == InMemoryChatsStore.MockManualUrl`. |
 | `Clicking_url_chip_populates_manual_url_field` | Clicking a URL chip writes `MockManualUrl` into the form's `#manualUrl` input. |
+| `Message_list_scrolls_inside_panel_when_content_overflows` | The message list scroll container (not the page) handles overflow when the conversation grows past the panel height. |
 | `Submitting_form_after_chip_click_persists_manual_url_on_product` | After chip selection + form submit, the created product (in `InMemoryProductsStore`) has `ManualUrl == MockManualUrl`. |
 
 ---
