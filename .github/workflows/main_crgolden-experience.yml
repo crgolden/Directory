@@ -110,6 +110,7 @@ jobs:
             /d:sonar.cs.vscoveragexml.reportsPaths="coverage.xml,coverage-e2e.xml" `
             /d:sonar.javascript.lcov.reportPaths="experience.client/coverage/lcov.info" `
             /d:sonar.exclusions="experience.client/aspnetcore-https.js,experience.client/start-os.js" `
+            /d:sonar.coverage.exclusions="experience.client/e2e/**,experience.client/src/test-setup.ts" `
             /d:sonar.scanner.skipJreProvisioning=true
 
       - name: Build with dotnet
@@ -124,6 +125,13 @@ jobs:
       - name: Run UI tests
         working-directory: experience.client
         run: npx vitest run --coverage
+
+      - name: Fix LCOV paths for SonarQube
+        shell: powershell
+        run: |
+          (Get-Content "experience.client/coverage/lcov.info") `
+            -replace '^SF:', 'SF:experience.client/' |
+            Set-Content "experience.client/coverage/lcov.info"
 
       - name: Login to Azure (for E2E tests)
         uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5  # v2
