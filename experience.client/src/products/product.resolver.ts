@@ -13,9 +13,9 @@ export const productResolver: ResolveFn<Product> = route => {
   return productService.getById(id).pipe(
     catchError((err: HttpErrorResponse) => {
       if (err.status === 404) {
-        router.navigate(['/products/not-found']);
+        void router.navigate(['/products/not-found']);
       } else {
-        router.navigate(['/products']);
+        void router.navigate(['/products']);
       }
 
       return EMPTY;

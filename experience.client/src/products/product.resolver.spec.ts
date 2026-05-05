@@ -44,7 +44,7 @@ describe('productResolver', () => {
     });
 
     const result$ = TestBed.runInInjectionContext(() =>
-      productResolver(makeSnapshot(mockProduct.id!), {} as RouterStateSnapshot)
+      productResolver(makeSnapshot(mockProduct.id), {} as RouterStateSnapshot)
     ) as Observable<Product>;
 
     const product = await firstValueFrom(result$);

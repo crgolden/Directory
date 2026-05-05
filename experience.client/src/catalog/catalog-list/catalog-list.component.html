@@ -64,7 +64,7 @@
               <td>{{ item.name ?? '—' }}</td>
               <td>{{ item.brand ?? '—' }}</td>
               <td>{{ item.category ?? '—' }}</td>
-              <td>{{ item.price != null ? ('$' + item.price) : '—' }}</td>
+              <td>{{ item.price !== null ? ('$' + item.price) : '—' }}</td>
               <td class="text-end">
                 <a class="btn btn-sm btn-outline-primary" [routerLink]="['/catalog', item.id]">View</a>
               </td>

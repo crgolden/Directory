@@ -14,9 +14,9 @@ describe('appInterceptor', () => {
 
   it('should set the X-CSRF header to 1', () => {
     const request = new HttpRequest('GET', '/test', { headers: new HttpHeaders() });
-    let modifiedReq: HttpRequest<any> | undefined;
+    let modifiedReq: HttpRequest<unknown> | undefined;
 
-    const next = (req: HttpRequest<any>) => {
+    const next = (req: HttpRequest<unknown>) => {
       modifiedReq = req;
       return of(new HttpResponse({ status: 200 }));
     };

@@ -1,6 +1,6 @@
 import { ApplicationConfig, inject, provideAppInitializer, provideZonelessChangeDetection } from '@angular/core';
 import { provideRouter } from '@angular/router';
-
+import { environment } from '../environments/environment';
 import { routes } from './app.routes';
 import { provideHttpClient, withFetch, withInterceptors } from '@angular/common/http';
 import { appInterceptor} from './app.interceptor';
@@ -15,6 +15,7 @@ export const appConfig: ApplicationConfig = {
       withFetch(), withInterceptors([appInterceptor])
     ),
     provideAppInitializer(async () => {
+      if (!environment.enableTelemetry) return;
       try {
         const response = await fetch('/config/telemetry');
         if (response.ok) {

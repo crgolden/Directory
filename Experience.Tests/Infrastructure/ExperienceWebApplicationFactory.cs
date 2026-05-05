@@ -1,28 +1,22 @@
 namespace Experience.Tests.Infrastructure;
 
 using System.Net;
-using Experience.Server;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 /// <summary>
-/// Builds a single <see cref="WebApplication"/> that hosts the Experience BFF on a real
-/// Kestrel loopback port for Playwright-driven E2E tests. Shares startup wiring with
-/// <c>Program.cs</c> via <see cref="AppHost"/> so there is no double-build cost. Applies a
-/// small set of test-only customizations (static web root, test-safe logger, early
-/// <c>UseStaticFiles</c>).
+/// Builds a minimal <see cref="WebApplication"/> that serves the Angular SPA on a real
+/// Kestrel HTTPS loopback port for Playwright-driven E2E tests. All API routes
+/// (/bff/user, /products/api/**, /manuals/api/**, /catalog/api/**) are intercepted
+/// by Playwright route mocks — the server only needs to serve static files and
+/// fall back to index.html for SPA navigation.
 /// </summary>
-/// <remarks>
-/// Requires Azure login (<c>az login</c> locally; <c>azure/login</c> in CI) because
-/// startup calls Azure Key Vault.
-/// </remarks>
 public sealed class ExperienceWebApplicationFactory : IAsyncDisposable
 {
     private WebApplication? _app;
@@ -46,8 +40,6 @@ public sealed class ExperienceWebApplicationFactory : IAsyncDisposable
 
         Stage("StartAsync enter: creating builder");
 
-        // WebApplicationFactory normally infers ContentRoot from the entry assembly's solution
-        // layout; doing it ourselves since we no longer inherit from it.
         var contentRoot = Path.GetFullPath(
             Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "Experience.Server"));
 
@@ -75,24 +67,18 @@ public sealed class ExperienceWebApplicationFactory : IAsyncDisposable
         builder.Services.Configure<HostOptions>(opts =>
             opts.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.Ignore);
 
-        // Replace Serilog (which connects to Elasticsearch) with a plain console logger in
-        // non-Production environments.
-        if (!builder.Environment.IsEnvironment("Production"))
-        {
-            builder.Services.RemoveAll<ILoggerFactory>();
-            builder.Services.AddLogging(lb => lb.AddConsole());
-        }
+        builder.Services.AddLogging(lb => lb.AddConsole());
 
-        // Inject UseStaticFiles() early in the pipeline (before MapStaticAssets) so the
-        // Angular build output is served from the physical web root set above.
+        // Inserts UseStaticFiles() early so the Angular dist output is served before
+        // MapStaticAssets() checks the (empty) build-time static web assets manifest.
         builder.Services.AddSingleton<IStartupFilter, TestStaticFilesStartupFilter>();
 
-        Stage("Calling AppHost.ConfigureServicesAsync");
-        var (manualsApiAddress, productsApiAddress) = await AppHost.ConfigureServicesAsync(builder);
         Stage("Services configured; building app");
-
         _app = builder.Build();
-        AppHost.ConfigurePipeline(_app, manualsApiAddress, productsApiAddress);
+
+        _app.UseDefaultFiles();
+        _app.MapStaticAssets();
+        _app.MapFallbackToFile("/index.html");
 
         Stage("App built; starting");
         await _app.StartAsync();

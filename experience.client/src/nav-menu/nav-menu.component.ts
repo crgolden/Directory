@@ -3,7 +3,7 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
 
 @Component({
-  selector: 'nav-menu',
+  selector: 'app-nav-menu',
   imports: [RouterLink, RouterLinkActive],
   templateUrl: './nav-menu.component.html',
   styleUrl: './nav-menu.component.css',

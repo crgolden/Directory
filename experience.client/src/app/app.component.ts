@@ -35,13 +35,14 @@ export class AppComponent implements AfterViewInit {
     this.iframeVisible.set(true);
   }
 
-  onMessage(event: MessageEvent) {
-    if (event.data?.['source'] !== 'bff-silent-login') {
+  onMessage(event: MessageEvent): void {
+    const msg = event.data as { source?: string; isLoggedIn?: boolean } | null;
+    if (msg?.source !== 'bff-silent-login') {
       return;
     }
 
     this.iframeVisible.set(false);
-    if (event.data['isLoggedIn'] !== true) {
+    if (msg.isLoggedIn !== true) {
       return;
     }
 

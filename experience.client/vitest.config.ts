@@ -10,9 +10,12 @@ export default defineConfig({
     setupFiles: ['src/test-setup.ts'],
     exclude: ['**/node_modules/**', '**/e2e/**'],
     coverage: {
-      provider: 'v8',
+      provider: 'istanbul',
       reporter: ['lcov', 'text'],
       reportsDirectory: './coverage',
+      include: ['src/**/*.ts'],
+      exclude: ['src/**/*.spec.ts', 'src/test-setup.ts'],
+      all: true,
     },
   },
 });

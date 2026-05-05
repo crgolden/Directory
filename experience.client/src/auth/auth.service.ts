@@ -5,7 +5,7 @@ import { catchError, map, Observable, of, shareReplay, Subject, switchMap, take 
 import { Claim } from './claim';
 
 export type { Claim } from './claim';
-export type Session = Array<Claim>;
+export type Session = Claim[];
 
 @Injectable({
   providedIn: 'root'
@@ -19,7 +19,7 @@ export class AuthService {
   // Nothing emits until _refresh$.next() is called — no I/O at construction time.
   private readonly _fetchResult$ = this._refresh$.pipe(
     switchMap(() =>
-      this.http.get<Array<Claim>>('bff/user').pipe(
+      this.http.get<Claim[]>('bff/user').pipe(
         catchError(() => of(null))
       )
     ),
@@ -28,7 +28,7 @@ export class AuthService {
 
   // Null = not yet loaded or unauthenticated; Array<Claim> = authenticated session.
   private readonly _fetchResult = toSignal(this._fetchResult$, {
-    initialValue: null as Array<Claim> | null
+    initialValue: null as Claim[] | null
   });
 
   public readonly isAuthenticated: Signal<boolean> = computed(() => this._fetchResult() !== null);

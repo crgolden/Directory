@@ -44,7 +44,7 @@ describe('catalogResolver', () => {
     });
 
     const result$ = TestBed.runInInjectionContext(() =>
-      catalogResolver(makeSnapshot(mockProduct.id!), {} as RouterStateSnapshot)
+      catalogResolver(makeSnapshot(mockProduct.id), {} as RouterStateSnapshot)
     ) as Observable<Product>;
 
     const product = await firstValueFrom(result$);

@@ -5,6 +5,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Title } from '@angular/platform-browser';
 import { catchError, EMPTY } from 'rxjs';
 import { ProductService } from '../product.service';
+import { Product } from '../product.model';
 import { ManualChatPanelComponent } from '../manual-chat/manual-chat-panel.component';
 import { ProductContext } from '../manual-chat/chat.model';
 
@@ -65,7 +66,7 @@ export class ProductFormComponent implements OnInit {
       this.editId.set(id);
       this.isEdit.set(true);
       this.titleService.setTitle('Experience | Edit Product');
-      const product = this.route.snapshot.data['product'];
+      const product = this.route.snapshot.data['product'] as Product | undefined;
       if (product) {
         this.form.patchValue(product);
       }
@@ -96,11 +97,11 @@ export class ProductFormComponent implements OnInit {
 
     if (id) {
       this.productService.patch(id, value).pipe(catchError(onError)).subscribe(() => {
-        this.router.navigate(['/products', id]);
+        void this.router.navigate(['/products', id]);
       });
     } else {
       this.productService.create(value).pipe(catchError(onError)).subscribe(id => {
-        this.router.navigate(['/products', id]);
+        void this.router.navigate(['/products', id]);
       });
     }
   }

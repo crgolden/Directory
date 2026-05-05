@@ -13,9 +13,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Azure.Extensions.AspNetCore.DataProtection.Blobs" Version="1.5.1" />
-    <PackageReference Include="Azure.Extensions.AspNetCore.DataProtection.Keys" Version="1.6.1" />
-    <PackageReference Include="Azure.Monitor.OpenTelemetry.AspNetCore" Version="1.4.0" />
+    <PackageReference Include="Azure.Extensions.AspNetCore.DataProtection.Blobs" Version="1.5.2" />
+    <PackageReference Include="Azure.Extensions.AspNetCore.DataProtection.Keys" Version="1.6.2" />
+    <PackageReference Include="Azure.Monitor.OpenTelemetry.AspNetCore" Version="1.5.0" />
     <PackageReference Include="Azure.Identity" Version="1.21.0" />
     <PackageReference Include="Azure.Security.KeyVault.Secrets" Version="4.10.0" />
     <PackageReference Include="Duende.BFF.Yarp" Version="4.1.2" />
@@ -27,7 +27,7 @@
     <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
     <PackageReference Include="Serilog.Enrichers.Environment" Version="3.0.1" />
     <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
-    <PackageReference Include="SonarAnalyzer.CSharp" Version="10.24.0.138807">
+    <PackageReference Include="SonarAnalyzer.CSharp" Version="10.25.0.139117">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
@@ -47,12 +47,17 @@
     </ProjectReference>
   </ItemGroup>
 
-  <Target Name="BuildAngularRelease" BeforeTargets="Build" Condition="'$(Configuration)' == 'Release'" Inputs="$(SpaRoot)\src\**\*" Outputs="$(SpaRoot)\dist\experience.client\browser\index.html">
-    <Exec WorkingDirectory="$(SpaRoot)" Command="npm run build" />
+  <PropertyGroup>
+    <AngularConfiguration Condition="'$(AngularConfiguration)' == '' And '$(Configuration)' == 'Release'">production</AngularConfiguration>
+    <AngularConfiguration Condition="'$(AngularConfiguration)' == '' And '$(Configuration)' == 'Debug'">development</AngularConfiguration>
+  </PropertyGroup>
+
+  <Target Name="BuildAngularRelease" BeforeTargets="Build" Condition="'$(Configuration)' == 'Release'">
+    <Exec WorkingDirectory="$(SpaRoot)" Command="npm run build -- --configuration $(AngularConfiguration)" />
   </Target>
 
   <Target Name="BuildAngularDevelopment" BeforeTargets="Build" Condition="'$(Configuration)' == 'Debug'" Inputs="$(SpaRoot)\src\**\*" Outputs="$(SpaRoot)\dist\experience.client\browser\index.html">
-    <Exec WorkingDirectory="$(SpaRoot)" Command="npm run build -- --configuration development" />
+    <Exec WorkingDirectory="$(SpaRoot)" Command="npm run build -- --configuration $(AngularConfiguration)" />
   </Target>
 
 </Project>

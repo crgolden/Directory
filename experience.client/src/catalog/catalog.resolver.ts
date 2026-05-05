@@ -13,9 +13,9 @@ export const catalogResolver: ResolveFn<Product> = route => {
   return catalogService.getById(id).pipe(
     catchError((err: HttpErrorResponse) => {
       if (err.status === 404) {
-        router.navigate(['/catalog/not-found']);
+        void router.navigate(['/catalog/not-found']);
       } else {
-        router.navigate(['/catalog']);
+        void router.navigate(['/catalog']);
       }
 
       return EMPTY;
