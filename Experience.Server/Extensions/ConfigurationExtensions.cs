@@ -14,7 +14,7 @@ public static class ConfigurationExtensions
         internal (
             string ExperienceClientId,
             string ExperienceClientSecret
-            ) GetExperienceSecrets()
+        ) GetExperienceSecrets()
         {
             var experienceClientId = configuration.GetRequired<string>("ExperienceClientId");
             var experienceClientSecret = configuration.GetRequired<string>("ExperienceClientSecret");

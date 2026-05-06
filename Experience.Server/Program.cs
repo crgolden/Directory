@@ -86,13 +86,12 @@ try
                 .AddRuntimeInstrumentation())
             .WithTracing(tracerProviderBuilder => tracerProviderBuilder
                 .SetSampler(new AlwaysOnSampler())
-                .AddSource(builder.Environment.ApplicationName)
+                .AddSource(nameof(Experience))
                 .AddAspNetCoreInstrumentation(aspNetCoreTraceInstrumentationOptions =>
                 {
                     aspNetCoreTraceInstrumentationOptions.Filter = context => !context.Request.Path.StartsWithSegments("/health", StringComparison.OrdinalIgnoreCase);
                 })
-                .AddHttpClientInstrumentation()
-                .AddConsoleExporter())
+                .AddHttpClientInstrumentation())
             .UseAzureMonitor().Services
             .AddDataProtection()
             .SetApplicationName(applicationName)
@@ -114,7 +113,8 @@ try
             .AddSerilog((serviceProvider, loggerConfiguration) => loggerConfiguration
                 .ReadFrom.Configuration(builder.Configuration)
                 .ReadFrom.Services(serviceProvider))
-            .AddDataProtection().UseEphemeralDataProtectionProvider();
+            .AddDataProtection()
+            .UseEphemeralDataProtectionProvider();
     }
 
     builder.Services
