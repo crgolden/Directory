@@ -171,16 +171,17 @@ cd experience.client && npm run build
 # Output → experience.client/dist/experience.client/browser/
 
 # Backend unit tests (no Azure required)
-dotnet test --project Experience.Tests --configuration Release -- --filter-trait "Category=Unit"
+dotnet build Experience.Tests --configuration Debug
+.\Experience.Tests\bin\Debug\net10.0\Experience.Tests.exe --filter-trait "Category=Unit" --show-live-output on
 
-# Backend E2E tests (Playwright + WebApplicationFactory — requires az login + user secrets)
-ASPNETCORE_ENVIRONMENT=Development dotnet test --project Experience.Tests --configuration Release -- --filter-trait "Category=E2E"
+# Backend E2E tests (Playwright; no Azure credentials needed — static-file Kestrel + Playwright API mocks)
+.\Experience.Tests\bin\Debug\net10.0\Experience.Tests.exe --filter-trait "Category=E2E" --show-live-output on
 
 # Frontend unit tests (Vitest)
 cd experience.client && npm test
 
 # Publish web app
-dotnet publish Experience.Server -c Release -o ./publish
+dotnet publish Experience.Server -c Release -r win-x86 --self-contained false -o ./publish
 ```
 
 See [TESTING.md](TESTING.md) for full details on the E2E test infrastructure, CI configuration, and local prerequisites.

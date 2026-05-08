@@ -6,9 +6,9 @@ The Experience test suite is split across three tiers: **backend unit tests** (x
 
 | Tier | Trait / tool | Project | Requires Azure? | Requires Angular build? | Runs in CI |
 |------|-------------|---------|-----------------|------------------------|------------|
-| Backend unit | `Category=Unit` | `Experience.Tests` | Yes (Key Vault at startup) | No | Every push/PR |
+| Backend unit | `Category=Unit` | `Experience.Tests` | No | No | Every push/PR |
 | Frontend unit | Vitest | `experience.client` | No | No | Every push/PR |
-| E2E (regression) | `Category=E2E` | `Experience.Tests` | Yes (Key Vault at startup) | Yes (for static files) | Every push/PR |
+| E2E (regression) | `Category=E2E` | `Experience.Tests` | No — test server is a static-file-only Kestrel host; all API routes are Playwright mocks | Yes (for static files) | Every push/PR |
 | E2E (smoke) | `Category=Smoke` | `Experience.Tests` | No — targets the deployed app directly | No | Post-deploy only |
 
 Smoke tests are a tagged subset of E2E tests (`[Trait("Category", "Smoke")]` on top of `[Trait("Category", "E2E")]`). They compile into the same binary, but run in a different mode: when `SMOKE_BASE_URL` is set, `PlaywrightFixture` skips `ExperienceWebApplicationFactory` entirely and points Playwright straight at that URL. CI sets `SMOKE_BASE_URL` to the Azure App Service URL emitted by the deploy step.
@@ -33,33 +33,34 @@ Always use `--configuration Debug` for local test runs. There is no reason to pa
 
 ### Prerequisites
 
-```bash
-az login                                              # Azure CLI — required for Key Vault at startup
-az account get-access-token --resource https://vault.azure.net  # pre-warm token cache (saves ~2–3 min)
-cd experience.client && npm ci                        # install Angular dependencies (first time)
-dotnet build --configuration Debug                    # builds Angular (dev mode) + C# into bin/Debug/
+```powershell
+cd experience.client && npm ci        # install Angular dependencies (first time)
+dotnet build --configuration Debug    # builds Angular (dev mode) + C# into bin/Debug/
 ```
 
-**`az account get-access-token` is required, not optional.** Each Azure SDK client spawns a fresh `az` CLI process on this Windows dev machine which takes 20–30 seconds cold. The E2E fixture startup makes ~4 Key Vault calls; without the pre-warm, fixture initialization alone takes ~2–3 minutes and individual calls can exceed the 13-second default `CredentialProcessTimeout`. After the pre-warm, the CLI token cache is hot and each subsequent call takes under a second.
+No Azure credentials needed. `ExperienceWebApplicationFactory` is a minimal static-file Kestrel server — no Azure Key Vault, no BFF, no `DefaultAzureCredential`. All API routes (`/bff/**`, `/products/api/**`, `/manuals/api/**`, `/catalog/api/**`) are Playwright route mocks in local E2E mode.
 
-The Angular build output must exist at `experience.client/dist/experience.client/browser/` before running E2E tests. The test factory sets the Kestrel web root to that directory at runtime; if it is absent the server still starts but serves no static files.
+The Angular build output must exist at `experience.client/dist/experience.client/browser/` before running E2E tests. The test factory sets the Kestrel web root to that directory; if it is absent the server still starts but serves no static files.
 
-### Backend unit tests
+For the `.NET 10 SDK xUnit caveat` (why `dotnet test` doesn't work), see the workspace-level [TESTING.md](../TESTING.md).
 
-```bash
-dotnet test --project Experience.Tests --configuration Release \
-  -- --filter-trait "Category=Unit"
+### Backend Unit Tests
+
+```powershell
+dotnet build Experience.Tests --configuration Debug
+.\Experience.Tests\bin\Debug\net10.0\Experience.Tests.exe --filter-trait "Category=Unit" --show-live-output on
 ```
 
-### E2E tests (critical pre-commit subset — ~3 tests, ~3 min)
+### E2E Tests (critical pre-commit subset — ~5 tests, ~10 min)
 
-A `Category=Critical` trait is applied to the 5 highest-signal E2E tests — the ones most likely to catch a real regression in under 3 minutes. Run these before every check-in instead of the full 21-test suite:
+A `Category=Critical` trait is applied to the 5 highest-signal E2E tests — the ones most likely to catch a real regression. Run these before every check-in instead of the full suite:
 
-```bash
-export ASPNETCORE_ENVIRONMENT=Development
+```powershell
+dotnet build Experience.Tests --configuration Debug   # includes Angular dev build
+.\Experience.Tests\bin\Debug\net10.0\Experience.Tests.exe --filter-trait "Category=Critical" --show-live-output on
 
-dotnet test --project Experience.Tests --no-build --configuration Debug \
-  -- --filter-trait "Category=Critical"
+# Redirect output for in-flight inspection
+cmd /c "Experience.Tests\bin\Debug\net10.0\Experience.Tests.exe --filter-trait ""Category=Critical"" --show-live-output on > C:\temp\experience-e2e.txt 2>&1"
 ```
 
 | Test | File |
@@ -82,35 +83,29 @@ npx vitest run --coverage  # with LCOV coverage report → coverage/lcov.info
 
 ### E2E tests (regression — full suite)
 
-```bash
-# ASPNETCORE_ENVIRONMENT=Development loads AzureCliCredential + VisualStudioCredential.
-# Never use ASPNETCORE_ENVIRONMENT=CI locally — CI activates pipeline-only steps.
-export ASPNETCORE_ENVIRONMENT=Development
-
-# Use --configuration Debug locally (matches the build above; no production bundle needed).
-dotnet test --project Experience.Tests --no-build --configuration Debug \
-  -- --filter-trait "Category=E2E"
+```powershell
+dotnet build Experience.Tests --configuration Debug
+.\Experience.Tests\bin\Debug\net10.0\Experience.Tests.exe --filter-trait "Category=E2E" --show-live-output on
 ```
 
 ### E2E tests (smoke subset only — against a deployed app)
 
 Smoke tests require `SMOKE_BASE_URL` to point Playwright at a running instance. Pass any URL — production, a staging slot, a PR deployment, etc. No Azure CLI login and no Angular build are needed; `ExperienceWebApplicationFactory` is not started.
 
-```bash
-SMOKE_BASE_URL=https://crgolden-experience.azurewebsites.net \
-TEST_USERNAME=<your-username> \
-TEST_PASSWORD=<your-password> \
-dotnet test --project Experience.Tests --no-build --configuration Release \
-  -- --filter-trait "Category=Smoke"
+```powershell
+$env:SMOKE_BASE_URL = "https://crgolden-experience.azurewebsites.net"
+$env:TEST_USERNAME = "<your-username>"
+$env:TEST_PASSWORD = "<your-password>"
+.\Experience.Tests\bin\Release\net10.0\Experience.Tests.exe --filter-trait "Category=Smoke" --show-live-output on
 ```
 
 `SMOKE_BASE_URL` is the same value that CI sets from `steps.deploy-to-webapp.outputs.webapp-url`. Credentials are required whenever `SMOKE_BASE_URL` is set — the fixture will throw if `TEST_USERNAME` or `TEST_PASSWORD` is absent.
 
 ### Run all tests in sequence
 
-```bash
-# Debug for local runs — fast Angular dev build, no production optimisation needed.
-dotnet test --project Experience.Tests --configuration Debug
+```powershell
+dotnet build Experience.Tests --configuration Debug
+.\Experience.Tests\bin\Debug\net10.0\Experience.Tests.exe --show-live-output on
 cd experience.client && npx vitest run --coverage
 ```
 
@@ -120,14 +115,15 @@ cd experience.client && npx vitest run --coverage
 
 `PlaywrightFixture` operates in two modes depending on whether `SMOKE_BASE_URL` is set:
 
-**Local / regression mode** (`SMOKE_BASE_URL` absent — used by `Category=E2E` and `Category=Smoke` without the env var):
+**Local / regression mode** (`SMOKE_BASE_URL` absent — used by `Category=E2E`):
 ```
 PlaywrightFixture (IAsyncLifetime)
-  └── ExperienceWebApplicationFactory (WebApplicationFactory<Program>)
-        ├── Kestrel host  ← Playwright browser talks to this
-        │     web root = experience.client/dist/experience.client/browser/
-        │     TestStaticFilesStartupFilter → UseStaticFiles() (serves Angular SPA)
-        └── TestServer    ← HttpClient from CreateClient() uses this
+  └── ExperienceWebApplicationFactory (custom WebApplication host — NOT WebApplicationFactory<Program>)
+        └── Kestrel HTTPS (random loopback port) ← Playwright browser talks to this
+              web root = experience.client/dist/experience.client/browser/
+              UseDefaultFiles() + MapStaticAssets() — serves Angular SPA
+              No BFF, no Azure credentials, no Key Vault
+              All API calls (/bff/**, /products/api/**, /manuals/api/**, /catalog/api/**) are Playwright mocks
 ```
 
 **Smoke / post-deploy mode** (`SMOKE_BASE_URL` set — used by `Category=Smoke` in CI):
@@ -137,7 +133,7 @@ PlaywrightFixture (IAsyncLifetime)
   BaseAddress = SMOKE_BASE_URL  ← Playwright browser talks directly to the deployed app
 ```
 
-In both modes, `/manuals/api/**` requests are intercepted by Playwright route mocks (backed by `InMemoryChatsStore`) before they reach the server.
+In local/regression mode, all API requests are intercepted by Playwright route mocks. In smoke mode, real API calls reach the deployed app.
 
 ### Authentication
 
@@ -175,12 +171,6 @@ All `/manuals/api/**` requests are intercepted by Playwright before they reach t
 - `CompleteMessage(chatId, input)` — stores user + assistant messages, sets auto-title on first message
 - `CompleteStream(chatId, input)` — same as `CompleteMessage` but also returns an SSE body with three deltas ending in `[DONE]`; the middle delta includes `MockManualUrl`
 - `GetMockResponse()` — returns the canned assistant response text used by both completion and stream routes
-
-### Key Vault at startup
-
-`Experience.Server/Program.cs` calls Azure Key Vault during startup (to fetch OIDC client secrets). The test factory replaces Data Protection with ephemeral keys but does not bypass Key Vault. The `az login` credential chain must be active when running E2E tests locally.
-
-In CI, the build job runs `azure/login` before the E2E step and sets `ASPNETCORE_ENVIRONMENT=CI` so the server uses only `AzureCliCredential`.
 
 ---
 

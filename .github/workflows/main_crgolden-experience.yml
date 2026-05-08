@@ -137,13 +137,6 @@ jobs:
             -replace '^SF:', 'SF:experience.client/' |
             Set-Content "experience.client/coverage/lcov.info"
 
-      - name: Login to Azure (for E2E tests)
-        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5  # v2
-        with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_C4959774308D40CE9136D90664140CE6 }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_F0CC71E741B84CD68956AF7492EDFBD4 }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_0F2FA3ACCE504398AEA0AB3780B1A7E3 }}
-
       - name: Get Playwright version
         id: playwright-version
         shell: pwsh
@@ -257,17 +250,6 @@ jobs:
           name: test-binaries
           path: Experience.Tests/bin/Release/net10.0/
 
-      - name: Set smoke test environment
-        shell: powershell
-        env:
-          TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
-          TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
-        run: |
-          echo "CI=true" >> $env:GITHUB_ENV
-          echo "SMOKE_BASE_URL=${{ needs.deploy.outputs.webapp-url }}" >> $env:GITHUB_ENV
-          echo "TEST_USERNAME=$env:TEST_USERNAME" >> $env:GITHUB_ENV
-          echo "TEST_PASSWORD=$env:TEST_PASSWORD" >> $env:GITHUB_ENV
-
       - name: Cache Playwright browsers
         id: cache-playwright
         uses: actions/cache@v5
@@ -280,6 +262,11 @@ jobs:
         run: pwsh "${{ github.workspace }}\Experience.Tests\bin\Release\net10.0\playwright.ps1" install --with-deps chromium
 
       - name: Run smoke tests
+        env:
+          CI: true
+          SMOKE_BASE_URL: ${{ needs.deploy.outputs.webapp-url }}
+          TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
+          TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
         run: |
           dotnet test Experience.Tests/bin/Release/net10.0/Experience.Tests.dll `
             -- --filter-trait Category=Smoke `

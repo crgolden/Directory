@@ -20,6 +20,7 @@ using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Azure;
+using OpenTelemetry.Instrumentation.AspNetCore;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -51,6 +52,8 @@ try
         var secrets = secretClient.GetExperienceSecrets();
         experienceClientId = secrets.ExperienceClientId.Value;
         experienceClientSecret = secrets.ExperienceClientSecret.Value;
+        builder.Services.Configure<AspNetCoreTraceInstrumentationOptions>(options =>
+            options.Filter = context => !context.Request.Path.StartsWithSegments("/health", StringComparison.OrdinalIgnoreCase));
         builder.Logging.AddOpenTelemetry(openTelemetryLoggerOptions =>
         {
             openTelemetryLoggerOptions.IncludeFormattedMessage = true;
@@ -81,17 +84,9 @@ try
                     ["deployment.environment"] = builder.Environment.EnvironmentName.ToLowerInvariant()
                 }))
             .WithMetrics(meterProviderBuilder => meterProviderBuilder
-                .AddAspNetCoreInstrumentation()
-                .AddHttpClientInstrumentation()
                 .AddRuntimeInstrumentation())
             .WithTracing(tracerProviderBuilder => tracerProviderBuilder
-                .SetSampler(new AlwaysOnSampler())
-                .AddSource(nameof(Experience))
-                .AddAspNetCoreInstrumentation(aspNetCoreTraceInstrumentationOptions =>
-                {
-                    aspNetCoreTraceInstrumentationOptions.Filter = context => !context.Request.Path.StartsWithSegments("/health", StringComparison.OrdinalIgnoreCase);
-                })
-                .AddHttpClientInstrumentation())
+                .SetSampler(new AlwaysOnSampler()))
             .UseAzureMonitor().Services
             .AddDataProtection()
             .SetApplicationName(applicationName)
