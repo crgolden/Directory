@@ -358,9 +358,11 @@ jobs:
           TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
           TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
         run: |
+          $resultsDir = "${{ github.workspace }}\Experience.Tests\bin\Release\net10.0\TestResults"
+          New-Item -ItemType Directory -Force -Path $resultsDir | Out-Null
           & "${{ github.workspace }}\Experience.Tests\bin\Release\net10.0\Experience.Tests.exe" `
-            --filter-trait Category=Smoke `
-            --report-xunit-trx --report-xunit-trx-filename smoke-tests.trx
+            -trait "Category=Smoke" `
+            -trx "$resultsDir\smoke-tests.trx"
 
       - name: Upload smoke results
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1

@@ -48,7 +48,7 @@ For the `.NET 10 SDK xUnit caveat` (why `dotnet test` doesn't work), see the wor
 
 ```powershell
 dotnet build Experience.Tests --configuration Debug
-.\Experience.Tests\bin\Debug\net10.0\Experience.Tests.exe --filter-trait "Category=Unit" --show-live-output on
+.\Experience.Tests\bin\Debug\net10.0\Experience.Tests.exe -trait "Category=Unit" -showLiveOutput
 ```
 
 ### E2E Tests (critical pre-commit subset — ~5 tests, ~10 min)
@@ -57,10 +57,10 @@ A `Category=Critical` trait is applied to the 5 highest-signal E2E tests — the
 
 ```powershell
 dotnet build Experience.Tests --configuration Debug   # includes Angular dev build
-.\Experience.Tests\bin\Debug\net10.0\Experience.Tests.exe --filter-trait "Category=Critical" --show-live-output on
+.\Experience.Tests\bin\Debug\net10.0\Experience.Tests.exe -trait "Category=Critical" -showLiveOutput
 
 # Redirect output for in-flight inspection
-cmd /c "Experience.Tests\bin\Debug\net10.0\Experience.Tests.exe --filter-trait ""Category=Critical"" --show-live-output on > C:\temp\experience-e2e.txt 2>&1"
+cmd /c "Experience.Tests\bin\Debug\net10.0\Experience.Tests.exe -trait ""Category=Critical"" -showLiveOutput > C:\temp\experience-e2e.txt 2>&1"
 ```
 
 | Test | File |
@@ -85,7 +85,7 @@ npx vitest run --coverage  # with LCOV coverage report → coverage/lcov.info
 
 ```powershell
 dotnet build Experience.Tests --configuration Debug
-.\Experience.Tests\bin\Debug\net10.0\Experience.Tests.exe --filter-trait "Category=E2E" --show-live-output on
+.\Experience.Tests\bin\Debug\net10.0\Experience.Tests.exe -trait "Category=E2E" -showLiveOutput
 ```
 
 ### E2E tests (smoke subset only — against a deployed app)
@@ -96,7 +96,7 @@ Smoke tests require `SMOKE_BASE_URL` to point Playwright at a running instance. 
 $env:SMOKE_BASE_URL = "https://crgolden-experience.azurewebsites.net"
 $env:TEST_USERNAME = "<your-username>"
 $env:TEST_PASSWORD = "<your-password>"
-.\Experience.Tests\bin\Release\net10.0\Experience.Tests.exe --filter-trait "Category=Smoke" --show-live-output on
+.\Experience.Tests\bin\Release\net10.0\Experience.Tests.exe -trait "Category=Smoke" -showLiveOutput
 ```
 
 `SMOKE_BASE_URL` is the same value that CI sets from `steps.deploy-to-webapp.outputs.webapp-url`. Credentials are required whenever `SMOKE_BASE_URL` is set — the fixture will throw if `TEST_USERNAME` or `TEST_PASSWORD` is absent.
@@ -105,7 +105,7 @@ $env:TEST_PASSWORD = "<your-password>"
 
 ```powershell
 dotnet build Experience.Tests --configuration Debug
-.\Experience.Tests\bin\Debug\net10.0\Experience.Tests.exe --show-live-output on
+.\Experience.Tests\bin\Debug\net10.0\Experience.Tests.exe -showLiveOutput
 cd experience.client && npx vitest run --coverage
 ```
 
@@ -212,7 +212,7 @@ Runs after the deploy job. Downloads the pre-built `test-binaries` artifact from
 1. Download `test-binaries` artifact
 2. Set `SMOKE_BASE_URL`, `TEST_USERNAME`, `TEST_PASSWORD`
 3. Cache + install Playwright Chromium
-4. Run `--filter-trait Category=Smoke` (subset of E2E)
+4. Run `-trait "Category=Smoke"` (subset of E2E) via the compiled exe; write TRX via `-trx`
 5. Upload TRX artifacts
 
 ### Playwright browser cache
