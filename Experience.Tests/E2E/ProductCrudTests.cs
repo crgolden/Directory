@@ -152,8 +152,8 @@ public sealed class ProductCrudTests
 
             await page.ClickAsync("button[type='submit']");
 
-            // After save, navigates to /products/:id detail page
-            await page.WaitForURLAsync($"**/products/{product.Id}");
+            // Lambda avoids glob + waitUntil:Load hanging when SPA pushState completes before WaitForURLAsync is set up.
+            await page.WaitForURLAsync(url => url.Contains($"/products/{product.Id}") && !url.Contains("/edit"));
 
             var pageText = await page.InnerTextAsync("body");
             Assert.Contains("Updated Name", pageText);
