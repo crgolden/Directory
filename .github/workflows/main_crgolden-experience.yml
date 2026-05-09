@@ -203,19 +203,19 @@ jobs:
           $allResults  = @($xml.TestRun.Results.UnitTestResult)
           $failed      = @($allResults | Where-Object { $_.outcome -ne 'Passed' })
 
-          # Azure DevOps
-          $testsById = @{}
+          # Azure DevOps — az devops invoke cannot disambiguate duplicate resource names in the ADO
+          # manifest (github.com/Azure/azure-devops-cli-extension/issues/1012), so use Invoke-RestMethod
+          # with explicit URLs instead.
+          $testsById  = @{}
           foreach ($t in @($xml.TestRun.TestDefinitions.UnitTest)) { $testsById[$t.id] = $t }
+          $adoHeaders = @{ Authorization = "Basic $([Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(":$env:AZURE_DEVOPS_EXT_PAT")))" }
+          $adoBase    = 'https://dev.azure.com/crgolden/crgolden/_apis/test'
+          $adoVer     = 'api-version=7.1'
 
           function Invoke-Ado {
-              param([string]$Area, [string]$Resource, [string]$Method, [hashtable]$Route, [object]$Body)
-              $tmp = [IO.Path]::GetTempFileName()
-              $Body | ConvertTo-Json -Depth 20 | Set-Content $tmp -Encoding UTF8
-              $r = az devops invoke --organization 'https://dev.azure.com/crgolden/' `
-                  --area $Area --resource $Resource --http-method $Method --api-version '7.0' `
-                  --route-parameters ($Route.Keys | ForEach-Object { "$_=$($Route[$_])" }) `
-                  --in-file $tmp -o json | ConvertFrom-Json
-              Remove-Item $tmp; $r
+              param([string]$Method, [string]$Url, [object]$Body)
+              Invoke-RestMethod -Method $Method -Uri $Url -Headers $adoHeaders `
+                  -ContentType 'application/json' -Body ($Body | ConvertTo-Json -Depth 20 -Compress)
           }
 
           $adoResults = foreach ($r in $allResults) {
@@ -227,15 +227,15 @@ jobs:
                  state = 'Completed'; comment = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID" }
           }
 
-          $run = Invoke-Ado test runs POST @{ project = 'crgolden' } @{
+          $run = Invoke-Ado POST "$adoBase/runs?$adoVer" @{
               name = "$appName $suiteName Playwright - $env:GITHUB_RUN_NUMBER"; automated = $true
               state = 'InProgress'; startedDate = [DateTimeOffset]::Parse($xml.TestRun.Times.start).UtcDateTime.ToString('O')
               comment = "GitHub Actions run $env:GITHUB_RUN_ID" }
-          Invoke-Ado test results POST @{ project = 'crgolden'; runId = $run.id } $adoResults | Out-Null
-          Invoke-Ado test attachments POST @{ project = 'crgolden'; runId = $run.id } @{
+          Invoke-Ado POST "$adoBase/runs/$($run.id)/results?$adoVer" $adoResults | Out-Null
+          Invoke-Ado POST "$adoBase/runs/$($run.id)/attachments?$adoVer" @{
               stream = [Convert]::ToBase64String([IO.File]::ReadAllBytes($trx.FullName))
               fileName = $trx.Name; comment = 'TRX'; attachmentType = 'GeneralAttachment' } | Out-Null
-          Invoke-Ado test runs PATCH @{ project = 'crgolden'; runId = $run.id } @{
+          Invoke-Ado PATCH "$adoBase/runs/$($run.id)?$adoVer" @{
               state = 'Completed'; completedDate = [DateTimeOffset]::UtcNow.ToString('O') } | Out-Null
           Write-Host "Published $($adoResults.Count) results to Azure DevOps run $($run.id)."
 
@@ -394,19 +394,19 @@ jobs:
           $allResults  = @($xml.TestRun.Results.UnitTestResult)
           $failed      = @($allResults | Where-Object { $_.outcome -ne 'Passed' })
 
-          # Azure DevOps
-          $testsById = @{}
+          # Azure DevOps — az devops invoke cannot disambiguate duplicate resource names in the ADO
+          # manifest (github.com/Azure/azure-devops-cli-extension/issues/1012), so use Invoke-RestMethod
+          # with explicit URLs instead.
+          $testsById  = @{}
           foreach ($t in @($xml.TestRun.TestDefinitions.UnitTest)) { $testsById[$t.id] = $t }
+          $adoHeaders = @{ Authorization = "Basic $([Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(":$env:AZURE_DEVOPS_EXT_PAT")))" }
+          $adoBase    = 'https://dev.azure.com/crgolden/crgolden/_apis/test'
+          $adoVer     = 'api-version=7.1'
 
           function Invoke-Ado {
-              param([string]$Area, [string]$Resource, [string]$Method, [hashtable]$Route, [object]$Body)
-              $tmp = [IO.Path]::GetTempFileName()
-              $Body | ConvertTo-Json -Depth 20 | Set-Content $tmp -Encoding UTF8
-              $r = az devops invoke --organization 'https://dev.azure.com/crgolden/' `
-                  --area $Area --resource $Resource --http-method $Method --api-version '7.0' `
-                  --route-parameters ($Route.Keys | ForEach-Object { "$_=$($Route[$_])" }) `
-                  --in-file $tmp -o json | ConvertFrom-Json
-              Remove-Item $tmp; $r
+              param([string]$Method, [string]$Url, [object]$Body)
+              Invoke-RestMethod -Method $Method -Uri $Url -Headers $adoHeaders `
+                  -ContentType 'application/json' -Body ($Body | ConvertTo-Json -Depth 20 -Compress)
           }
 
           $adoResults = foreach ($r in $allResults) {
@@ -418,15 +418,15 @@ jobs:
                  state = 'Completed'; comment = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID" }
           }
 
-          $run = Invoke-Ado test runs POST @{ project = 'crgolden' } @{
+          $run = Invoke-Ado POST "$adoBase/runs?$adoVer" @{
               name = "$appName $suiteName Playwright - $env:GITHUB_RUN_NUMBER"; automated = $true
               state = 'InProgress'; startedDate = [DateTimeOffset]::Parse($xml.TestRun.Times.start).UtcDateTime.ToString('O')
               comment = "GitHub Actions run $env:GITHUB_RUN_ID" }
-          Invoke-Ado test results POST @{ project = 'crgolden'; runId = $run.id } $adoResults | Out-Null
-          Invoke-Ado test attachments POST @{ project = 'crgolden'; runId = $run.id } @{
+          Invoke-Ado POST "$adoBase/runs/$($run.id)/results?$adoVer" $adoResults | Out-Null
+          Invoke-Ado POST "$adoBase/runs/$($run.id)/attachments?$adoVer" @{
               stream = [Convert]::ToBase64String([IO.File]::ReadAllBytes($trx.FullName))
               fileName = $trx.Name; comment = 'TRX'; attachmentType = 'GeneralAttachment' } | Out-Null
-          Invoke-Ado test runs PATCH @{ project = 'crgolden'; runId = $run.id } @{
+          Invoke-Ado PATCH "$adoBase/runs/$($run.id)?$adoVer" @{
               state = 'Completed'; completedDate = [DateTimeOffset]::UtcNow.ToString('O') } | Out-Null
           Write-Host "Published $($adoResults.Count) results to Azure DevOps run $($run.id)."
 
