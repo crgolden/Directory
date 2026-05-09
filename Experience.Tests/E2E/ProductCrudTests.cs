@@ -154,7 +154,7 @@ public sealed class ProductCrudTests
 
             // WaitForURLAsync (glob or lambda) waits for waitUntil:Load internally; SPA pushState never fires
             // a Load event, so it hangs. ToHaveURLAsync polls page.Url directly without waiting for navigation.
-            await Assertions.Expect(page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex($@"/products/{product\.Id}$"));
+            await Assertions.Expect(page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex($@"/products/{product.Id}$"));
 
             var pageText = await page.InnerTextAsync("body");
             Assert.Contains("Updated Name", pageText);
