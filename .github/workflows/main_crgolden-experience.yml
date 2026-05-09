@@ -212,7 +212,7 @@ jobs:
               $tmp = [IO.Path]::GetTempFileName()
               $Body | ConvertTo-Json -Depth 20 | Set-Content $tmp -Encoding UTF8
               $r = az devops invoke --organization 'https://dev.azure.com/crgolden/' `
-                  --area $Area --resource $Resource --http-method $Method --api-version '7.1' `
+                  --area $Area --resource $Resource --http-method $Method --api-version '7.0' `
                   --route-parameters ($Route.Keys | ForEach-Object { "$_=$($Route[$_])" }) `
                   --in-file $tmp -o json | ConvertFrom-Json
               Remove-Item $tmp; $r
@@ -403,7 +403,7 @@ jobs:
               $tmp = [IO.Path]::GetTempFileName()
               $Body | ConvertTo-Json -Depth 20 | Set-Content $tmp -Encoding UTF8
               $r = az devops invoke --organization 'https://dev.azure.com/crgolden/' `
-                  --area $Area --resource $Resource --http-method $Method --api-version '7.1' `
+                  --area $Area --resource $Resource --http-method $Method --api-version '7.0' `
                   --route-parameters ($Route.Keys | ForEach-Object { "$_=$($Route[$_])" }) `
                   --in-file $tmp -o json | ConvertFrom-Json
               Remove-Item $tmp; $r

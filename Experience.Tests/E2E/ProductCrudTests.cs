@@ -152,8 +152,9 @@ public sealed class ProductCrudTests
 
             await page.ClickAsync("button[type='submit']");
 
-            // Lambda avoids glob + waitUntil:Load hanging when SPA pushState completes before WaitForURLAsync is set up.
-            await page.WaitForURLAsync(url => url.Contains($"/products/{product.Id}") && !url.Contains("/edit"));
+            // WaitForURLAsync (glob or lambda) waits for waitUntil:Load internally; SPA pushState never fires
+            // a Load event, so it hangs. ToHaveURLAsync polls page.Url directly without waiting for navigation.
+            await Assertions.Expect(page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex($@"/products/{product\.Id}$"));
 
             var pageText = await page.InnerTextAsync("body");
             Assert.Contains("Updated Name", pageText);
