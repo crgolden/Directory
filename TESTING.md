@@ -218,3 +218,72 @@ Runs after the deploy job. Downloads the pre-built `test-binaries` artifact from
 ### Playwright browser cache
 
 Both the build and smoke jobs cache the Playwright Chromium binary keyed on the hash of `Experience.Tests/Experience.Tests.csproj`. The cache is stored at `~\AppData\Local\ms-playwright` on Windows runners.
+
+### Playwright reporting
+
+`Experience.Tests` records Playwright diagnostics for every E2E/smoke browser context, then keeps them only when the xUnit test fails. Retained failure folders are written under:
+
+```text
+Experience.Tests/bin/<Configuration>/net10.0/TestResults/PlaywrightArtifacts/<E2E|Smoke>/<test-name>/<context-id>/
+```
+
+Each retained folder contains:
+- `screenshot.png`
+- `trace.zip`
+- Playwright `.webm` video files
+- `browser-log.txt`
+- `metadata.json`
+- `failure.json`
+
+CI uploads these artifacts separately from TRX:
+
+| Job | Artifact |
+|---|---|
+| Build E2E | `experience-playwright-artifacts` |
+| Post-deploy smoke | `experience-smoke-playwright-artifacts` |
+
+CI also publishes the same TRX outcomes to Azure DevOps and Azure Monitor:
+
+| Target | Configuration |
+|---|---|
+| Azure DevOps | `https://dev.azure.com/crgolden/`, project `crgolden`, via `scripts/Publish-PlaywrightResultsToAzureDevOps.ps1` |
+| Azure Monitor | Shared Application Insights `crgolden-playwright-ai`, via `scripts/Send-PlaywrightTelemetry.ps1` |
+
+Required GitHub secrets are `AZURE_DEVOPS_EXT_PAT` and `PLAYWRIGHT_APPINSIGHTS_CONNECTION_STRING`. If either secret is absent, the corresponding script logs a warning and skips publishing.
+
+Provision or repair the shared Azure Monitor resources with:
+
+```powershell
+.\scripts\Ensure-PlaywrightMonitor.ps1
+```
+
+For local script validation against an existing TRX:
+
+```powershell
+.\scripts\Publish-PlaywrightResultsToAzureDevOps.ps1 -AppName Experience -SuiteName E2E -TestResultsDirectory .\Experience.Tests\bin\Debug\net10.0\TestResults -DryRun
+.\scripts\Send-PlaywrightTelemetry.ps1 -AppName Experience -SuiteName E2E -TestResultsDirectory .\Experience.Tests\bin\Debug\net10.0\TestResults -ConnectionString "InstrumentationKey=00000000-0000-0000-0000-000000000000" -DryRun
+```
+
+Do not run Git commands when implementing or verifying Playwright reporting changes.
+
+---
+
+## Local SonarCloud analysis
+
+Generate coverage files first (unit + E2E coverage + frontend LCOV), then run from `Experience/`:
+
+```powershell
+$env:SONAR_TOKEN = "<token>"
+& "$env:SystemDrive\sonar-scanner-8.0.1.6346-windows-x64\bin\sonar-scanner.bat" `
+  "-Dsonar.projectKey=crgolden_Experience" `
+  "-Dsonar.organization=crgolden" `
+  "-Dsonar.sources=Experience.Server,experience.client/src" `
+  "-Dsonar.tests=Experience.Tests" `
+  "-Dsonar.exclusions=experience.client/aspnetcore-https.js,experience.client/start-os.js,**/bin/**,**/obj/**,**/node_modules/**,**/*.d.ts" `
+  "-Dsonar.coverage.exclusions=experience.client/e2e/**,experience.client/src/test-setup.ts" `
+  "-Dsonar.test.inclusions=**/*.spec.ts" `
+  "-Dsonar.cs.vscoveragexml.reportsPaths=coverage.xml,coverage-e2e.xml" `
+  "-Dsonar.javascript.lcov.reportPaths=experience.client/coverage/lcov.info"
+```
+
+Required coverage files: `coverage.xml`, `coverage-e2e.xml`, `experience.client/coverage/lcov.info`.

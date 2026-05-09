@@ -178,6 +178,92 @@ jobs:
           name: test-results
           path: Experience.Tests/bin/Release/net10.0/TestResults/
 
+      - name: Upload Playwright failure artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        if: always()
+        with:
+          name: experience-playwright-artifacts
+          path: Experience.Tests/bin/Release/net10.0/TestResults/PlaywrightArtifacts/
+          if-no-files-found: ignore
+
+      - name: Report E2E results
+        if: always()
+        shell: pwsh
+        env:
+          AZURE_DEVOPS_EXT_PAT: ${{ secrets.AZURE_DEVOPS_EXT_PAT }}
+          PLAYWRIGHT_APPINSIGHTS_CONNECTION_STRING: ${{ vars.PLAYWRIGHT_APPINSIGHTS_CONNECTION_STRING }}
+        run: |
+          $appName     = 'Experience'
+          $suiteName   = 'E2E'
+          $resultsDir  = 'Experience.Tests/bin/Release/net10.0/TestResults'
+          $artifactDir = 'Experience.Tests/bin/Release/net10.0/TestResults/PlaywrightArtifacts'
+
+          $trx = Get-ChildItem $resultsDir -Filter *.trx | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
+          [xml] $xml   = Get-Content $trx.FullName
+          $allResults  = @($xml.TestRun.Results.UnitTestResult)
+          $failed      = @($allResults | Where-Object { $_.outcome -ne 'Passed' })
+
+          # Azure DevOps
+          $testsById = @{}
+          foreach ($t in @($xml.TestRun.TestDefinitions.UnitTest)) { $testsById[$t.id] = $t }
+
+          function Invoke-Ado {
+              param([string]$Area, [string]$Resource, [string]$Method, [hashtable]$Route, [object]$Body)
+              $tmp = [IO.Path]::GetTempFileName()
+              $Body | ConvertTo-Json -Depth 20 | Set-Content $tmp -Encoding UTF8
+              $r = az devops invoke --organization 'https://dev.azure.com/crgolden/' `
+                  --area $Area --resource $Resource --http-method $Method --api-version '7.1-preview.3' `
+                  --route-parameters ($Route.Keys | ForEach-Object { "$_=$($Route[$_])" }) `
+                  --in-file $tmp -o json | ConvertFrom-Json
+              Remove-Item $tmp; $r
+          }
+
+          $adoResults = foreach ($r in $allResults) {
+              $m = $testsById[$r.testId].TestMethod
+              @{ testCaseTitle = $r.testName; automatedTestName = "$($m.className).$($m.name)"
+                 automatedTestStorage = $appName; automatedTestType = 'Playwright'; outcome = $r.outcome
+                 durationInMs = [int][TimeSpan]::Parse($r.duration).TotalMilliseconds
+                 errorMessage = $r.Output.ErrorInfo.Message; stackTrace = $r.Output.ErrorInfo.StackTrace
+                 state = 'Completed'; comment = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID" }
+          }
+
+          $run = Invoke-Ado test runs POST @{ project = 'crgolden' } @{
+              name = "$appName $suiteName Playwright - $env:GITHUB_RUN_NUMBER"; automated = $true
+              state = 'InProgress'; startedDate = [DateTimeOffset]::Parse($xml.TestRun.Times.start).UtcDateTime.ToString('O')
+              comment = "GitHub Actions run $env:GITHUB_RUN_ID" }
+          Invoke-Ado test results POST @{ project = 'crgolden'; runId = $run.id } $adoResults | Out-Null
+          Invoke-Ado test attachments POST @{ project = 'crgolden'; runId = $run.id } @{
+              stream = [Convert]::ToBase64String([IO.File]::ReadAllBytes($trx.FullName))
+              fileName = $trx.Name; comment = 'TRX'; attachmentType = 'GeneralAttachment' } | Out-Null
+          Invoke-Ado test runs PATCH @{ project = 'crgolden'; runId = $run.id } @{
+              state = 'Completed'; completedDate = [DateTimeOffset]::UtcNow.ToString('O') } | Out-Null
+          Write-Host "Published $($adoResults.Count) results to Azure DevOps run $($run.id)."
+
+          # Azure Monitor
+          $cs       = $env:PLAYWRIGHT_APPINSIGHTS_CONNECTION_STRING
+          $iKey     = ($cs -split ';' | Where-Object { $_ -like 'InstrumentationKey=*' })  -replace 'InstrumentationKey=', ''
+          $endpoint = ($cs -split ';' | Where-Object { $_ -like 'IngestionEndpoint=*' })   -replace 'IngestionEndpoint=', ''
+          $common   = @{ app = $appName; suite = $suiteName; repository = $env:GITHUB_REPOSITORY
+              branch = $env:GITHUB_REF; sha = $env:GITHUB_SHA; githubRunId = $env:GITHUB_RUN_ID
+              githubRunUrl = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
+              artifactAvailable = (Test-Path $artifactDir).ToString() }
+
+          function New-Event {
+              param([string]$Name, [hashtable]$Props, [hashtable]$Measurements)
+              @{ name = 'Microsoft.ApplicationInsights.Event'; time = [DateTimeOffset]::UtcNow.ToString('O'); iKey = $iKey
+                 data = @{ baseType = 'EventData'; baseData = @{ ver = 2; name = $Name; properties = $Props; measurements = $Measurements } } }
+          }
+
+          $durationMs = ($allResults | ForEach-Object { [TimeSpan]::Parse($_.duration).TotalMilliseconds } | Measure-Object -Sum).Sum
+          $runProps = $common.Clone(); $runProps['trxFile'] = $trx.Name; $runProps['outcome'] = if ($failed.Count) { 'Failed' } else { 'Passed' }
+          $events = @(New-Event 'PlaywrightTestRun' $runProps @{ total = $allResults.Count; failed = $failed.Count; passed = $allResults.Count - $failed.Count; durationMs = [double]$durationMs })
+          $events += $allResults | ForEach-Object {
+              $p = $common.Clone(); $p['testName'] = $_.testName; $p['outcome'] = $_.outcome; $p['failed'] = ($_.outcome -ne 'Passed').ToString()
+              New-Event 'PlaywrightTestCase' $p @{ durationMs = [double][TimeSpan]::Parse($_.duration).TotalMilliseconds }
+          }
+          Invoke-RestMethod -Method Post -Uri ($endpoint.TrimEnd('/') + '/v2/track') -ContentType 'application/json' -Body ($events | ConvertTo-Json -Depth 20) | Out-Null
+          Write-Host "Sent $($events.Count) telemetry events to Azure Monitor."
+
       - name: Upload test binaries
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
@@ -262,6 +348,9 @@ jobs:
         if: steps.cache-playwright.outputs.cache-hit != 'true'
         run: pwsh "${{ github.workspace }}\Experience.Tests\bin\Release\net10.0\playwright.ps1" install --with-deps chromium
 
+      - name: Clear downloaded test results
+        run: Remove-Item Experience.Tests/bin/Release/net10.0/TestResults -Recurse -Force -ErrorAction SilentlyContinue
+
       - name: Run smoke tests
         env:
           CI: true
@@ -279,3 +368,90 @@ jobs:
         with:
           name: smoke-test-results
           path: Experience.Tests/bin/Release/net10.0/TestResults/
+
+      - name: Upload smoke Playwright failure artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        if: always()
+        with:
+          name: experience-smoke-playwright-artifacts
+          path: Experience.Tests/bin/Release/net10.0/TestResults/PlaywrightArtifacts/
+          if-no-files-found: ignore
+
+      - name: Report smoke results
+        if: always()
+        shell: pwsh
+        env:
+          AZURE_DEVOPS_EXT_PAT: ${{ secrets.AZURE_DEVOPS_EXT_PAT }}
+          PLAYWRIGHT_APPINSIGHTS_CONNECTION_STRING: ${{ vars.PLAYWRIGHT_APPINSIGHTS_CONNECTION_STRING }}
+        run: |
+          $appName     = 'Experience'
+          $suiteName   = 'Smoke'
+          $resultsDir  = 'Experience.Tests/bin/Release/net10.0/TestResults'
+          $artifactDir = 'Experience.Tests/bin/Release/net10.0/TestResults/PlaywrightArtifacts'
+
+          $trx = Get-ChildItem $resultsDir -Filter *.trx | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
+          [xml] $xml   = Get-Content $trx.FullName
+          $allResults  = @($xml.TestRun.Results.UnitTestResult)
+          $failed      = @($allResults | Where-Object { $_.outcome -ne 'Passed' })
+
+          # Azure DevOps
+          $testsById = @{}
+          foreach ($t in @($xml.TestRun.TestDefinitions.UnitTest)) { $testsById[$t.id] = $t }
+
+          function Invoke-Ado {
+              param([string]$Area, [string]$Resource, [string]$Method, [hashtable]$Route, [object]$Body)
+              $tmp = [IO.Path]::GetTempFileName()
+              $Body | ConvertTo-Json -Depth 20 | Set-Content $tmp -Encoding UTF8
+              $r = az devops invoke --organization 'https://dev.azure.com/crgolden/' `
+                  --area $Area --resource $Resource --http-method $Method --api-version '7.1-preview.3' `
+                  --route-parameters ($Route.Keys | ForEach-Object { "$_=$($Route[$_])" }) `
+                  --in-file $tmp -o json | ConvertFrom-Json
+              Remove-Item $tmp; $r
+          }
+
+          $adoResults = foreach ($r in $allResults) {
+              $m = $testsById[$r.testId].TestMethod
+              @{ testCaseTitle = $r.testName; automatedTestName = "$($m.className).$($m.name)"
+                 automatedTestStorage = $appName; automatedTestType = 'Playwright'; outcome = $r.outcome
+                 durationInMs = [int][TimeSpan]::Parse($r.duration).TotalMilliseconds
+                 errorMessage = $r.Output.ErrorInfo.Message; stackTrace = $r.Output.ErrorInfo.StackTrace
+                 state = 'Completed'; comment = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID" }
+          }
+
+          $run = Invoke-Ado test runs POST @{ project = 'crgolden' } @{
+              name = "$appName $suiteName Playwright - $env:GITHUB_RUN_NUMBER"; automated = $true
+              state = 'InProgress'; startedDate = [DateTimeOffset]::Parse($xml.TestRun.Times.start).UtcDateTime.ToString('O')
+              comment = "GitHub Actions run $env:GITHUB_RUN_ID" }
+          Invoke-Ado test results POST @{ project = 'crgolden'; runId = $run.id } $adoResults | Out-Null
+          Invoke-Ado test attachments POST @{ project = 'crgolden'; runId = $run.id } @{
+              stream = [Convert]::ToBase64String([IO.File]::ReadAllBytes($trx.FullName))
+              fileName = $trx.Name; comment = 'TRX'; attachmentType = 'GeneralAttachment' } | Out-Null
+          Invoke-Ado test runs PATCH @{ project = 'crgolden'; runId = $run.id } @{
+              state = 'Completed'; completedDate = [DateTimeOffset]::UtcNow.ToString('O') } | Out-Null
+          Write-Host "Published $($adoResults.Count) results to Azure DevOps run $($run.id)."
+
+          # Azure Monitor
+          $cs       = $env:PLAYWRIGHT_APPINSIGHTS_CONNECTION_STRING
+          $iKey     = ($cs -split ';' | Where-Object { $_ -like 'InstrumentationKey=*' })  -replace 'InstrumentationKey=', ''
+          $endpoint = ($cs -split ';' | Where-Object { $_ -like 'IngestionEndpoint=*' })   -replace 'IngestionEndpoint=', ''
+          $common   = @{ app = $appName; suite = $suiteName; repository = $env:GITHUB_REPOSITORY
+              branch = $env:GITHUB_REF; sha = $env:GITHUB_SHA; githubRunId = $env:GITHUB_RUN_ID
+              githubRunUrl = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
+              artifactAvailable = (Test-Path $artifactDir).ToString() }
+
+          function New-Event {
+              param([string]$Name, [hashtable]$Props, [hashtable]$Measurements)
+              @{ name = 'Microsoft.ApplicationInsights.Event'; time = [DateTimeOffset]::UtcNow.ToString('O'); iKey = $iKey
+                 data = @{ baseType = 'EventData'; baseData = @{ ver = 2; name = $Name; properties = $Props; measurements = $Measurements } } }
+          }
+
+          $durationMs = ($allResults | ForEach-Object { [TimeSpan]::Parse($_.duration).TotalMilliseconds } | Measure-Object -Sum).Sum
+          $runProps = $common.Clone(); $runProps['trxFile'] = $trx.Name; $runProps['outcome'] = if ($failed.Count) { 'Failed' } else { 'Passed' }
+          $events = @(New-Event 'PlaywrightTestRun' $runProps @{ total = $allResults.Count; failed = $failed.Count; passed = $allResults.Count - $failed.Count; durationMs = [double]$durationMs })
+          $events += $allResults | ForEach-Object {
+              $p = $common.Clone(); $p['testName'] = $_.testName; $p['outcome'] = $_.outcome; $p['failed'] = ($_.outcome -ne 'Passed').ToString()
+              New-Event 'PlaywrightTestCase' $p @{ durationMs = [double][TimeSpan]::Parse($_.duration).TotalMilliseconds }
+          }
+          Invoke-RestMethod -Method Post -Uri ($endpoint.TrimEnd('/') + '/v2/track') -ContentType 'application/json' -Body ($events | ConvertTo-Json -Depth 20) | Out-Null
+          Write-Host "Sent $($events.Count) telemetry events to Azure Monitor."
+

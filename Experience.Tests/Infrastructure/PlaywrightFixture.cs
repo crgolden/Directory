@@ -141,20 +141,19 @@ public sealed partial class PlaywrightFixture : IAsyncLifetime
     /// calling this method to ensure each test starts with a clean state.
     /// </para>
     /// </remarks>
-    public async Task<(IBrowserContext Context, IPage Page)> NewProductsPageAsync()
+    public async Task<(IAsyncDisposable Context, IPage Page)> NewProductsPageAsync()
     {
         if (_browser is null)
         {
             throw new InvalidOperationException("Browser is not initialized. Ensure InitializeAsync has been awaited.");
         }
 
-        var context = await _browser.NewContextAsync(new BrowserNewContextOptions
+        var (session, page) = await PlaywrightArtifactRecorder.CreateSessionAsync(_browser, "Experience", IsSmoke ? "Smoke" : "E2E", new BrowserNewContextOptions
         {
             BaseURL = BaseAddress,
             IgnoreHTTPSErrors = true,
             StorageStatePath = _storageStatePath
         });
-        var page = await context.NewPageAsync();
 
         // Always use a generous default timeout. Cold-start Kestrel + Angular bundle on this
         // machine can legitimately take >30s even when everything is healthy; a tighter cap
@@ -229,7 +228,7 @@ public sealed partial class PlaywrightFixture : IAsyncLifetime
             Timeout = 60_000
         });
 
-        return (context, page);
+        return (session, page);
     }
 
     /// <summary>
@@ -245,19 +244,18 @@ public sealed partial class PlaywrightFixture : IAsyncLifetime
     /// <c>TaskCanceledException</c> and disrupt subsequent BFF proxy calls made by the
     /// catalog resolver.
     /// </remarks>
-    public async Task<(IBrowserContext Context, IPage Page)> NewCatalogPageAsync()
+    public async Task<(IAsyncDisposable Context, IPage Page)> NewCatalogPageAsync()
     {
         if (_browser is null)
         {
             throw new InvalidOperationException("Browser is not initialized. Ensure InitializeAsync has been awaited.");
         }
 
-        var context = await _browser.NewContextAsync(new BrowserNewContextOptions
+        var (session, page) = await PlaywrightArtifactRecorder.CreateSessionAsync(_browser, "Experience", IsSmoke ? "Smoke" : "E2E", new BrowserNewContextOptions
         {
             BaseURL = BaseAddress,
             IgnoreHTTPSErrors = true,
         });
-        var page = await context.NewPageAsync();
         page.SetDefaultTimeout(60_000);
 
         page.Request += (_, req) => Stage($"REQ {req.Method} {req.Url}");
@@ -319,7 +317,7 @@ public sealed partial class PlaywrightFixture : IAsyncLifetime
             Timeout = 60_000
         });
 
-        return (context, page);
+        return (session, page);
     }
 
     /// <inheritdoc/>
