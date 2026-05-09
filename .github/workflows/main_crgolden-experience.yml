@@ -331,6 +331,9 @@ jobs:
       contents: read
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Download test binaries
         uses: actions/download-artifact@v7
         with:
@@ -358,8 +361,8 @@ jobs:
           TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
           TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
         run: |
-          Experience.Tests/bin/Release/net10.0/Experience.Tests.exe `
-            -trait "Category=Smoke" `
+          dotnet test --project Experience.Tests --no-build --configuration Release `
+            -- --filter-trait Category=Smoke `
             --report-xunit-trx --report-xunit-trx-filename smoke-tests.trx
 
       - name: Upload smoke results
