@@ -172,10 +172,10 @@ cd experience.client && npm run build
 
 # Backend unit tests (no Azure required)
 dotnet build Experience.Tests --configuration Debug
-.\Experience.Tests\bin\Debug\net10.0\Experience.Tests.exe --filter-trait "Category=Unit" --show-live-output on
+.\Experience.Tests\bin\Debug\net10.0\Experience.Tests.exe -trait "Category=Unit" -showLiveOutput
 
 # Backend E2E tests (Playwright; no Azure credentials needed — static-file Kestrel + Playwright API mocks)
-.\Experience.Tests\bin\Debug\net10.0\Experience.Tests.exe --filter-trait "Category=E2E" --show-live-output on
+.\Experience.Tests\bin\Debug\net10.0\Experience.Tests.exe -trait "Category=E2E" -showLiveOutput
 
 # Frontend unit tests (Vitest)
 cd experience.client && npm test
