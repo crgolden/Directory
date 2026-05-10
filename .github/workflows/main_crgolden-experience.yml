@@ -215,7 +215,7 @@ jobs:
           function Invoke-Ado {
               param([string]$Method, [string]$Url, [object]$Body)
               Invoke-RestMethod -Method $Method -Uri $Url -Headers $adoHeaders `
-                  -ContentType 'application/json' -Body ($Body | ConvertTo-Json -Depth 20 -Compress)
+                  -ContentType 'application/json' -Body (ConvertTo-Json -InputObject $Body -Depth 20 -Compress)
           }
 
           $adoResults = foreach ($r in $allResults) {
@@ -408,7 +408,7 @@ jobs:
           function Invoke-Ado {
               param([string]$Method, [string]$Url, [object]$Body)
               Invoke-RestMethod -Method $Method -Uri $Url -Headers $adoHeaders `
-                  -ContentType 'application/json' -Body ($Body | ConvertTo-Json -Depth 20 -Compress)
+                  -ContentType 'application/json' -Body (ConvertTo-Json -InputObject $Body -Depth 20 -Compress)
           }
 
           $adoResults = foreach ($r in $allResults) {
