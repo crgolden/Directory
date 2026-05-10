@@ -31,7 +31,7 @@ public sealed class ProductSmokeTests(PlaywrightFixture fixture)
             var productId = page.Url.TrimEnd('/').Split('/').Last();
 
             // READ: detail page shows the created product.
-            await Assertions.Expect(page.Locator("body")).ToContainTextAsync(name);
+            await Assertions.Expect(page.Locator("body").First).ToContainTextAsync(name);
 
             // UPDATE: rename the product, set a manualUrl, and confirm the detail page reflects both.
             await page.GotoAsync($"/products/{productId}/edit");
@@ -42,7 +42,7 @@ public sealed class ProductSmokeTests(PlaywrightFixture fixture)
             await page.FillAsync("#manualUrl", "https://example.com/smoke-manual.pdf");
             await page.ClickAsync("button[type='submit']");
             await page.WaitForURLAsync($"**/products/{productId}");
-            await Assertions.Expect(page.Locator("body")).ToContainTextAsync(updatedName);
+            await Assertions.Expect(page.Locator("body").First).ToContainTextAsync(updatedName);
             await Assertions.Expect(page.Locator("a.btn-primary[target='_blank']")).ToBeVisibleAsync();
 
             // LIST: product appears when searching the products list.

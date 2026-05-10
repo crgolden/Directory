@@ -231,7 +231,7 @@ jobs:
               name = "$appName $suiteName Playwright - $env:GITHUB_RUN_NUMBER"; automated = $true
               state = 'InProgress'; startedDate = [DateTimeOffset]::Parse($xml.TestRun.Times.start).UtcDateTime.ToString('O')
               comment = "GitHub Actions run $env:GITHUB_RUN_ID" }
-          Invoke-Ado POST "$adoBase/runs/$($run.id)/results?$adoVer" $adoResults | Out-Null
+          Invoke-Ado POST "$adoBase/runs/$($run.id)/results?$adoVer" @($adoResults) | Out-Null
           Invoke-Ado POST "$adoBase/runs/$($run.id)/attachments?$adoVer" @{
               stream = [Convert]::ToBase64String([IO.File]::ReadAllBytes($trx.FullName))
               fileName = $trx.Name; comment = 'TRX'; attachmentType = 'GeneralAttachment' } | Out-Null
@@ -424,7 +424,7 @@ jobs:
               name = "$appName $suiteName Playwright - $env:GITHUB_RUN_NUMBER"; automated = $true
               state = 'InProgress'; startedDate = [DateTimeOffset]::Parse($xml.TestRun.Times.start).UtcDateTime.ToString('O')
               comment = "GitHub Actions run $env:GITHUB_RUN_ID" }
-          Invoke-Ado POST "$adoBase/runs/$($run.id)/results?$adoVer" $adoResults | Out-Null
+          Invoke-Ado POST "$adoBase/runs/$($run.id)/results?$adoVer" @($adoResults) | Out-Null
           Invoke-Ado POST "$adoBase/runs/$($run.id)/attachments?$adoVer" @{
               stream = [Convert]::ToBase64String([IO.File]::ReadAllBytes($trx.FullName))
               fileName = $trx.Name; comment = 'TRX'; attachmentType = 'GeneralAttachment' } | Out-Null
