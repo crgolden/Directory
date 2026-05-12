@@ -88,18 +88,33 @@ dotnet build Experience.Tests --configuration Debug
 .\Experience.Tests\bin\Debug\net10.0\Experience.Tests.exe -trait "Category=E2E" -showLiveOutput
 ```
 
-### E2E tests (smoke subset only — against a deployed app)
+### E2E tests (smoke subset only)
 
-Smoke tests require `SMOKE_BASE_URL` to point Playwright at a running instance. Pass any URL — production, a staging slot, a PR deployment, etc. No Azure CLI login and no Angular build are needed; `ExperienceWebApplicationFactory` is not started.
+Smoke tests require a running Experience BFF and a real OIDC login. `ExperienceWebApplicationFactory` is not started — Playwright talks directly to the target URL.
+
+Run via the committed helper script, which reads `TEST_USERNAME` and `TEST_PASSWORD` from User Secrets (ID `5480cab8-b41b-4dae-8c41-dbc2c01a15e0`) so credentials never need to be set as OS environment variables.
+
+**Local (default):** targets the deployed `https://crgolden-experience.azurewebsites.net`. The deployed Identity server must be configured with reCAPTCHA test keys (in Key Vault) so headless Playwright passes the reCAPTCHA v3 check.
 
 ```powershell
-$env:SMOKE_BASE_URL = "https://crgolden-experience.azurewebsites.net"
-$env:TEST_USERNAME = "<your-username>"
-$env:TEST_PASSWORD = "<your-password>"
-.\Experience.Tests\bin\Release\net10.0\Experience.Tests.exe -trait "Category=Smoke" -showLiveOutput
+# From Experience/
+.\Invoke-SmokeTests.ps1
 ```
 
-`SMOKE_BASE_URL` is the same value that CI sets from `steps.deploy-to-webapp.outputs.webapp-url`. Credentials are required whenever `SMOKE_BASE_URL` is set — the fixture will throw if `TEST_USERNAME` or `TEST_PASSWORD` is absent.
+**Against a different target:**
+
+```powershell
+.\Invoke-SmokeTests.ps1 -BaseUrl https://your-experience-app.azurewebsites.net
+```
+
+To add credentials to User Secrets if not already present:
+
+```powershell
+dotnet user-secrets --project Experience.Server set TEST_USERNAME "<your-email>"
+dotnet user-secrets --project Experience.Server set TEST_PASSWORD "<your-password>"
+```
+
+Credentials are required whenever `SMOKE_BASE_URL` is set — the fixture will throw if `TEST_USERNAME` or `TEST_PASSWORD` is absent.
 
 ### Run all tests in sequence
 

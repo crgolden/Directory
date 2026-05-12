@@ -68,8 +68,8 @@ export class ProductService {
     );
   }
 
-  patch(id: string, changes: Partial<Product>): Observable<Product> {
-    return this.http.patch<ApiProduct>(`${BASE}(${id})`, changes).pipe(map(fromApi));
+  patch(id: string, changes: Partial<Product>): Observable<void> {
+    return this.http.patch<void>(`${BASE}(${id})`, changes);
   }
 
   delete(id: string): Observable<void> {

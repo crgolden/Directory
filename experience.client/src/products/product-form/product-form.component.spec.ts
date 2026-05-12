@@ -124,7 +124,7 @@ describe('ProductFormComponent — edit mode', () => {
     mockService = {
       getById: vi.fn(),
       create: vi.fn(),
-      patch: vi.fn(() => of(mockProduct)),
+      patch: vi.fn(() => of<void>(undefined)),
     };
 
     await TestBed.configureTestingModule({

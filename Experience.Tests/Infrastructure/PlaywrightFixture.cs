@@ -904,12 +904,7 @@ public sealed partial class PlaywrightFixture : IAsyncLifetime
                     return;
                 }
 
-                await route.FulfillAsync(new RouteFulfillOptions
-                {
-                    Status = 200,
-                    ContentType = "application/json",
-                    Body = JsonSerializer.Serialize(ProductToJson(updated))
-                });
+                await route.FulfillAsync(new RouteFulfillOptions { Status = 204 });
                 break;
             }
 
