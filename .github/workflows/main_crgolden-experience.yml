@@ -199,6 +199,10 @@ jobs:
           $artifactDir = 'Experience.Tests/bin/Release/net10.0/TestResults/PlaywrightArtifacts'
 
           $trx = Get-ChildItem $resultsDir -Filter *.trx | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
+          if (-not $trx) {
+              Write-Warning "No TRX file found in $resultsDir - smoke test produced no results. Skipping ADO publish."
+              exit 0
+          }
           [xml] $xml   = Get-Content $trx.FullName
           $allResults  = @($xml.TestRun.Results.UnitTestResult)
           $failed      = @($allResults | Where-Object { $_.outcome -ne 'Passed' })
@@ -392,6 +396,10 @@ jobs:
           $artifactDir = 'Experience.Tests/bin/Release/net10.0/TestResults/PlaywrightArtifacts'
 
           $trx = Get-ChildItem $resultsDir -Filter *.trx | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
+          if (-not $trx) {
+              Write-Warning "No TRX file found in $resultsDir - smoke test produced no results. Skipping ADO publish."
+              exit 0
+          }
           [xml] $xml   = Get-Content $trx.FullName
           $allResults  = @($xml.TestRun.Results.UnitTestResult)
           $failed      = @($allResults | Where-Object { $_.outcome -ne 'Passed' })
