@@ -369,7 +369,9 @@ public sealed partial class PlaywrightFixture : IAsyncLifetime
         await page.ClickAsync("button#login-submit");
 
         // Wait for the BFF callback to complete and land on /products.
-        await page.WaitForURLAsync("**/products**");
+        // Use an explicit 120 s timeout: the OIDC flow crosses two Azure App Services that may be
+        // cold immediately after deployment, and the combined startup can exceed the 60 s page default.
+        await page.WaitForURLAsync("**/products**", new PageWaitForURLOptions { Timeout = 120_000 });
 
         // Persist session cookies so every per-test context starts authenticated.
         await context.StorageStateAsync(new() { Path = _storageStatePath });

@@ -355,6 +355,22 @@ jobs:
       - name: Clear downloaded test results
         run: Remove-Item Experience.Tests/bin/Release/net10.0/TestResults -Recurse -Force -ErrorAction SilentlyContinue
 
+      - name: Warm up deployed app
+        shell: pwsh
+        run: |
+          $url = "${{ needs.deploy.outputs.webapp-url }}/health"
+          $maxAttempts = 12
+          for ($i = 1; $i -le $maxAttempts; $i++) {
+            try {
+              $r = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 10
+              if ($r.StatusCode -eq 200 -and $r.Content -eq 'Healthy') {
+                Write-Host "App is healthy after $i attempt(s)."; break
+              }
+            } catch { }
+            if ($i -eq $maxAttempts) { Write-Host "Warning: app did not report Healthy after $maxAttempts attempts — proceeding anyway." }
+            else { Write-Host "Attempt $i`: not ready yet, waiting 10 s..."; Start-Sleep 10 }
+          }
+
       - name: Run smoke tests
         env:
           CI: true
