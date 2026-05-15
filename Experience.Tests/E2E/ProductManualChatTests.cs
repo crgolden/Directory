@@ -28,8 +28,8 @@ public sealed class ProductManualChatTests
             await page.GotoAsync("/products/new");
             await page.WaitForURLAsync("**/products/new");
 
-            await Assertions.Expect(page.Locator("button.manual-chat-toggle")).ToBeVisibleAsync();
-            await Assertions.Expect(page.Locator(".manual-chat-panel")).ToHaveCountAsync(0);
+            await Assertions.Expect(page.Locator("#manual-chat-toggle")).ToBeVisibleAsync();
+            await Assertions.Expect(page.Locator("#manual-chat-panel")).ToHaveCountAsync(0);
         }
     }
 
@@ -45,12 +45,12 @@ public sealed class ProductManualChatTests
             await page.GotoAsync("/products/new");
             await page.WaitForURLAsync("**/products/new");
 
-            await page.ClickAsync("button.manual-chat-toggle");
-            await Assertions.Expect(page.Locator(".manual-chat-panel")).ToBeVisibleAsync();
+            await page.ClickAsync("#manual-chat-toggle");
+            await Assertions.Expect(page.Locator("#manual-chat-panel")).ToBeVisibleAsync();
 
-            await page.ClickAsync(".manual-chat-panel .btn-close");
-            await Assertions.Expect(page.Locator(".manual-chat-panel")).ToHaveCountAsync(0);
-            await Assertions.Expect(page.Locator("button.manual-chat-toggle")).ToBeVisibleAsync();
+            await page.ClickAsync("#manual-chat-close");
+            await Assertions.Expect(page.Locator("#manual-chat-panel")).ToHaveCountAsync(0);
+            await Assertions.Expect(page.Locator("#manual-chat-toggle")).ToBeVisibleAsync();
         }
     }
 
@@ -71,12 +71,12 @@ public sealed class ProductManualChatTests
             await page.FillAsync("#name", "Test Laptop");
 
             // Open the chat panel.
-            await page.ClickAsync("button.manual-chat-toggle");
-            await Assertions.Expect(page.Locator(".manual-chat-panel")).ToBeVisibleAsync();
+            await page.ClickAsync("#manual-chat-toggle");
+            await Assertions.Expect(page.Locator("#manual-chat-panel")).ToBeVisibleAsync();
 
             // Send a message.
-            await page.FillAsync(".manual-chat-panel textarea", "Where is the manual?");
-            await page.ClickAsync(".manual-chat-panel button:has-text('Send')");
+            await page.FillAsync("#manual-chat-input", "Where is the manual?");
+            await page.ClickAsync("#manual-chat-send");
 
             // The assistant reply (mocked) contains MockManualUrl; a "Use this URL" chip should render.
             var chip = page.Locator(".manual-chat-panel button.url-chip");
@@ -101,10 +101,10 @@ public sealed class ProductManualChatTests
             await page.WaitForURLAsync("**/products/new");
 
             await page.FillAsync("#name", "Test Laptop");
-            await page.ClickAsync("button.manual-chat-toggle");
+            await page.ClickAsync("#manual-chat-toggle");
 
-            await page.FillAsync(".manual-chat-panel textarea", "Find the manual please");
-            await page.ClickAsync(".manual-chat-panel button:has-text('Send')");
+            await page.FillAsync("#manual-chat-input", "Find the manual please");
+            await page.ClickAsync("#manual-chat-send");
 
             var chip = page.Locator(".manual-chat-panel button.url-chip").First;
             await Assertions.Expect(chip).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions
@@ -138,8 +138,8 @@ public sealed class ProductManualChatTests
             await page.WaitForURLAsync("**/products/new");
 
             await page.FillAsync("#name", "Scroll Test");
-            await page.ClickAsync("button.manual-chat-toggle");
-            await Assertions.Expect(page.Locator(".manual-chat-panel")).ToBeVisibleAsync();
+            await page.ClickAsync("#manual-chat-toggle");
+            await Assertions.Expect(page.Locator("#manual-chat-panel")).ToBeVisibleAsync();
 
             // Send several messages so the transcript definitely exceeds panel height
             // (each round produces a user bubble + 4-line assistant reply + URL chip).
@@ -150,8 +150,8 @@ public sealed class ProductManualChatTests
             // timeout about the element being outside the viewport.
             for (var i = 0; i < 6; i++)
             {
-                await page.FillAsync(".manual-chat-panel textarea", $"message {i}", new PageFillOptions { Force = true });
-                await page.ClickAsync(".manual-chat-panel button:has-text('Send')", new PageClickOptions { Force = true });
+                await page.FillAsync("#manual-chat-input", $"message {i}", new PageFillOptions { Force = true });
+                await page.ClickAsync("#manual-chat-send", new PageClickOptions { Force = true });
                 var chips = page.Locator(".manual-chat-panel button.url-chip");
                 await Assertions.Expect(chips).ToHaveCountAsync(i + 1, new LocatorAssertionsToHaveCountOptions
                 {
@@ -162,9 +162,9 @@ public sealed class ProductManualChatTests
             // Measure the panel and the inner scrollable message list. Using scalar
             // evaluate calls avoids any JSON deserialization ambiguity.
             var panelClientHeight = await page.EvaluateAsync<double>(
-                "() => document.querySelector('.manual-chat-panel').clientHeight");
+                "() => document.getElementById('manual-chat-panel').clientHeight");
             var panelBottom = await page.EvaluateAsync<double>(
-                "() => document.querySelector('.manual-chat-panel').getBoundingClientRect().bottom");
+                "() => document.getElementById('manual-chat-panel').getBoundingClientRect().bottom");
             var viewportHeight = await page.EvaluateAsync<double>("() => window.innerHeight");
             var listClientHeight = await page.EvaluateAsync<double>(
                 "() => document.querySelector('.manual-chat-panel .message-list').clientHeight");
@@ -203,10 +203,10 @@ public sealed class ProductManualChatTests
             await page.WaitForURLAsync("**/products/new");
 
             await page.FillAsync("#name", "Chip Persist Product");
-            await page.ClickAsync("button.manual-chat-toggle");
+            await page.ClickAsync("#manual-chat-toggle");
 
-            await page.FillAsync(".manual-chat-panel textarea", "Manual link?");
-            await page.ClickAsync(".manual-chat-panel button:has-text('Send')");
+            await page.FillAsync("#manual-chat-input", "Manual link?");
+            await page.ClickAsync("#manual-chat-send");
 
             var chip = page.Locator(".manual-chat-panel button.url-chip").First;
             await Assertions.Expect(chip).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions
@@ -217,7 +217,7 @@ public sealed class ProductManualChatTests
 
             await Assertions.Expect(page.Locator("#manualUrl")).ToHaveValueAsync(InMemoryChatsStore.MockManualUrl);
 
-            await page.ClickAsync("button[type='submit']");
+            await page.ClickAsync("#product-form-submit");
 
             // After successful create the form navigates to /products/:id
             await page.WaitForURLAsync(url => url.Contains("/products/") && !url.Contains("/new"));

@@ -1,11 +1,12 @@
 <div class="container py-4">
   <div class="d-flex justify-content-between align-items-center mb-3">
     <h2 class="mb-0">My Products</h2>
-    <a class="btn btn-primary" [routerLink]="['/products/new']">+ New Product</a>
+    <a id="new-product-link" class="btn btn-primary" [routerLink]="['/products/new']">+ New Product</a>
   </div>
 
   <div class="mb-3">
     <input
+      id="product-search"
       type="search"
       class="form-control"
       placeholder="Search by name&hellip;"
@@ -54,12 +55,12 @@
               <td class="text-end">
                 @if (confirmingDeleteId() === product.id) {
                   <span class="me-2 text-danger fw-semibold small">Delete?</span>
-                  <button class="btn btn-sm btn-danger me-1" (click)="delete(product.id)">Yes</button>
+                  <button [attr.id]="'confirm-delete-product-' + $index" class="btn btn-sm btn-danger me-1" (click)="delete(product.id)">Yes</button>
                   <button class="btn btn-sm btn-outline-secondary" (click)="cancelDelete()">No</button>
                 } @else {
                   <a class="btn btn-sm btn-outline-primary me-1" [routerLink]="['/products', product.id]">View</a>
                   <a class="btn btn-sm btn-outline-secondary me-1" [routerLink]="['/products', product.id, 'edit']">Edit</a>
-                  <button class="btn btn-sm btn-outline-danger" (click)="confirmDelete(product.id)">Delete</button>
+                  <button [attr.id]="'delete-product-' + $index" class="btn btn-sm btn-outline-danger" (click)="confirmDelete(product.id)">Delete</button>
                 }
               </td>
             </tr>

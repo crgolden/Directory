@@ -54,7 +54,7 @@
 
     <div class="d-flex gap-2">
       @if (p.manualUrl) {
-        <a class="btn btn-primary" [href]="p.manualUrl" target="_blank" rel="noopener">View Manual</a>
+        <a id="view-manual-link" class="btn btn-primary" [href]="p.manualUrl" target="_blank" rel="noopener">View Manual</a>
       }
       <a class="btn btn-outline-primary" [routerLink]="['/products', p.id, 'edit']">
         {{ p.manualUrl ? 'Edit' : 'Find Manual' }}

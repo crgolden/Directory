@@ -1,5 +1,6 @@
 @if (!isOpen()) {
   <button
+    id="manual-chat-toggle"
     type="button"
     class="manual-chat-toggle btn btn-primary shadow"
     (click)="open()"
@@ -11,6 +12,7 @@
 
 @if (isOpen()) {
   <dialog
+    id="manual-chat-panel"
     class="manual-chat-panel shadow"
     [class.panel-narrow]="isNarrow()"
     open
@@ -18,6 +20,7 @@
     <div class="panel-header d-flex align-items-center justify-content-between border-bottom px-3 py-2">
       <h5 class="mb-0">Manual Finder</h5>
       <button
+        id="manual-chat-close"
         type="button"
         class="btn-close"
         aria-label="Close manual finder"

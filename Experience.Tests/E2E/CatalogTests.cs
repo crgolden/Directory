@@ -64,7 +64,7 @@ public sealed class CatalogTests
         var (ctx, page) = await _fixture.NewCatalogPageAsync();
         await using (ctx)
         {
-            var searchInput = page.Locator("input[type='search']");
+            var searchInput = page.Locator("#catalog-search");
             await searchInput.FillAsync("dyson");
 
             await Task.Delay(400, TestContext.Current.CancellationToken);
@@ -85,7 +85,7 @@ public sealed class CatalogTests
         var (ctx, page) = await _fixture.NewCatalogPageAsync();
         await using (ctx)
         {
-            var searchInput = page.Locator("input[type='search']");
+            var searchInput = page.Locator("#catalog-search");
             await searchInput.FillAsync("zzznomatch");
 
             await Task.Delay(400, TestContext.Current.CancellationToken);
@@ -115,7 +115,7 @@ public sealed class CatalogTests
             await Assertions.Expect(rows.First).ToContainTextAsync("Apple TV");
 
             // Click Name header → toggles to desc
-            await page.ClickAsync("thead button:has-text('Name')");
+            await page.ClickAsync("#sort-by-name");
             await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
             await Assertions.Expect(rows.First).ToContainTextAsync("Zebra Printer");
@@ -136,7 +136,7 @@ public sealed class CatalogTests
         var (ctx, page) = await _fixture.NewCatalogPageAsync();
         await using (ctx)
         {
-            await page.ClickAsync("tbody tr:first-child a:has-text('View')");
+            await page.ClickAsync("#view-product-0");
 
             // Use a DOM-presence assertion rather than WaitForURLAsync.
             //

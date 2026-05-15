@@ -22,10 +22,10 @@ public sealed class ProductSmokeTests(PlaywrightFixture fixture)
         await using (ctx)
         {
             // CREATE: fill form and submit; Angular must navigate to the detail page.
-            await page.ClickAsync("a:has-text('+ New Product')");
+            await page.ClickAsync("#new-product-link");
             await page.WaitForURLAsync("**/products/new");
             await page.FillAsync("#name", name);
-            await page.ClickAsync("button[type='submit']");
+            await page.ClickAsync("#product-form-submit");
             await page.WaitForURLAsync(url => url.Contains("/products/") && !url.Contains("/new"));
 
             var productId = page.Url.TrimEnd('/').Split('/').Last();
@@ -40,23 +40,23 @@ public sealed class ProductSmokeTests(PlaywrightFixture fixture)
             await nameInput.ClearAsync();
             await nameInput.FillAsync(updatedName);
             await page.FillAsync("#manualUrl", "https://example.com/smoke-manual.pdf");
-            await page.ClickAsync("button[type='submit']");
+            await page.ClickAsync("#product-form-submit");
             await page.WaitForURLAsync($"**/products/{productId}");
             await Assertions.Expect(page.Locator("body").First).ToContainTextAsync(updatedName);
-            await Assertions.Expect(page.Locator("a.btn-primary[target='_blank']")).ToBeVisibleAsync();
+            await Assertions.Expect(page.Locator("#view-manual-link")).ToBeVisibleAsync();
 
             // LIST: product appears when searching the products list.
             await page.GotoAsync("/products");
             await page.WaitForSelectorAsync("h2:has-text('My Products')");
-            await page.FillAsync("input[type='search']", updatedName);
+            await page.FillAsync("#product-search", updatedName);
             await Task.Delay(400, TestContext.Current.CancellationToken);
             await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
             var row = page.Locator("tbody tr").Filter(new LocatorFilterOptions { HasText = updatedName });
             await Assertions.Expect(row).ToHaveCountAsync(1);
 
             // DELETE: remove the product — serves as both assertion and cleanup.
-            await row.Locator("button.btn-outline-danger").ClickAsync();
-            await row.Locator("button.btn-danger").ClickAsync();
+            await row.Locator("[id^='delete-product-']").ClickAsync();
+            await row.Locator("[id^='confirm-delete-product-']").ClickAsync();
             await Assertions.Expect(row).ToHaveCountAsync(0);
         }
     }

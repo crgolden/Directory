@@ -5,6 +5,7 @@
 
   <div class="mb-3">
     <input
+      id="catalog-search"
       type="search"
       class="form-control"
       placeholder="Search by name&hellip;"
@@ -32,7 +33,7 @@
         <thead class="table-light">
           <tr>
             <th>
-              <button class="btn btn-link p-0 text-dark text-decoration-none fw-semibold" (click)="sortBy('Name')">
+              <button id="sort-by-name" class="btn btn-link p-0 text-dark text-decoration-none fw-semibold" (click)="sortBy('Name')">
                 Name
                 @if (orderBy() === 'Name') { {{ orderDir() === 'asc' ? '▲' : '▼' }} }
               </button>
@@ -66,7 +67,7 @@
               <td>{{ item.category ?? '—' }}</td>
               <td>{{ item.price !== null ? ('$' + item.price) : '—' }}</td>
               <td class="text-end">
-                <a class="btn btn-sm btn-outline-primary" [routerLink]="['/catalog', item.id]">View</a>
+                <a [attr.id]="'view-product-' + $index" class="btn btn-sm btn-outline-primary" [routerLink]="['/catalog', item.id]">View</a>
               </td>
             </tr>
           }

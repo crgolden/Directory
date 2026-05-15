@@ -66,7 +66,7 @@ public sealed class ProductCrudTests
         var (ctx, page) = await _fixture.NewProductsPageAsync();
         await using (ctx)
         {
-            var searchInput = page.Locator("input[type='search']");
+            var searchInput = page.Locator("#product-search");
             await searchInput.FillAsync("dyson");
 
             // Wait for debounce + re-render
@@ -88,7 +88,7 @@ public sealed class ProductCrudTests
         var (ctx, page) = await _fixture.NewProductsPageAsync();
         await using (ctx)
         {
-            var searchInput = page.Locator("input[type='search']");
+            var searchInput = page.Locator("#product-search");
             await searchInput.FillAsync("zzznomatch");
 
             await Task.Delay(400, TestContext.Current.CancellationToken);
@@ -111,14 +111,14 @@ public sealed class ProductCrudTests
         var (ctx, page) = await _fixture.NewProductsPageAsync();
         await using (ctx)
         {
-            await page.ClickAsync("a:has-text('+ New Product')");
+            await page.ClickAsync("#new-product-link");
             await page.WaitForURLAsync("**/products/new");
 
             await page.FillAsync("#name", "My Laptop");
             await page.FillAsync("#brand", "Dell");
             await page.FillAsync("#price", "999");
 
-            await page.ClickAsync("button[type='submit']");
+            await page.ClickAsync("#product-form-submit");
 
             // After successful create the component navigates to /products/:id
             await page.WaitForURLAsync(url => url.Contains("/products/") && !url.Contains("/new"));
@@ -150,7 +150,7 @@ public sealed class ProductCrudTests
             await nameInput.ClearAsync();
             await nameInput.FillAsync("Updated Name");
 
-            await page.ClickAsync("button[type='submit']");
+            await page.ClickAsync("#product-form-submit");
 
             // WaitForURLAsync (glob or lambda) waits for waitUntil:Load internally; SPA pushState never fires
             // a Load event, so it hangs. ToHaveURLAsync polls page.Url directly without waiting for navigation.
@@ -177,10 +177,10 @@ public sealed class ProductCrudTests
         await using (ctx)
         {
             // Click Delete on the first row
-            await page.ClickAsync("tbody tr:first-child button.btn-outline-danger");
+            await page.ClickAsync("#delete-product-0");
 
             // Confirm the inline prompt
-            await page.ClickAsync("tbody tr:first-child button.btn-danger");
+            await page.ClickAsync("#confirm-delete-product-0");
 
             // One row should remain
             var rows = page.Locator("tbody tr");
