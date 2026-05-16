@@ -14,9 +14,9 @@ param(
 $secretsPath = Join-Path $env:APPDATA "Microsoft\UserSecrets\5480cab8-b41b-4dae-8c41-dbc2c01a15e0\secrets.json"
 $secrets     = Get-Content $secretsPath -Raw | ConvertFrom-Json
 
-$env:SMOKE_BASE_URL = $BaseUrl
-$env:TEST_USERNAME  = $secrets.TEST_USERNAME
-$env:TEST_PASSWORD  = $secrets.TEST_PASSWORD
+$env:SmokeBaseUrl = $BaseUrl
+$env:AdminEmail  = $secrets.AdminEmail
+$env:AdminPassword  = $secrets.AdminPassword
 
 try
 {
@@ -24,5 +24,5 @@ try
 }
 finally
 {
-    Remove-Item Env:SMOKE_BASE_URL, Env:TEST_USERNAME, Env:TEST_PASSWORD -ErrorAction SilentlyContinue
+    Remove-Item Env:SmokeBaseUrl, Env:AdminEmail, Env:AdminPassword -ErrorAction SilentlyContinue
 }

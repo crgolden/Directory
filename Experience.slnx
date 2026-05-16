@@ -2,11 +2,12 @@
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />
     <File Path=".gitignore" />
-    <File Path="CLAUDE.md" />
     <File Path="coverage.settings.xml" />
-    <File Path="dotnet-tools.json" />
+    <File Path="DESIGN.md" />
     <File Path="global.json" />
+    <File Path="Invoke-SmokeTests.ps1" />
     <File Path="README.md" />
+    <File Path="TESTING.md" />
   </Folder>
   <Project Path="experience.client/experience.client.esproj">
     <Build />

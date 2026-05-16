@@ -374,9 +374,9 @@ jobs:
       - name: Run smoke tests
         env:
           CI: true
-          SMOKE_BASE_URL: ${{ needs.deploy.outputs.webapp-url }}
-          TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
-          TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
+          SmokeBaseUrl: ${{ needs.deploy.outputs.webapp-url }}
+          AdminEmail: ${{ secrets.TEST_USERNAME }}
+          AdminPassword: ${{ secrets.TEST_PASSWORD }}
         run: |
           $resultsDir = "${{ github.workspace }}\Experience.Tests\bin\Release\net10.0\TestResults"
           New-Item -ItemType Directory -Force -Path $resultsDir | Out-Null

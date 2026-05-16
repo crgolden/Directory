@@ -16,13 +16,13 @@ public sealed partial class PlaywrightFixture : IAsyncLifetime
     private static readonly bool Headless =
         !string.Equals(Environment.GetEnvironmentVariable("PLAYWRIGHT_HEADED"), "1", StringComparison.OrdinalIgnoreCase);
 
-    private static readonly string? TestUsername = Environment.GetEnvironmentVariable("TEST_USERNAME");
-    private static readonly string? TestPassword = Environment.GetEnvironmentVariable("TEST_PASSWORD");
-    private static readonly string? SmokeBaseUrl = Environment.GetEnvironmentVariable("SMOKE_BASE_URL");
+    private static readonly string? AdminEmail = Environment.GetEnvironmentVariable("AdminEmail");
+    private static readonly string? AdminPassword = Environment.GetEnvironmentVariable("AdminPassword");
+    private static readonly string? SmokeBaseUrl = Environment.GetEnvironmentVariable("SmokeBaseUrl");
 
     /// <summary>
-    /// <see langword="true"/> when <c>SMOKE_BASE_URL</c> is set — the suite is targeting a real
-    /// deployed instance rather than the local <see cref="ExperienceWebApplicationFactory"/>.
+    /// <see langword="true"/> when <c>SmokeBaseUrl</c> is set — the suite is targeting a real deployed instance rather
+    /// than the local <see cref="ExperienceWebApplicationFactory"/>.
     /// </summary>
     public static bool IsSmoke => SmokeBaseUrl is not null;
 
@@ -101,9 +101,9 @@ public sealed partial class PlaywrightFixture : IAsyncLifetime
 
         if (SmokeBaseUrl is not null)
         {
-            if (TestUsername is null || TestPassword is null)
+            if (AdminEmail is null || AdminPassword is null)
             {
-                throw new InvalidOperationException("TEST_USERNAME and TEST_PASSWORD must be set when SMOKE_BASE_URL is configured.");
+                throw new InvalidOperationException("AdminEmail and AdminPassword must be set when SmokeBaseUrl is configured.");
             }
 
             Stage("LoginAsync enter");
@@ -126,20 +126,15 @@ public sealed partial class PlaywrightFixture : IAsyncLifetime
     }
 
     /// <summary>
-    /// Creates a new browser context and page, optionally registers Playwright route mocks for
-    /// <c>/products/api/odata/**</c> requests (backed by <see cref="ProductStore"/>), then
-    /// navigates directly to <c>/products</c> and waits for the product list to render.
+    /// Creates a new browser context and page, optionally registers Playwright route mocks for <c>
+    /// /products/api/odata/**</c> requests (backed by <see cref="ProductStore"/> ), then navigates directly to <c>
+    /// /products</c> and waits for the product list to render.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// Route mocks are only registered when running in local E2E mode (no <c>SMOKE_BASE_URL</c>).
-    /// In smoke mode the real Products API is contacted so that integration with the live service
-    /// is fully exercised.
-    /// </para>
-    /// <para>
-    /// Call <see cref="InMemoryProductsStore.Clear"/> on <see cref="ProductStore"/> BEFORE
-    /// calling this method to ensure each test starts with a clean state.
-    /// </para>
+    /// <para> Route mocks are only registered when running in local E2E mode (no <c>SmokeBaseUrl</c>). In smoke mode
+    /// the real Products API is contacted so that integration with the live service is fully exercised. </para> <para>
+    /// Call <see cref="InMemoryProductsStore.Clear"/> on <see cref="ProductStore"/> BEFORE calling this method to
+    /// ensure each test starts with a clean state. </para>
     /// </remarks>
     public async Task<(IAsyncDisposable Context, IPage Page)> NewProductsPageAsync()
     {
@@ -364,14 +359,12 @@ public sealed partial class PlaywrightFixture : IAsyncLifetime
         await page.GotoAsync("/bff/login?returnUrl=%2Fproducts");
 
         // Selectors confirmed from Identity.Api/Pages/Account/Login.cshtml.
-        await page.FillAsync("input[name='Input.Email']", TestUsername!);
-        await page.FillAsync("input[name='Input.Password']", TestPassword!);
+        await page.FillAsync("input[name='Input.Email']", AdminEmail!);
+        await page.FillAsync("input[name='Input.Password']", AdminPassword!);
         await page.ClickAsync("button#login-submit");
 
         // Wait for the BFF callback to complete and land on /products.
-        // Use an explicit 120 s timeout: the OIDC flow crosses two Azure App Services that may be
-        // cold immediately after deployment, and the combined startup can exceed the 60 s page default.
-        await page.WaitForURLAsync("**/products**", new PageWaitForURLOptions { Timeout = 120_000 });
+        await page.WaitForURLAsync("**/products**");
 
         // Persist session cookies so every per-test context starts authenticated.
         await context.StorageStateAsync(new() { Path = _storageStatePath });

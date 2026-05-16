@@ -4,9 +4,8 @@ using Experience.Tests.Infrastructure;
 using Microsoft.Playwright;
 
 /// <summary>
-/// Post-deploy smoke tests for the Products feature that exercise the real Products API
-/// end-to-end — no Playwright route mocks are registered for <c>/products/api/odata/**</c>
-/// when <c>SMOKE_BASE_URL</c> is set (see <see cref="PlaywrightFixture.IsSmoke"/>).
+/// Post-deploy smoke tests for the Products feature that exercise the real Products API end-to-end — no Playwright
+/// route mocks are registered for <c> /products/api/odata/**</c> when <c>SmokeBaseUrl</c> is set (see <see cref="PlaywrightFixture.IsSmoke"/> ).
 /// </summary>
 [Collection(E2ECollection.Name)]
 [Trait("Category", "Smoke")]

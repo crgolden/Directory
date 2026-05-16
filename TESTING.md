@@ -11,7 +11,7 @@ The Experience test suite is split across three tiers: **backend unit tests** (x
 | E2E (regression) | `Category=E2E` | `Experience.Tests` | No — test server is a static-file-only Kestrel host; all API routes are Playwright mocks | Yes (for static files) | Every push/PR |
 | E2E (smoke) | `Category=Smoke` | `Experience.Tests` | No — targets the deployed app directly | No | Post-deploy only |
 
-Smoke tests are a tagged subset of E2E tests (`[Trait("Category", "Smoke")]` on top of `[Trait("Category", "E2E")]`). They compile into the same binary, but run in a different mode: when `SMOKE_BASE_URL` is set, `PlaywrightFixture` skips `ExperienceWebApplicationFactory` entirely and points Playwright straight at that URL. CI sets `SMOKE_BASE_URL` to the Azure App Service URL emitted by the deploy step.
+Smoke tests are a tagged subset of E2E tests (`[Trait("Category", "Smoke")]` on top of `[Trait("Category", "E2E")]`). They compile into the same binary, but run in a different mode: when `SmokeBaseUrl` is set, `PlaywrightFixture` skips `ExperienceWebApplicationFactory` entirely and points Playwright straight at that URL. CI sets `SmokeBaseUrl` to the Azure App Service URL emitted by the deploy step.
 
 ---
 
@@ -92,7 +92,7 @@ dotnet build Experience.Tests --configuration Debug
 
 Smoke tests require a running Experience BFF and a real OIDC login. `ExperienceWebApplicationFactory` is not started — Playwright talks directly to the target URL.
 
-Run via the committed helper script, which reads `TEST_USERNAME` and `TEST_PASSWORD` from User Secrets (ID `5480cab8-b41b-4dae-8c41-dbc2c01a15e0`) so credentials never need to be set as OS environment variables.
+Run via the committed helper script, which reads `AdminEmail` and `AdminPassword` from User Secrets (ID `5480cab8-b41b-4dae-8c41-dbc2c01a15e0`) so credentials never need to be set as OS environment variables.
 
 **Local (default):** targets the deployed `https://crgolden-experience.azurewebsites.net`. The deployed Identity server must be configured with reCAPTCHA test keys (in Key Vault) so headless Playwright passes the reCAPTCHA v3 check.
 
@@ -110,11 +110,11 @@ Run via the committed helper script, which reads `TEST_USERNAME` and `TEST_PASSW
 To add credentials to User Secrets if not already present:
 
 ```powershell
-dotnet user-secrets --project Experience.Server set TEST_USERNAME "<your-email>"
-dotnet user-secrets --project Experience.Server set TEST_PASSWORD "<your-password>"
+dotnet user-secrets --project Experience.Server set AdminEmail "<your-email>"
+dotnet user-secrets --project Experience.Server set AdminPassword "<your-password>"
 ```
 
-Credentials are required whenever `SMOKE_BASE_URL` is set — the fixture will throw if `TEST_USERNAME` or `TEST_PASSWORD` is absent.
+Credentials are required whenever `SmokeBaseUrl` is set — the fixture will throw if `AdminEmail` or `AdminPassword` is absent.
 
 ### Run all tests in sequence
 
@@ -128,9 +128,9 @@ cd experience.client && npx vitest run --coverage
 
 ## E2E test infrastructure
 
-`PlaywrightFixture` operates in two modes depending on whether `SMOKE_BASE_URL` is set:
+`PlaywrightFixture` operates in two modes depending on whether `SmokeBaseUrl` is set:
 
-**Local / regression mode** (`SMOKE_BASE_URL` absent — used by `Category=E2E`):
+**Local / regression mode** (`SmokeBaseUrl` absent — used by `Category=E2E`):
 ```
 PlaywrightFixture (IAsyncLifetime)
   └── ExperienceWebApplicationFactory (custom WebApplication host — NOT WebApplicationFactory<Program>)
@@ -141,11 +141,11 @@ PlaywrightFixture (IAsyncLifetime)
               All API calls (/bff/**, /products/api/**, /manuals/api/**, /catalog/api/**) are Playwright mocks
 ```
 
-**Smoke / post-deploy mode** (`SMOKE_BASE_URL` set — used by `Category=Smoke` in CI):
+**Smoke / post-deploy mode** (`SmokeBaseUrl` set — used by `Category=Smoke` in CI):
 ```
 PlaywrightFixture (IAsyncLifetime)
   └── (no ExperienceWebApplicationFactory)
-  BaseAddress = SMOKE_BASE_URL  ← Playwright browser talks directly to the deployed app
+  BaseAddress = SmokeBaseUrl  ← Playwright browser talks directly to the deployed app
 ```
 
 In local/regression mode, all API requests are intercepted by Playwright route mocks. In smoke mode, real API calls reach the deployed app.
@@ -154,9 +154,9 @@ In local/regression mode, all API requests are intercepted by Playwright route m
 
 Authentication behaviour differs between factory mode and smoke mode:
 
-**Factory mode** (`SMOKE_BASE_URL` absent — `Category=E2E` and local smoke runs):
+**Factory mode** (`SmokeBaseUrl` absent — `Category=E2E` and local smoke runs):
 
-The fixture always uses a Playwright route mock for `/bff/user`, regardless of whether `TEST_USERNAME` / `TEST_PASSWORD` are set. Real OIDC login is not attempted because the Kestrel test server listens on a random port that cannot be pre-registered as a redirect URI in the Identity server. The mock returns a synthetic user:
+The fixture always uses a Playwright route mock for `/bff/user`, regardless of whether `AdminEmail` / `AdminPassword` are set. Real OIDC login is not attempted because the Kestrel test server listens on a random port that cannot be pre-registered as a redirect URI in the Identity server. The mock returns a synthetic user:
 
 ```
 { type: "sub",   value: "e2e-user-id" }
@@ -165,9 +165,9 @@ The fixture always uses a Playwright route mock for `/bff/user`, regardless of w
 { type: "sid",   value: "e2e-session" }
 ```
 
-**Smoke mode** (`SMOKE_BASE_URL` set — `Category=Smoke` in CI):
+**Smoke mode** (`SmokeBaseUrl` set — `Category=Smoke` in CI):
 
-`PlaywrightFixture.LoginAsync` performs a real OIDC login against the Identity server during fixture initialization. `TEST_USERNAME` and `TEST_PASSWORD` are required; their absence causes a hard failure (`InvalidOperationException`).
+`PlaywrightFixture.LoginAsync` performs a real OIDC login against the Identity server during fixture initialization. `AdminEmail` and `AdminPassword` are required; their absence causes a hard failure (`InvalidOperationException`).
 
 1. Navigates to `/bff/login?returnUrl=%2Fproducts` — starts the Duende BFF OIDC challenge.
 2. Fills the Identity server login form (`Input.Email` / `Input.Password`) and submits.
@@ -222,10 +222,10 @@ Covers the embedded `ManualChatPanelComponent` on `/products/new`. All `/manuals
 
 ### Smoke job (post-deploy, `main` only)
 
-Runs after the deploy job. Downloads the pre-built `test-binaries` artifact from the build job (no source checkout, no rebuild). Sets `SMOKE_BASE_URL` to the deployed Azure App Service URL emitted by the deploy step, and `TEST_USERNAME` / `TEST_PASSWORD` for real OIDC login. All `/manuals/api/**` calls are still intercepted by Playwright route mocks — no real Manuals service is contacted. No Azure CLI login is needed (no Key Vault, no `ExperienceWebApplicationFactory`).
+Runs after the deploy job. Downloads the pre-built `test-binaries` artifact from the build job (no source checkout, no rebuild). Sets `SmokeBaseUrl` to the deployed Azure App Service URL emitted by the deploy step, and `AdminEmail` / `AdminPassword` for real OIDC login. All `/manuals/api/**` calls are still intercepted by Playwright route mocks — no real Manuals service is contacted. No Azure CLI login is needed (no Key Vault, no `ExperienceWebApplicationFactory`).
 
 1. Download `test-binaries` artifact
-2. Set `SMOKE_BASE_URL`, `TEST_USERNAME`, `TEST_PASSWORD`
+2. Set `SmokeBaseUrl`, `AdminEmail`, `AdminPassword`
 3. Cache + install Playwright Chromium
 4. Run `-trait "Category=Smoke"` (subset of E2E) via the compiled exe; write TRX via `-trx`
 5. Upload TRX artifacts
