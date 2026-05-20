@@ -4,10 +4,6 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.Playwright;
 
-/// <summary>
-/// xUnit collection fixture that owns the <see cref="ExperienceWebApplicationFactory"/>,
-/// the Playwright browser, and provides per-test page creation with Manuals API route mocks.
-/// </summary>
 public sealed partial class PlaywrightFixture : IAsyncLifetime
 {
     private static readonly bool CI =
@@ -20,10 +16,6 @@ public sealed partial class PlaywrightFixture : IAsyncLifetime
     private static readonly string? AdminPassword = Environment.GetEnvironmentVariable("AdminPassword");
     private static readonly string? SmokeBaseUrl = Environment.GetEnvironmentVariable("SmokeBaseUrl");
 
-    /// <summary>
-    /// <see langword="true"/> when <c>SmokeBaseUrl</c> is set — the suite is targeting a real deployed instance rather
-    /// than the local <see cref="ExperienceWebApplicationFactory"/>.
-    /// </summary>
     public static bool IsSmoke => SmokeBaseUrl is not null;
 
     private IPlaywright? _playwright;
@@ -65,7 +57,6 @@ public sealed partial class PlaywrightFixture : IAsyncLifetime
     private static void Stage(string msg) =>
         Console.WriteLine($"[{DateTime.UtcNow:HH:mm:ss.fff}] PlaywrightFixture: {msg}");
 
-    /// <inheritdoc/>
     public async ValueTask InitializeAsync()
     {
         Stage("InitializeAsync enter");
@@ -125,17 +116,6 @@ public sealed partial class PlaywrightFixture : IAsyncLifetime
         Stage("InitializeAsync exit");
     }
 
-    /// <summary>
-    /// Creates a new browser context and page, optionally registers Playwright route mocks for <c>
-    /// /products/api/odata/**</c> requests (backed by <see cref="ProductStore"/> ), then navigates directly to <c>
-    /// /products</c> and waits for the product list to render.
-    /// </summary>
-    /// <remarks>
-    /// <para> Route mocks are only registered when running in local E2E mode (no <c>SmokeBaseUrl</c>). In smoke mode
-    /// the real Products API is contacted so that integration with the live service is fully exercised. </para> <para>
-    /// Call <see cref="InMemoryProductsStore.Clear"/> on <see cref="ProductStore"/> BEFORE calling this method to
-    /// ensure each test starts with a clean state. </para>
-    /// </remarks>
     public async Task<(IAsyncDisposable Context, IPage Page)> NewProductsPageAsync()
     {
         if (_browser is null)
@@ -226,19 +206,6 @@ public sealed partial class PlaywrightFixture : IAsyncLifetime
         return (session, page);
     }
 
-    /// <summary>
-    /// Creates a new browser context and page, registers Playwright route mocks for
-    /// <c>/catalog/api/odata/**</c> requests (backed by <see cref="CatalogStore"/>), then
-    /// navigates to <c>/catalog</c> and waits for the catalog list to render.
-    /// </summary>
-    /// <remarks>
-    /// The catalog is publicly accessible — no auth guard is applied. A <c>/bff/user</c>
-    /// mock returning 401 is registered so that <see cref="AuthService"/> sees the user as
-    /// anonymous without contacting the real BFF. Omitting this mock in CI causes Duende BFF
-    /// 4.x's DPoP negotiation to fire on the anonymous request, which can fail with a
-    /// <c>TaskCanceledException</c> and disrupt subsequent BFF proxy calls made by the
-    /// catalog resolver.
-    /// </remarks>
     public async Task<(IAsyncDisposable Context, IPage Page)> NewCatalogPageAsync()
     {
         if (_browser is null)
@@ -315,7 +282,6 @@ public sealed partial class PlaywrightFixture : IAsyncLifetime
         return (session, page);
     }
 
-    /// <inheritdoc/>
     public async ValueTask DisposeAsync()
     {
         if (_browser is not null)

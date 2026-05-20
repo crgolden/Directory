@@ -70,6 +70,7 @@ jobs:
           dotnet-version: '10.x'
 
       - name: Cache dotnet global tools
+        id: cache-dotnet-tools
         uses: actions/cache@v5
         with:
           path: ~/.dotnet/tools
@@ -84,7 +85,7 @@ jobs:
       - name: Cache npm packages
         uses: actions/cache@v5
         with:
-          path: experience.client/node_modules
+          path: ~/.npm
           key: ${{ runner.os }}-npm-${{ hashFiles('experience.client/package-lock.json') }}
           restore-keys: ${{ runner.os }}-npm-
 
@@ -93,6 +94,7 @@ jobs:
         run: npm ci
 
       - name: Install dotnet-coverage
+        if: steps.cache-dotnet-tools.outputs.cache-hit != 'true'
         run: dotnet tool install --global dotnet-coverage
 
       - name: Lint

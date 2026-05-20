@@ -9,9 +9,6 @@ using Xunit.v3;
 
 namespace Experience.Tests.Infrastructure;
 
-/// <summary>
-/// Finalizes Playwright artifact folders after xUnit knows the test outcome.
-/// </summary>
 [AttributeUsage(AttributeTargets.Assembly | AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = true, Inherited = true)]
 public sealed class PlaywrightArtifactFinalizerAttribute : BeforeAfterTestAttribute
 {

@@ -2,12 +2,6 @@ namespace Experience.Tests.Infrastructure;
 
 using System.Collections.Concurrent;
 
-/// <summary>
-/// Thread-safe in-memory store backing the Playwright route mocks for Catalog OData API calls.
-/// Mirrors the read-only public catalog at <c>/catalog/api/odata/Products</c>.
-/// Tests must call <see cref="Clear"/> before <see cref="PlaywrightFixture.NewCatalogPageAsync"/>
-/// to ensure clean state.
-/// </summary>
 public sealed class InMemoryCatalogStore
 {
     private readonly ConcurrentDictionary<Guid, CatalogRecord> _products = new();
@@ -48,6 +42,5 @@ public sealed class InMemoryCatalogStore
         return product;
     }
 
-    /// <summary>Resets all catalog state. Call this before each test.</summary>
     public void Clear() => _products.Clear();
 }

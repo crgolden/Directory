@@ -3,11 +3,6 @@ namespace Experience.Tests.E2E;
 using Experience.Tests.Infrastructure;
 using Microsoft.Playwright;
 
-/// <summary>
-/// E2E tests for the embedded Manual Chat panel on the product create/edit form.
-/// All Manuals API calls are intercepted by Playwright route mocks backed by
-/// <see cref="InMemoryChatsStore"/> — no real Manuals service is contacted.
-/// </summary>
 [Collection(E2ECollection.Name)]
 [Trait("Category", "E2E")]
 public sealed class ProductManualChatTests
@@ -117,14 +112,6 @@ public sealed class ProductManualChatTests
         }
     }
 
-    /// <summary>
-    /// Layout regression guard. When the chat transcript grows taller than the panel,
-    /// the message-list must scroll inside the panel instead of extending past its
-    /// bottom edge. A missing <c>:host</c> flex style on <c>manual-chat.component</c>
-    /// caused the whole transcript to spill below the visible panel with no way to
-    /// scroll to the bottom — this test would fail in that broken state because
-    /// <c>.message-list</c>'s rendered clientHeight would exceed the panel's clientHeight.
-    /// </summary>
     [Fact]
     public async Task Message_list_scrolls_inside_panel_when_content_overflows()
     {

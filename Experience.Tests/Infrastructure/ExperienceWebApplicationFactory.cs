@@ -10,13 +10,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-/// <summary>
-/// Builds a minimal <see cref="WebApplication"/> that serves the Angular SPA on a real
-/// Kestrel HTTPS loopback port for Playwright-driven E2E tests. All API routes
-/// (/bff/user, /products/api/**, /manuals/api/**, /catalog/api/**) are intercepted
-/// by Playwright route mocks — the server only needs to serve static files and
-/// fall back to index.html for SPA navigation.
-/// </summary>
 public sealed class ExperienceWebApplicationFactory : IAsyncDisposable
 {
     private WebApplication? _app;
@@ -28,9 +21,6 @@ public sealed class ExperienceWebApplicationFactory : IAsyncDisposable
     private static void Stage(string msg) =>
         Console.WriteLine($"[{DateTime.UtcNow:HH:mm:ss.fff}] Factory: {msg}");
 
-    /// <summary>
-    /// Builds and starts the test host. Safe to call multiple times; subsequent calls are no-ops.
-    /// </summary>
     public async Task StartAsync()
     {
         if (_app is not null)

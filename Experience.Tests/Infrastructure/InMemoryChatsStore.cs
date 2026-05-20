@@ -2,18 +2,8 @@ namespace Experience.Tests.Infrastructure;
 
 using System.Collections.Concurrent;
 
-/// <summary>
-/// Thread-safe in-memory store backing the Playwright route mocks for Manuals API calls.
-/// Tests must call <see cref="Clear"/> before <see cref="PlaywrightFixture.NewPageAsync"/>
-/// to ensure clean state.
-/// </summary>
 public sealed class InMemoryChatsStore
 {
-    /// <summary>
-    /// Canned URL embedded in both the completion and stream mock responses. The embedded
-    /// manual-chat UI surfaces this as a clickable "Use this URL" chip that populates the
-    /// product form's Manual URL field.
-    /// </summary>
     public const string MockManualUrl = "https://example.com/manuals/test-manual.pdf";
 
     private static readonly string MockResponse =
@@ -70,10 +60,6 @@ public sealed class InMemoryChatsStore
     public IReadOnlyList<MessageRecord> GetMessages(string chatId) =>
         _messages.TryGetValue(chatId, out var msgs) ? [.. msgs] : [];
 
-    /// <summary>
-    /// Stores user + assistant messages for a chat and sets the auto-title on the first message.
-    /// Returns the updated <see cref="ChatRecord"/>, or <see langword="null"/> if chatId not found.
-    /// </summary>
     public ChatRecord? CompleteMessage(string chatId, string input)
     {
         if (!_chats.TryGetValue(chatId, out var chat))
@@ -97,15 +83,8 @@ public sealed class InMemoryChatsStore
         return _chats[chatId];
     }
 
-    /// <summary>
-    /// Returns the mock response text used by <see cref="CompleteMessage"/> and the stream route.
-    /// </summary>
     public static string GetMockResponse() => MockResponse;
 
-    /// <summary>
-    /// Returns the SSE body for the stream route: three deltas followed by [DONE].
-    /// Also stores the messages in the store (same as <see cref="CompleteMessage"/>).
-    /// </summary>
     public (ChatRecord? Chat, string SseBody) CompleteStream(string chatId, string input)
     {
         var chat = CompleteMessage(chatId, input);
@@ -119,7 +98,6 @@ public sealed class InMemoryChatsStore
         return (chat, body.ToString());
     }
 
-    /// <summary>Resets all chat state. Call this before each test.</summary>
     public void Clear()
     {
         _chats.Clear();

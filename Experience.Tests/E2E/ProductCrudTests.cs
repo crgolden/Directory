@@ -3,11 +3,6 @@ namespace Experience.Tests.E2E;
 using Experience.Tests.Infrastructure;
 using Microsoft.Playwright;
 
-/// <summary>
-/// E2E tests for the Products feature (/products/**).
-/// All Products OData API calls are intercepted by Playwright route mocks backed by
-/// <see cref="InMemoryProductsStore"/> — no real Products service is contacted.
-/// </summary>
 [Collection(E2ECollection.Name)]
 [Trait("Category", "E2E")]
 public sealed class ProductCrudTests

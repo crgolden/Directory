@@ -2,12 +2,6 @@ namespace Experience.Tests.Infrastructure;
 
 using System.Collections.Concurrent;
 
-/// <summary>
-/// Thread-safe in-memory store backing the Playwright route mocks for Products OData API calls.
-/// Mirrors the OData entity set at <c>/products/odata/Products</c>.
-/// Tests must call <see cref="Clear"/> before
-/// <see cref="PlaywrightFixture.NewProductsPageAsync"/> to ensure clean state.
-/// </summary>
 public sealed class InMemoryProductsStore
 {
     private readonly ConcurrentDictionary<Guid, ProductRecord> _products = new();
@@ -108,6 +102,5 @@ public sealed class InMemoryProductsStore
 
     public bool Delete(Guid id) => _products.TryRemove(id, out _);
 
-    /// <summary>Resets all product state. Call this before each test.</summary>
     public void Clear() => _products.Clear();
 }

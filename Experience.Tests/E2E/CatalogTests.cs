@@ -3,12 +3,6 @@ namespace Experience.Tests.E2E;
 using Experience.Tests.Infrastructure;
 using Microsoft.Playwright;
 
-/// <summary>
-/// E2E tests for the public Catalog feature (/catalog/**).
-/// All Catalog OData API calls are intercepted by Playwright route mocks backed by
-/// <see cref="InMemoryCatalogStore"/> — no real Products service is contacted.
-/// The catalog route is anonymous; no auth guard or /bff/user mock is set up.
-/// </summary>
 [Collection(E2ECollection.Name)]
 [Trait("Category", "E2E")]
 public sealed class CatalogTests
