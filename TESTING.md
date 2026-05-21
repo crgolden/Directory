@@ -2,6 +2,8 @@
 
 The Experience test suite is split across three tiers: **backend unit tests** (xUnit v3), **frontend unit tests** (Vitest), and **browser-based E2E tests** (Playwright). Unit and E2E tests share the same `Experience.Tests` project; frontend tests live inside `experience.client/`.
 
+Unit test coding standards (MockBehavior.Strict, argument verification, SetupSequence, no control-flow in tests, etc.) are in the workspace-level [Unit Test Standards](../TESTING.md#unit-test-standards). Note for Playwright E2E tests: a `for` or `foreach` is acceptable when it is test setup (e.g. sending N chat messages to prime state) rather than an assertion branch.
+
 ## Test tiers
 
 | Tier | Trait / tool | Project | Requires Azure? | Requires Angular build? | Runs in CI |
@@ -261,25 +263,18 @@ CI also publishes the same TRX outcomes to Azure DevOps and Azure Monitor:
 
 | Target | Configuration |
 |---|---|
-| Azure DevOps | `https://dev.azure.com/crgolden/`, project `crgolden`, via `scripts/Publish-PlaywrightResultsToAzureDevOps.ps1` |
-| Azure Monitor | Shared Application Insights `crgolden-playwright-ai`, via `scripts/Send-PlaywrightTelemetry.ps1` |
+| Azure DevOps | `https://dev.azure.com/crgolden/`, project `crgolden` — published inline by the CI workflow |
+| Azure Monitor | Shared Application Insights `crgolden` — `PlaywrightTestRun`/`PlaywrightTestCase` customEvents posted inline by the CI workflow |
 
-Required GitHub secrets are `AZURE_DEVOPS_EXT_PAT` and `PLAYWRIGHT_APPINSIGHTS_CONNECTION_STRING`. If either secret is absent, the corresponding script logs a warning and skips publishing.
+CI uses the `AZURE_DEVOPS_EXT_PAT` secret and the `PLAYWRIGHT_APPINSIGHTS_CONNECTION_STRING` variable (set both in the repo's Actions settings). The publish + telemetry logic is inline in the "Publish Playwright results" steps of `.github/workflows/main_crgolden-experience.yml` — there are no standalone scripts.
 
-Provision or repair the shared Azure Monitor resources with:
-
-```powershell
-.\scripts\Ensure-PlaywrightMonitor.ps1
-```
-
-For local script validation against an existing TRX:
+Provision or repair the workbook (from the Tools workspace):
 
 ```powershell
-.\scripts\Publish-PlaywrightResultsToAzureDevOps.ps1 -AppName Experience -SuiteName E2E -TestResultsDirectory .\Experience.Tests\bin\Debug\net10.0\TestResults -DryRun
-.\scripts\Send-PlaywrightTelemetry.ps1 -AppName Experience -SuiteName E2E -TestResultsDirectory .\Experience.Tests\bin\Debug\net10.0\TestResults -ConnectionString "InstrumentationKey=00000000-0000-0000-0000-000000000000" -DryRun
+pwsh -NoProfile -File Tools\Azure\Monitor\Ensure-PlaywrightMonitor.ps1
 ```
 
-Do not run Git commands when implementing or verifying Playwright reporting changes.
+The publish/telemetry steps run only in CI; there is no standalone local script to invoke. To inspect the logic, see the workflow YAML above. Do not run Git commands when implementing or verifying Playwright reporting changes.
 
 ---
 
