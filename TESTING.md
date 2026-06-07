@@ -263,7 +263,7 @@ CI also publishes the same TRX outcomes to Azure DevOps and Azure Monitor:
 
 | Target | Configuration |
 |---|---|
-| Azure DevOps | `https://dev.azure.com/crgolden/`, project `crgolden` — published inline by the CI workflow |
+| Azure DevOps | `https://dev.azure.com/crgolden/`, project `Experience` — published inline by the CI workflow |
 | Azure Monitor | Shared Application Insights `crgolden` — `PlaywrightTestRun`/`PlaywrightTestCase` customEvents posted inline by the CI workflow |
 
 CI uses the `AZURE_DEVOPS_EXT_PAT` secret and the `PLAYWRIGHT_APPINSIGHTS_CONNECTION_STRING` variable (set both in the repo's Actions settings). The publish + telemetry logic is inline in the "Publish Playwright results" steps of `.github/workflows/main_crgolden-experience.yml` — there are no standalone scripts.
