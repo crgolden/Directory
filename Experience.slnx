@@ -4,6 +4,7 @@
     <File Path=".gitignore" />
     <File Path="coverage.settings.xml" />
     <File Path="DESIGN.md" />
+    <File Path="dotnet-tools.json" />
     <File Path="global.json" />
     <File Path="Invoke-SmokeTests.ps1" />
     <File Path="README.md" />

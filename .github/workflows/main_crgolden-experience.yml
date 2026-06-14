@@ -97,6 +97,9 @@ jobs:
         if: steps.cache-dotnet-tools.outputs.cache-hit != 'true'
         run: dotnet tool install --global dotnet-coverage
 
+      - name: Restore local tools
+        run: dotnet tool restore
+
       - name: Lint
         working-directory: experience.client
         run: npm run lint
@@ -113,7 +116,8 @@ jobs:
             /o:"$env:SONAR_ORGANIZATION" `
             /d:sonar.token="$env:SONAR_TOKEN" `
             /d:sonar.host.url="https://sonarcloud.io" `
-            /d:sonar.cs.vscoveragexml.reportsPaths="coverage.xml,coverage-e2e.xml" `
+            /d:sonar.cs.opencover.reportsPaths="coverage.opencover.xml" `
+            /d:sonar.cs.vscoveragexml.reportsPaths="coverage-e2e.xml" `
             /d:sonar.javascript.lcov.reportPaths="experience.client/coverage/lcov.info" `
             /d:sonar.exclusions="experience.client/aspnetcore-https.js,experience.client/start-os.js,**/bin/**,**/obj/**,**/node_modules/**,**/*.d.ts" `
             /d:sonar.coverage.exclusions="experience.client/e2e/**,experience.client/src/test-setup.ts" `
@@ -125,9 +129,16 @@ jobs:
 
       - name: Run unit tests with coverage
         run: |
-          dotnet-coverage collect `
-            "dotnet test --project Experience.Tests --no-build --configuration Release -- --filter-trait Category=Unit --report-xunit-trx --report-xunit-trx-filename unit-tests.trx" `
-            -f xml -o "coverage.xml" -s "coverage.settings.xml"
+          dotnet coverlet Experience.Tests\bin\Release\net10.0 `
+            --target "dotnet" `
+            --targetargs "test --project Experience.Tests --no-build --configuration Release -- --filter-trait Category=Unit --report-xunit-trx --report-xunit-trx-filename unit-tests.trx" `
+            --format opencover --output "coverage.opencover.xml" `
+            --skipautoprops `
+            --exclude-by-attribute GeneratedCodeAttribute `
+            --exclude-by-file "**/obj/**" `
+            --exclude-by-file "**/Program.cs" `
+            --does-not-return-attribute DoesNotReturnAttribute `
+            --include "[Experience.Server]*"
 
       - name: Run UI tests
         working-directory: experience.client

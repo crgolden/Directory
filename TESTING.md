@@ -213,7 +213,7 @@ Covers the embedded `ManualChatPanelComponent` on `/products/new`. All `/manuals
 ### Build job (every push / PR)
 
 1. Build solution (`dotnet build --no-incremental --configuration Release /p:AngularConfiguration=ci`) — Angular uses `environment.ci.ts` (`enableTelemetry: false`); no `/config/telemetry` call during tests. `dotnet publish` (step 9) rebuilds Angular without the override, producing the `production` bundle (`enableTelemetry: true`) for the deployed artifact.
-2. Backend unit tests with coverage (`dotnet-coverage collect … --filter-trait Category=Unit`)
+2. Backend unit tests with coverage (`dotnet coverlet … --filter-trait Category=Unit`, OpenCover → `coverage.opencover.xml`)
 3. Frontend unit tests with coverage (`npx vitest run --coverage`)
 4. Azure login (OIDC)
 5. Cache + install Playwright Chromium
@@ -280,9 +280,24 @@ The publish/telemetry steps run only in CI; there is no standalone local script 
 
 ## Local SonarCloud analysis
 
-Generate coverage files first (unit + E2E coverage + frontend LCOV), then run from `Experience/`:
+Generate coverage files first, then run from `Experience/`. Unit coverage is OpenCover (branch-bearing,
+via `coverlet.console` pinned in `dotnet-tools.json` — restore with `dotnet tool restore`); E2E coverage
+stays VS Coverage XML; the frontend emits LCOV. SonarCloud unions all three.
 
 ```powershell
+# .NET unit (OpenCover) — the Experience.Server BFF surface is tiny; real client logic is Vitest/LCOV
+dotnet build Experience.Tests --configuration Release /p:AngularConfiguration=ci
+dotnet tool restore
+dotnet coverlet Experience.Tests\bin\Release\net10.0 `
+  --target "dotnet" `
+  --targetargs "test --project Experience.Tests --no-build --configuration Release -- --filter-trait Category=Unit" `
+  --format opencover --output "coverage.opencover.xml" `
+  --skipautoprops --exclude-by-attribute GeneratedCodeAttribute `
+  --exclude-by-file "**/obj/**" --exclude-by-file "**/Program.cs" `
+  --does-not-return-attribute DoesNotReturnAttribute --include "[Experience.Server]*"
+
+# E2E (VS Coverage XML) → coverage-e2e.xml, and frontend LCOV via `npx vitest run --coverage` — see CI.
+
 $env:SONAR_TOKEN = "<token>"
 & "$env:SystemDrive\sonar-scanner-8.0.1.6346-windows-x64\bin\sonar-scanner.bat" `
   "-Dsonar.projectKey=crgolden_Experience" `
@@ -292,8 +307,9 @@ $env:SONAR_TOKEN = "<token>"
   "-Dsonar.exclusions=experience.client/aspnetcore-https.js,experience.client/start-os.js,**/bin/**,**/obj/**,**/node_modules/**,**/*.d.ts" `
   "-Dsonar.coverage.exclusions=experience.client/e2e/**,experience.client/src/test-setup.ts" `
   "-Dsonar.test.inclusions=**/*.spec.ts" `
-  "-Dsonar.cs.vscoveragexml.reportsPaths=coverage.xml,coverage-e2e.xml" `
+  "-Dsonar.cs.opencover.reportsPaths=coverage.opencover.xml" `
+  "-Dsonar.cs.vscoveragexml.reportsPaths=coverage-e2e.xml" `
   "-Dsonar.javascript.lcov.reportPaths=experience.client/coverage/lcov.info"
 ```
 
-Required coverage files: `coverage.xml`, `coverage-e2e.xml`, `experience.client/coverage/lcov.info`.
+Required coverage files: `coverage.opencover.xml` (unit, OpenCover), `coverage-e2e.xml` (E2E, VS Coverage), `experience.client/coverage/lcov.info`.
