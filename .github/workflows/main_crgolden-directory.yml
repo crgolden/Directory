@@ -187,7 +187,7 @@ jobs:
           DB_NAME: ${{ vars.DB_NAME }}
         run: |
           $connStr = "Data Source=$env:DB_SERVER;Initial Catalog=$env:DB_NAME;User ID=$env:DB_USERID;Password='$env:DB_PASSWORD';Connect Timeout=30;Encrypt=True;Trust Server Certificate=False;Application Intent=ReadWrite;Multi Subnet Failover=False;Command Timeout=30"
-          sqlpackage /Action:Publish /SourceFile:Identity.Data.dacpac /TargetConnectionString:"$connStr"
+          sqlpackage /Action:Publish /SourceFile:Directory.Data.dacpac /TargetConnectionString:"$connStr"
 
       - name: Deploy to Azure Web App
         id: deploy-to-webapp
