@@ -100,6 +100,13 @@ jobs:
       - name: Run unit tests with coverage
         env:
           ASPNETCORE_ENVIRONMENT: CI
+          OidcAuthority: ${{ vars.OIDC_AUTHORITY }}
+          SqlConnectionStringBuilder__DataSource: ${{ vars.DB_SERVER }}
+          SqlConnectionStringBuilder__InitialCatalog: ${{ vars.DB_NAME_E2E }}
+          SqlConnectionStringBuilder__IntegratedSecurity: false
+          SqlConnectionStringBuilder__UserID: ${{ secrets.DB_USERID }}
+          SqlConnectionStringBuilder__Password: ${{ secrets.DB_PASSWORD }}
+          ServiceBusConnectionString: ${{ secrets.SERVICE_BUS_CONNECTION_STRING }}
         run: |
           dotnet coverlet Directory.Tests\bin\Release\net10.0 `
             --target "dotnet" `
