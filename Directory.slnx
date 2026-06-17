@@ -1,0 +1,18 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+    <File Path=".gitignore" />
+    <File Path="coverage.settings.xml" />
+    <File Path="DESIGN.md" />
+    <File Path="dotnet-tools.json" />
+    <File Path="global.json" />
+    <File Path="README.md" />
+    <File Path="TESTING.md" />
+  </Folder>
+  <Project Path="Directory.Data/Directory.Data.sqlproj" Id="1e511f4e-c8bf-40ff-8497-08e27ead63e2">
+    <Build />
+    <Deploy />
+  </Project>
+  <Project Path="Directory.Tests/Directory.Tests.csproj" Id="37e1d097-f35f-4eff-bed0-f3cb90e31e71" />
+  <Project Path="Directory/Directory.csproj" />
+</Solution>

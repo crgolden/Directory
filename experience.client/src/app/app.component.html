@@ -1,9 +1,0 @@
-<body>
-<app-nav-menu></app-nav-menu>
-<div class="container">
-  <router-outlet></router-outlet>
-  @if (iframeVisible()) {
-    <iframe id="bff-silent-login" title="Silent Login" [src]="iframeUrl()"></iframe>
-  }
-</div>
-</body>

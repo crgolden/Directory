@@ -7,33 +7,142 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
 
 jobs:
   build:
+    name: Build and analyze
     runs-on: windows-latest
     permissions:
       contents: read #This is required for actions/checkout
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          java-version: 17
+          distribution: 'zulu' # Alternative distribution options are available.
+
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v5
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: ${{ runner.os }}-nuget-
+
+      - name: Cache SonarQube Cloud packages
+        uses: actions/cache@v5
+        with:
+          path: ~\sonar\cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+
+      - name: Cache SonarQube Cloud scanner
+        id: cache-sonar-scanner
+        uses: actions/cache@v5
+        with:
+          path: ${{ runner.temp }}\scanner
+          key: ${{ runner.os }}-sonar-scanner
+          restore-keys: ${{ runner.os }}-sonar-scanner
+
+      - name: Install SonarQube Cloud scanner
+        if: steps.cache-sonar-scanner.outputs.cache-hit != 'true'
+        shell: powershell
+        run: |
+          New-Item -Path ${{ runner.temp }}\scanner -ItemType Directory
+          dotnet tool update dotnet-sonarscanner --tool-path ${{ runner.temp }}\scanner
 
       - name: Set up .NET Core
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.x'
 
+      - name: Cache dotnet global tools
+        id: cache-dotnet-tools
+        uses: actions/cache@v5
+        with:
+          path: ~/.dotnet/tools
+          key: ${{ runner.os }}-dotnet-tools-${{ hashFiles('**/*.csproj') }}
+          restore-keys: ${{ runner.os }}-dotnet-tools-
+
+      - name: Install dotnet-coverage
+        run: dotnet tool install --global dotnet-coverage
+
+      - name: Restore local tools
+        run: dotnet tool restore
+
+      - name: Begin Sonar analysis
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
+          SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION }}
+        shell: powershell
+        run: |
+          ${{ runner.temp }}\scanner\dotnet-sonarscanner begin `
+            /k:"$env:SONAR_PROJECT_KEY" `
+            /o:"$env:SONAR_ORGANIZATION" `
+            /d:sonar.token="$env:SONAR_TOKEN" `
+            /d:sonar.host.url="https://sonarcloud.io" `
+            /d:sonar.cs.opencover.reportsPaths="coverage.opencover.xml" `
+            /d:sonar.exclusions="**/bin/**,**/obj/**" `
+            /d:sonar.coverage.exclusions="**/Program.cs" `
+            /d:sonar.scanner.skipJreProvisioning=true
+
       - name: Build with dotnet
-        run: dotnet build --configuration Release
+        run: dotnet build --no-incremental --configuration Release
+
+      - name: Run unit tests with coverage
+        run: |
+          dotnet coverlet Directory.Tests\bin\Release\net10.0 `
+            --target "dotnet" `
+            --targetargs "test --project Directory.Tests --no-build --configuration Release -- --filter-trait Category=Unit --report-xunit-trx --report-xunit-trx-filename unit-tests.trx" `
+            --format opencover --output "coverage.opencover.xml" `
+            --skipautoprops `
+            --exclude-by-attribute GeneratedCodeAttribute `
+            --exclude-by-file "**/obj/**" `
+            --exclude-by-file "**/Program.cs" `
+            --does-not-return-attribute DoesNotReturnAttribute `
+            --include "[Directory]*"
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: test-results
+          path: Directory.Tests/bin/Release/net10.0/TestResults/
 
       - name: dotnet publish
-        run: dotnet publish -c Release -o "${{env.DOTNET_ROOT}}/myapp"
+        run: >
+          dotnet publish Directory/Directory.csproj
+          -c Release
+          -r win-x86
+          --self-contained false
+          -o ${{ github.workspace  }}\publish
 
       - name: Upload artifact for deployment job
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: .net-app
-          path: ${{env.DOTNET_ROOT}}/myapp
+          path: ${{ github.workspace }}\publish
+
+      - name: Upload dacpac for deployment job
+        uses: actions/upload-artifact@v7
+        with:
+          name: sql-dacpac
+          path: Directory.Data/bin/Release/Directory.Data.dacpac
+
+      - name: End Sonar analysis
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        shell: powershell
+        run: |
+          ${{ runner.temp }}\scanner\dotnet-sonarscanner end /d:sonar.token="$env:SONAR_TOKEN"
 
   deploy:
     runs-on: windows-latest
@@ -44,20 +153,45 @@ jobs:
 
     steps:
       - name: Download artifact from build job
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: .net-app
       
+      - name: Download dacpac from build job
+        uses: actions/download-artifact@v7
+        with:
+          name: sql-dacpac
+
+      - name: Cache dotnet global tools
+        uses: actions/cache@v5
+        with:
+          path: ~/.dotnet/tools
+          key: ${{ runner.os }}-dotnet-tools-deploy
+          restore-keys: ${{ runner.os }}-dotnet-tools-
+
       - name: Login to Azure
-        uses: azure/login@v2
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5  # v2
         with:
           client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_01DB8FAB8DFE49AD906830AE61E70B7C }}
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_304DD3C041DD43D7A26FB1B92DD52877 }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_8BC81476AB944295B85E3320488CD097 }}
 
+      - name: Install SqlPackage
+        run: dotnet tool install --global microsoft.sqlpackage
+
+      - name: Deploy database
+        env:
+          DB_SERVER: ${{ vars.DB_SERVER }}
+          DB_USERID: ${{ secrets.DB_USERID }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ vars.DB_NAME }}
+        run: |
+          $connStr = "Data Source=$env:DB_SERVER;Initial Catalog=$env:DB_NAME;User ID=$env:DB_USERID;Password='$env:DB_PASSWORD';Connect Timeout=30;Encrypt=True;Trust Server Certificate=False;Application Intent=ReadWrite;Multi Subnet Failover=False;Command Timeout=30"
+          sqlpackage /Action:Publish /SourceFile:Identity.Data.dacpac /TargetConnectionString:"$connStr"
+
       - name: Deploy to Azure Web App
         id: deploy-to-webapp
-        uses: azure/webapps-deploy@v3
+        uses: azure/webapps-deploy@84a80cfe7e9889f35148ed88c307e6e93bf02578  # v3
         with:
           app-name: 'crgolden-directory'
           slot-name: 'Production'
