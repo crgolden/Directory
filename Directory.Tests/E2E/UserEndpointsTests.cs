@@ -1,4 +1,4 @@
-namespace Directory.Tests.Api;
+namespace Directory.Tests.E2E;
 
 using System.Net;
 using System.Net.Http.Json;
@@ -15,7 +15,7 @@ public sealed class UserEndpointsTests : IClassFixture<DirectoryWebApplicationFa
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
+    [Trait("Category", "E2E")]
     public async Task GetMe_ReturnsAuthenticatedUser_WithClaims()
     {
         var response = await _client.GetAsync("/me", TestContext.Current.CancellationToken);

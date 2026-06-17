@@ -9,7 +9,7 @@ CREATE TABLE [dbo].[ChurchAttributes]
     [CreatedAt]  DATETIME2 (7)    NOT NULL,
     [UpdatedAt]  DATETIME2 (7)    NOT NULL,
     CONSTRAINT [PK_ChurchAttributes] PRIMARY KEY CLUSTERED ([Id] ASC),
-    CONSTRAINT [FK_ChurchAttributes_Churches] FOREIGN KEY ([ChurchId]) REFERENCES [dbo].[Churches] ([Id]) ON DELETE CASCADE
+    CONSTRAINT [FK_ChurchAttributes_Directory] FOREIGN KEY ([ChurchId]) REFERENCES [dbo].[Directory] ([Id]) ON DELETE CASCADE
 );
 
 GO

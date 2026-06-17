@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />
+    <File Path=".github/workflows/main_crgolden-directory.yml" />
     <File Path=".gitignore" />
     <File Path="coverage.settings.xml" />
     <File Path="DESIGN.md" />

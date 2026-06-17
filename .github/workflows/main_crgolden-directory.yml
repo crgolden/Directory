@@ -16,6 +16,7 @@ jobs:
     name: Build and analyze
     runs-on: windows-latest
     permissions:
+      id-token: write #This is required for requesting the JWT (needed for Azure OIDC in E2E tests)
       contents: read #This is required for actions/checkout
 
     steps:
@@ -90,6 +91,7 @@ jobs:
             /d:sonar.token="$env:SONAR_TOKEN" `
             /d:sonar.host.url="https://sonarcloud.io" `
             /d:sonar.cs.opencover.reportsPaths="coverage.opencover.xml" `
+            /d:sonar.cs.vscoveragexml.reportsPaths="coverage-e2e.xml" `
             /d:sonar.exclusions="**/bin/**,**/obj/**" `
             /d:sonar.coverage.exclusions="**/Program.cs" `
             /d:sonar.scanner.skipJreProvisioning=true
@@ -98,15 +100,6 @@ jobs:
         run: dotnet build --no-incremental --configuration Release
 
       - name: Run unit tests with coverage
-        env:
-          ASPNETCORE_ENVIRONMENT: CI
-          OidcAuthority: ${{ vars.OIDC_AUTHORITY }}
-          SqlConnectionStringBuilder__DataSource: ${{ vars.DB_SERVER }}
-          SqlConnectionStringBuilder__InitialCatalog: ${{ vars.DB_NAME_E2E }}
-          SqlConnectionStringBuilder__IntegratedSecurity: false
-          SqlConnectionStringBuilder__UserID: ${{ secrets.DB_USERID }}
-          SqlConnectionStringBuilder__Password: ${{ secrets.DB_PASSWORD }}
-          ServiceBusConnectionString: ${{ secrets.SERVICE_BUS_CONNECTION_STRING }}
         run: |
           dotnet coverlet Directory.Tests\bin\Release\net10.0 `
             --target "dotnet" `
@@ -118,6 +111,35 @@ jobs:
             --exclude-by-file "**/Program.cs" `
             --does-not-return-attribute DoesNotReturnAttribute `
             --include "[Directory]*"
+
+      - name: Install SqlPackage
+        run: dotnet tool install --global microsoft.sqlpackage
+
+      - name: Deploy E2E test database schema
+        env:
+          DB_SERVER: ${{ vars.DB_SERVER }}
+          DB_USERID: ${{ secrets.DB_USERID }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ vars.DB_NAME_E2E }}
+        shell: powershell
+        run: |
+          $connStr = "Data Source=$env:DB_SERVER;Initial Catalog=$env:DB_NAME;User ID=$env:DB_USERID;Password='$env:DB_PASSWORD';Connect Timeout=30;Encrypt=True;Trust Server Certificate=False;Application Intent=ReadWrite;Multi Subnet Failover=False;Command Timeout=30"
+          sqlpackage /Action:Publish /SourceFile:Directory.Data/bin/Release/Directory.Data.dacpac /TargetConnectionString:"$connStr"
+
+      - name: Run E2E tests with coverage
+        env:
+          ASPNETCORE_ENVIRONMENT: CI
+          OidcAuthority: ${{ vars.OIDC_AUTHORITY }}
+          SqlConnectionStringBuilder__DataSource: ${{ vars.DB_SERVER }}
+          SqlConnectionStringBuilder__InitialCatalog: ${{ vars.DB_NAME_E2E }}
+          SqlConnectionStringBuilder__IntegratedSecurity: false
+          SqlConnectionStringBuilder__UserID: ${{ secrets.DB_USERID }}
+          SqlConnectionStringBuilder__Password: ${{ secrets.DB_PASSWORD }}
+          ServiceBusConnectionString: ${{ secrets.SERVICE_BUS_CONNECTION_STRING }}
+        run: |
+          dotnet-coverage collect `
+            "dotnet test --project Directory.Tests --no-build --configuration Release -- --filter-trait Category=E2E --report-xunit-trx --report-xunit-trx-filename e2e-tests.trx" `
+            -f xml -o "coverage-e2e.xml" -s "coverage.settings.xml"
 
       - name: Upload test results
         uses: actions/upload-artifact@v7

@@ -5,38 +5,35 @@ using Azure.Messaging.ServiceBus;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Azure;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Moq;
 
 public sealed class DirectoryWebApplicationFactory : WebApplicationFactory<Program>
 {
-    internal FakeDbConnection FakeDb { get; } = new();
+    public async Task<SqlConnection> OpenTestConnectionAsync(CancellationToken ct = default)
+    {
+        string connectionString;
+        using (var scope = Services.CreateScope())
+        {
+            var dbConn = scope.ServiceProvider.GetRequiredService<DbConnection>();
+            connectionString = dbConn.ConnectionString;
+        }
+
+        var conn = new SqlConnection(connectionString);
+        await conn.OpenAsync(ct);
+        return conn;
+    }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        builder.ConfigureAppConfiguration(config =>
-            config.AddInMemoryCollection([
-                new("OidcAuthority", "https://localhost/"),
-                new("SqlConnectionStringBuilder:DataSource", "test"),
-                new("SqlConnectionStringBuilder:InitialCatalog", "test"),
-                new("ServiceBusConnectionString", "Endpoint=sb://test.servicebus.windows.net/;SharedAccessKeyName=k;SharedAccessKey=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="),
-            ]));
-
-        builder.ConfigureServices((ctx, services) =>
+        builder.ConfigureServices((_, services) =>
         {
-            if (!ctx.HostingEnvironment.IsProduction())
-            {
-                services.RemoveAll<ILoggerFactory>();
-                services.AddLogging(lb => lb.AddConsole());
-            }
-
-            services.RemoveAll<DbConnection>();
-            services.AddSingleton<DbConnection>(FakeDb);
+            services.RemoveAll<ILoggerFactory>();
+            services.AddLogging(lb => lb.AddConsole());
 
             var senderMock = new Mock<ServiceBusSender>(MockBehavior.Loose);
             senderMock
