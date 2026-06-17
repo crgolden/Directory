@@ -98,6 +98,8 @@ jobs:
         run: dotnet build --no-incremental --configuration Release
 
       - name: Run unit tests with coverage
+        env:
+          ASPNETCORE_ENVIRONMENT: CI
         run: |
           dotnet coverlet Directory.Tests\bin\Release\net10.0 `
             --target "dotnet" `
