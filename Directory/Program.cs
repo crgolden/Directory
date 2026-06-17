@@ -164,7 +164,6 @@ try
     if (app.Environment.IsDevelopment())
     {
         app.UseDeveloperExceptionPage();
-        app.MapOpenApi();
     }
     else
     {
@@ -185,6 +184,7 @@ try
             return next(ctx);
         }
     });
+    app.MapOpenApi();
     app.MapHealthChecks("/health").DisableHttpMetrics();
     app.MapChurchEndpoints();
     app.MapSearchEndpoints();
