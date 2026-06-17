@@ -31,6 +31,13 @@ internal sealed class FakeDbConnection : DbConnection
 
     public void Enqueue(FakeDbCommand cmd) => _commandQueue.Enqueue(cmd);
 
+    public void Reset()
+    {
+        _commandQueue.Clear();
+        ExecutedCommands.Clear();
+        _state = ConnectionState.Closed;
+    }
+
     public override void Open() => _state = ConnectionState.Open;
 
     public override void Close() => _state = ConnectionState.Closed;
