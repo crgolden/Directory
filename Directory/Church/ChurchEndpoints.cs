@@ -1,8 +1,10 @@
 namespace Directory.Church;
+using System.Diagnostics.CodeAnalysis;
 
 using Entities;
 using Enums;
 
+[ExcludeFromCodeCoverage]
 public static class ChurchEndpoints
 {
     public static IEndpointRouteBuilder MapChurchEndpoints(this IEndpointRouteBuilder app)

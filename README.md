@@ -15,7 +15,7 @@ Directory is a **standalone resource server**. It was extracted from the `Church
 | [Identity](https://github.com/crgolden/Identity) | OIDC Identity Provider | Issues the access tokens Directory validates (scope `directory`); the `churches.mod` claim authorizes moderators |
 | [Churches](https://github.com/crgolden/Churches) | Angular 21 SPA + ASP.NET Core BFF | Sole interactive client — the BFF proxies `/directory/api/**` to this API, attaching the user access token when present |
 | [Functions](https://github.com/crgolden/Functions) | Azure Functions isolated worker | The crawl/extract/enrich/dedup processing pipeline writes to the same `Directory` SQL database |
-| [Infrastructure](https://github.com/crgolden/Infrastructure) | Health monitoring dashboard | Polls Directory's `/health` endpoint |
+| [Infrastructure](https://github.com/crgolden/Infrastructure) | Health monitoring dashboard | Not yet — `DirectoryHealthCheck` is planned; currently covered by Uptime Kuma |
 
 ## Tech Stack
 

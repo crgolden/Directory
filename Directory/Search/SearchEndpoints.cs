@@ -1,8 +1,10 @@
 namespace Directory.Search;
+using System.Diagnostics.CodeAnalysis;
 
 using Entities;
 using Enums;
 
+[ExcludeFromCodeCoverage]
 public static class SearchEndpoints
 {
     public static IEndpointRouteBuilder MapSearchEndpoints(this IEndpointRouteBuilder app)
@@ -16,6 +18,9 @@ public static class SearchEndpoints
             Guid? denominationId,
             WorshipStyle? worshipStyle,
             bool? wheelchairAccessible,
+            int? dayOfWeek,
+            TimeOnly? startTimeBefore,
+            TimeOnly? startTimeAfter,
             SearchService service,
             CancellationToken ct,
             int page = 1,
@@ -32,6 +37,9 @@ public static class SearchEndpoints
                 denominationId,
                 worshipStyle,
                 wheelchairAccessible,
+                dayOfWeek,
+                startTimeBefore,
+                startTimeAfter,
                 page,
                 pageSize);
             var (items, totalCount) = await service.SearchAsync(query, ct);
@@ -51,6 +59,9 @@ public record SearchQuery(
     Guid? DenominationId,
     WorshipStyle? WorshipStyle,
     bool? WheelchairAccessible,
+    int? DayOfWeek,
+    TimeOnly? StartTimeBefore,
+    TimeOnly? StartTimeAfter,
     int Page,
     int PageSize);
 

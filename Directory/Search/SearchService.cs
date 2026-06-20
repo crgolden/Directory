@@ -101,6 +101,8 @@ public sealed class SearchService
             sb.Append(" AND [dbo].[fn_HaversineDistance](@Lat, @Lng, c.[Latitude], c.[Longitude]) <= @RadiusMiles");
         }
 
+        AppendScheduleFilter(sb, q);
+
         if (hasDistance)
         {
             sb.Append(" ORDER BY [dbo].[fn_HaversineDistance](@Lat, @Lng, c.[Latitude], c.[Longitude]) ASC, c.[CanonicalName] ASC");
@@ -148,8 +150,49 @@ public sealed class SearchService
             AddParam(cmd, "@RadiusMiles", q.RadiusMiles ?? 25.0);
         }
 
+        if (q.DayOfWeek.HasValue)
+        {
+            AddParam(cmd, "@DayOfWeek", q.DayOfWeek.Value);
+        }
+
+        if (q.StartTimeAfter.HasValue)
+        {
+            AddParam(cmd, "@StartTimeAfter", q.StartTimeAfter.Value.ToTimeSpan());
+        }
+
+        if (q.StartTimeBefore.HasValue)
+        {
+            AddParam(cmd, "@StartTimeBefore", q.StartTimeBefore.Value.ToTimeSpan());
+        }
+
         AddParam(cmd, "@Offset", (q.Page - 1) * q.PageSize);
         AddParam(cmd, "@PageSize", q.PageSize);
+    }
+
+    private static void AppendScheduleFilter(StringBuilder sb, SearchQuery q)
+    {
+        if (!q.DayOfWeek.HasValue && !q.StartTimeAfter.HasValue && !q.StartTimeBefore.HasValue)
+        {
+            return;
+        }
+
+        sb.Append(" AND EXISTS (SELECT 1 FROM [dbo].[ServiceSchedules] ss WHERE ss.[ChurchId] = c.[Id]");
+        if (q.DayOfWeek.HasValue)
+        {
+            sb.Append(" AND ss.[DayOfWeek] = @DayOfWeek");
+        }
+
+        if (q.StartTimeAfter.HasValue)
+        {
+            sb.Append(" AND ss.[StartTime] >= @StartTimeAfter");
+        }
+
+        if (q.StartTimeBefore.HasValue)
+        {
+            sb.Append(" AND ss.[StartTime] <= @StartTimeBefore");
+        }
+
+        sb.Append(')');
     }
 
     private static void AddParam(DbCommand cmd, string name, object value)

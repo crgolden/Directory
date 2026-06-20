@@ -111,7 +111,7 @@ public sealed class SearchServiceTests
     [Trait("Category", "Unit")]
     public void BuildQuery_DenominationIdSet_AddsFilter()
     {
-        var query = new SearchQuery(null, null, null, null, null, Guid.NewGuid(), null, null, 1, 10);
+        var query = new SearchQuery(null, null, null, null, null, Guid.NewGuid(), null, null, null, null, null, 1, 10);
 
         var sql = SearchService.BuildQuery(query, out _);
 
@@ -122,11 +122,110 @@ public sealed class SearchServiceTests
     [Trait("Category", "Unit")]
     public void BuildQuery_WorshipStyleSet_AddsFilter()
     {
-        var query = new SearchQuery(null, null, null, null, null, null, WorshipStyle.Contemporary, null, 1, 10);
+        var query = new SearchQuery(null, null, null, null, null, null, WorshipStyle.Contemporary, null, null, null, null, 1, 10);
 
         var sql = SearchService.BuildQuery(query, out _);
 
         Assert.Contains("c.[WorshipStyle] = @WorshipStyle", sql, StringComparison.Ordinal);
+    }
+
+    // --- Schedule filter tests (Gap 5) ---
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void BuildQuery_DayOfWeekSet_AddsScheduleJoin()
+    {
+        // Arrange — only dayOfWeek provided (no time range)
+        var query = new SearchQuery(null, null, null, null, null, null, null, null, 0, null, null, 1, 10);
+
+        // Act
+        var sql = SearchService.BuildQuery(query, out _);
+
+        // Assert — EXISTS subquery with DayOfWeek filter
+        Assert.Contains("[ServiceSchedules]", sql, StringComparison.Ordinal);
+        Assert.Contains("ss.[DayOfWeek] = @DayOfWeek", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("@StartTimeAfter", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("@StartTimeBefore", sql, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void BuildQuery_StartTimeAfterSet_AddsScheduleJoinWithTimeFilter()
+    {
+        // Arrange
+        var query = new SearchQuery(null, null, null, null, null, null, null, null, null, null, new TimeOnly(9, 0), 1, 10);
+
+        // Act
+        var sql = SearchService.BuildQuery(query, out _);
+
+        // Assert
+        Assert.Contains("[ServiceSchedules]", sql, StringComparison.Ordinal);
+        Assert.Contains("ss.[StartTime] >= @StartTimeAfter", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("@DayOfWeek", sql, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void BuildQuery_StartTimeBeforeSet_AddsScheduleJoinWithTimeFilter()
+    {
+        // Arrange
+        var query = new SearchQuery(null, null, null, null, null, null, null, null, null, new TimeOnly(12, 0), null, 1, 10);
+
+        // Act
+        var sql = SearchService.BuildQuery(query, out _);
+
+        // Assert
+        Assert.Contains("[ServiceSchedules]", sql, StringComparison.Ordinal);
+        Assert.Contains("ss.[StartTime] <= @StartTimeBefore", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("@StartTimeAfter", sql, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void BuildQuery_AllScheduleFiltersSet_AddsAllConditions()
+    {
+        // Arrange — Sunday (0) with time window 9:00–12:00
+        var query = new SearchQuery(null, null, null, null, null, null, null, null, 0, new TimeOnly(12, 0), new TimeOnly(9, 0), 1, 10);
+
+        // Act
+        var sql = SearchService.BuildQuery(query, out _);
+
+        // Assert — all three conditions present within the EXISTS clause
+        Assert.Contains("ss.[DayOfWeek] = @DayOfWeek", sql, StringComparison.Ordinal);
+        Assert.Contains("ss.[StartTime] >= @StartTimeAfter", sql, StringComparison.Ordinal);
+        Assert.Contains("ss.[StartTime] <= @StartTimeBefore", sql, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void BuildQuery_NoScheduleFilters_OmitsScheduleJoin()
+    {
+        // Arrange
+        var query = new SearchQuery(null, null, null, null, "AZ", null, null, null, null, null, null, 1, 10);
+
+        // Act
+        var sql = SearchService.BuildQuery(query, out _);
+
+        // Assert — no EXISTS subquery
+        Assert.DoesNotContain("[ServiceSchedules]", sql, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void BindParams_ScheduleFiltersSet_BindsAllThree()
+    {
+        // Arrange
+        var cmd = new FakeDbCommand();
+        var query = new SearchQuery(null, null, null, null, null, null, null, null, 0, new TimeOnly(12, 0), new TimeOnly(9, 0), 1, 10);
+
+        // Act
+        SearchService.BindParams(cmd, query);
+
+        // Assert — all three schedule params bound; @StartTimeAfter > @StartTimeBefore as TimeSpan
+        Assert.True(cmd.Parameters.Contains("@DayOfWeek"));
+        Assert.True(cmd.Parameters.Contains("@StartTimeAfter"));
+        Assert.True(cmd.Parameters.Contains("@StartTimeBefore"));
+        Assert.Equal(new TimeSpan(9, 0, 0), cmd.Parameters["@StartTimeAfter"].Value);
+        Assert.Equal(new TimeSpan(12, 0, 0), cmd.Parameters["@StartTimeBefore"].Value);
     }
 
     [Fact]
@@ -134,7 +233,7 @@ public sealed class SearchServiceTests
     public void BindParams_AllFiltersSet_BindsProvidedRadiusAndOptionalParams()
     {
         var cmd = new FakeDbCommand();
-        var query = new SearchQuery("grace", 33.4, -112.0, 50.0, "AZ", Guid.NewGuid(), WorshipStyle.Contemporary, true, 1, 10);
+        var query = new SearchQuery("grace", 33.4, -112.0, 50.0, "AZ", Guid.NewGuid(), WorshipStyle.Contemporary, true, null, null, null, 1, 10);
 
         SearchService.BindParams(cmd, query);
 
@@ -153,7 +252,7 @@ public sealed class SearchServiceTests
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithReader(table));
         var service = new SearchService(conn);
-        var query = new SearchQuery(null, 33.4, -112.0, null, null, null, null, null, 1, 10);
+        var query = new SearchQuery(null, 33.4, -112.0, null, null, null, null, null, null, null, null, 1, 10);
 
         var (items, totalCount) = await service.SearchAsync(query, TestContext.Current.CancellationToken);
 
@@ -172,7 +271,7 @@ public sealed class SearchServiceTests
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithReader(table));
         var service = new SearchService(conn);
-        var query = new SearchQuery(null, 33.4, -112.0, null, null, null, null, null, 1, 10);
+        var query = new SearchQuery(null, 33.4, -112.0, null, null, null, null, null, null, null, null, 1, 10);
 
         var (items, _) = await service.SearchAsync(query, TestContext.Current.CancellationToken);
 
@@ -188,7 +287,7 @@ public sealed class SearchServiceTests
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithReader(table));
         var service = new SearchService(conn);
-        var query = new SearchQuery(null, null, null, null, null, null, null, null, 1, 10);
+        var query = new SearchQuery(null, null, null, null, null, null, null, null, null, null, null, 1, 10);
 
         var (items, totalCount) = await service.SearchAsync(query, TestContext.Current.CancellationToken);
 
@@ -205,7 +304,7 @@ public sealed class SearchServiceTests
         double? lng = null,
         string? state = null,
         bool? wheelchairAccessible = null) =>
-        new SearchQuery(q, lat, lng, null, state, null, null, wheelchairAccessible, 1, 10);
+        new SearchQuery(q, lat, lng, null, state, null, null, wheelchairAccessible, null, null, null, 1, 10);
 
     private static FakeDbConnection BuildConn(out FakeDbCommand cmd)
     {

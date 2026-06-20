@@ -1,10 +1,12 @@
 namespace Directory.Moderation;
+using System.Diagnostics.CodeAnalysis;
 
 using System.Security.Claims;
 using Church;
 using Entities;
 using Enums;
 
+[ExcludeFromCodeCoverage]
 public static class ModerationEndpoints
 {
     public static IEndpointRouteBuilder MapModerationEndpoints(this IEndpointRouteBuilder app)
