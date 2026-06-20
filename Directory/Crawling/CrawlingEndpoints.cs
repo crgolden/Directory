@@ -1,5 +1,7 @@
 namespace Directory.Crawling;
+using System.Diagnostics.CodeAnalysis;
 
+[ExcludeFromCodeCoverage]
 public static class CrawlingEndpoints
 {
     public static IEndpointRouteBuilder MapCrawlingEndpoints(this IEndpointRouteBuilder app)

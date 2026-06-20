@@ -5,8 +5,10 @@ using System.Security.Claims;
 using Azure.Identity;
 using Azure.Monitor.OpenTelemetry.AspNetCore;
 using Azure.Security.KeyVault.Secrets;
+using Directory.Admin;
 using Directory.Church;
 using Directory.Crawling;
+using Directory.Denomination;
 using Directory.Extensions;
 using Directory.Moderation;
 using Directory.Search;
@@ -140,10 +142,12 @@ try
             policy.RequireClaim("churches.mod", "true");
         });
     builder.Services
+        .AddScoped<AdminService>()
         .AddScoped<ChurchService>()
         .AddScoped<SearchService>()
         .AddScoped<CrawlingService>()
         .AddScoped<ModerationService>()
+        .AddScoped<DenominationService>()
         .AddOpenApi()
         .AddHealthChecks().Services
         .Configure<ForwardedHeadersOptions>(forwardedHeadersOptions =>
@@ -190,8 +194,10 @@ try
     });
     app.MapOpenApi();
     app.MapHealthChecks("/health").DisableHttpMetrics();
+    app.MapAdminEndpoints();
     app.MapChurchEndpoints();
     app.MapSearchEndpoints();
+    app.MapDenominationEndpoints();
     app.MapCrawlingEndpoints();
     app.MapModerationEndpoints();
     app.MapUserEndpoints();

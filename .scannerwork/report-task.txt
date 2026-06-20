@@ -1,7 +1,7 @@
 organization=crgolden
 projectKey=crgolden_Directory
 serverUrl=https://sonarcloud.io
-serverVersion=8.0.0.91183
+serverVersion=8.0.0.92448
 dashboardUrl=https://sonarcloud.io/dashboard?id=crgolden_Directory
-ceTaskId=AZ7UmmvluuPEs-ybOBfK
-ceTaskUrl=https://sonarcloud.io/api/ce/task?id=AZ7UmmvluuPEs-ybOBfK
+ceTaskId=AZ7lX60pIMekZA6y4vdP
+ceTaskUrl=https://sonarcloud.io/api/ce/task?id=AZ7lX60pIMekZA6y4vdP

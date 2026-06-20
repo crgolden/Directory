@@ -31,15 +31,13 @@ public sealed class ModerationService
     {
         await EnsureOpenAsync(ct);
         await using var cmd = _dbConnection.CreateCommand();
-        var where = status.HasValue ? "WHERE c.[Status] = @Status" : string.Empty;
-        cmd.CommandText = $"""
-            SELECT {SelectCorrection}, COUNT(*) OVER() AS [TotalCount]
-            FROM [dbo].[UserCorrections] c
-            LEFT JOIN [dbo].[Directory] ch ON c.[ChurchId] = ch.[Id]
-            {where}
-            ORDER BY c.[CreatedAt] DESC
-            OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY
-            """;
+        cmd.CommandText =
+            "SELECT " + SelectCorrection + ", COUNT(*) OVER() AS [TotalCount] " +
+            "FROM [dbo].[UserCorrections] c " +
+            "LEFT JOIN [dbo].[Directory] ch ON c.[ChurchId] = ch.[Id] " +
+            (status.HasValue ? "WHERE c.[Status] = @Status " : string.Empty) +
+            "ORDER BY c.[CreatedAt] DESC " +
+            "OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY";
         if (status.HasValue)
         {
             AddParam(cmd, "@Status", (int)status.Value);

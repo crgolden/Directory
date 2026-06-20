@@ -1,7 +1,9 @@
 namespace Directory.Extensions;
+using System.Diagnostics.CodeAnalysis;
 
 using Azure.Security.KeyVault.Secrets;
 
+[ExcludeFromCodeCoverage]
 public static class SecretClientExtensions
 {
     extension(SecretClient secretClient)

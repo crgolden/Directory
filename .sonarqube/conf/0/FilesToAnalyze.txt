@@ -1,0 +1,11 @@
+﻿C:\Users\crgol\source\repos\crgolden\Directory\Directory.Data\Functions\fn_HaversineDistance.sql
+C:\Users\crgol\source\repos\crgolden\Directory\Directory.Data\Tables\Campuses.sql
+C:\Users\crgol\source\repos\crgolden\Directory\Directory.Data\Tables\ChurchAttributes.sql
+C:\Users\crgol\source\repos\crgolden\Directory\Directory.Data\Tables\CrawlSources.sql
+C:\Users\crgol\source\repos\crgolden\Directory\Directory.Data\Tables\Denominations.sql
+C:\Users\crgol\source\repos\crgolden\Directory\Directory.Data\Tables\Directory.sql
+C:\Users\crgol\source\repos\crgolden\Directory\Directory.Data\Tables\MergeAuditLog.sql
+C:\Users\crgol\source\repos\crgolden\Directory\Directory.Data\Tables\Ministries.sql
+C:\Users\crgol\source\repos\crgolden\Directory\Directory.Data\Tables\ServiceSchedules.sql
+C:\Users\crgol\source\repos\crgolden\Directory\Directory.Data\Tables\UserCorrections.sql
+C:\Users\crgol\AppData\Local\Temp\.NETStandard,Version=v2.1.SqlClrAttributes

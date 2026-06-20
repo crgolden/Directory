@@ -72,12 +72,14 @@ service and endpoint tests assert generated SQL/parameters and feed canned reade
 
 | Area | File | What it covers |
 |------|------|----------------|
-| Church endpoints | `Api/ChurchEndpointsTests.cs` | Routing + auth for list / get-by-slug / create / update / patch / delete |
+| Church endpoints | `E2E/ChurchEndpointsTests.cs` | Routing + auth for list / get-by-slug / create / update / patch / delete |
 | Church service | `Api/ChurchServiceTests.cs` | CRUD, slug generation, reader mapping, confidence recalculation |
-| Search endpoints / service | `Api/SearchEndpointsTests.cs`, `Api/SearchServiceTests.cs` | Filter toggles, Haversine distance ordering, parameter binding |
-| Crawling endpoints / service | `Api/CrawlingEndpointsTests.cs`, `Api/CrawlingServiceTests.cs` | Crawl-source CRUD and trigger |
-| Moderation endpoints / service | `Api/ModerationEndpointsTests.cs`, `Api/ModerationServiceTests.cs` | Corrections lifecycle, transactional merge (commit vs rollback) |
-| User endpoint | `Api/UserEndpointsTests.cs` | `/me` identity projection |
+| Search endpoints / service | `E2E/SearchEndpointsTests.cs`, `Api/SearchServiceTests.cs` | Filter toggles, Haversine distance ordering, parameter binding, schedule filter SQL generation (`dayOfWeek`, `startTimeBefore`, `startTimeAfter`) |
+| Denomination service | `Api/DenominationServiceTests.cs` | `GetAllAsync` (connection open/closed, empty table, ORDER BY in SQL) |
+| Admin import/export | `Api/AdminServiceTests.cs` | `ParseCsv` (field mapping, skip-on-missing-name/state, empty/header-only, multiple rows); `ImportCsvAsync` (publish count, empty CSV); `ExportCsvAsync` (connection auto-open, row count, ORDER BY clause) |
+| Crawling endpoints / service | `E2E/CrawlingEndpointsTests.cs`, `Api/CrawlingServiceTests.cs` | Crawl-source CRUD and trigger |
+| Moderation endpoints / service | `E2E/ModerationEndpointsTests.cs`, `Api/ModerationServiceTests.cs` | Corrections lifecycle, transactional merge (commit vs rollback) |
+| User endpoint | `E2E/UserEndpointsTests.cs` | `/me` identity projection |
 | Configuration extensions | `Api/ConfigurationExtensionsTests.cs` | `GetRequired<T>` binding helpers |
 | Confidence score | `Domain/ConfidenceScoreCalculatorTests.cs` | Score derivation from populated attributes |
 

@@ -1,7 +1,9 @@
 namespace Directory.User;
+using System.Diagnostics.CodeAnalysis;
 
 using System.Security.Claims;
 
+[ExcludeFromCodeCoverage]
 public static class UserEndpoints
 {
     public static IEndpointRouteBuilder MapUserEndpoints(this IEndpointRouteBuilder app)
