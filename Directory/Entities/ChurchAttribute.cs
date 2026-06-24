@@ -6,11 +6,11 @@ public sealed class ChurchAttribute
 
     required public Guid ChurchId { get; init; }
 
-    required public string Key { get; set; };
+    required public string Key { get; set; }
 
-    required public string Value { get; set; };
+    required public string Value { get; set; }
 
-    required public string Source { get; set; };
+    required public string Source { get; set; }
 
     public decimal Confidence { get; set; }
 
