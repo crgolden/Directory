@@ -8,7 +8,7 @@ public sealed class CrawlSource
 
     public Guid? ChurchId { get; set; }
 
-    required public string Url { get; set; } = null!;
+    required public string Url { get; set; }
 
     public DateTimeOffset? LastCrawledAt { get; set; }
 

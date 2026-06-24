@@ -8,13 +8,13 @@ public sealed class UserCorrection
 
     required public Guid ChurchId { get; init; }
 
-    required public string UserId { get; init; } = null!;
+    required public string UserId { get; init; }
 
-    required public string Field { get; set; } = null!;
+    required public string Field { get; set; }
 
     public string? OldValue { get; set; }
 
-    required public string NewValue { get; set; } = null!;
+    required public string NewValue { get; set; }
 
     public CorrectionStatus Status { get; set; }
 

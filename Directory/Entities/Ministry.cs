@@ -6,7 +6,7 @@ public sealed class Ministry
 
     required public Guid ChurchId { get; init; }
 
-    required public string Name { get; set; } = null!;
+    required public string Name { get; set; }
 
     public string? Description { get; set; }
 
