@@ -8,7 +8,7 @@ public sealed class MergeAuditEntry
 
     required public Guid AbsorbedId { get; init; }
 
-    required public string MergedBy { get; init; } = null!;
+    required public string MergedBy { get; init; };
 
     public DateTimeOffset MergedAt { get; init; } = DateTimeOffset.UtcNow;
 

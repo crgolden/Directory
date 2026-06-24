@@ -6,15 +6,15 @@ public sealed class Campus
 
     required public Guid ChurchId { get; init; }
 
-    required public string Name { get; set; } = null!;
+    required public string Name { get; set; };
 
     public string? Street { get; set; }
 
-    required public string City { get; set; } = null!;
+    required public string City { get; set; };
 
-    required public string State { get; set; } = null!;
+    required public string State { get; set; };
 
-    required public string Zip { get; set; } = null!;
+    required public string Zip { get; set; };
 
     required public double Latitude { get; set; }
 

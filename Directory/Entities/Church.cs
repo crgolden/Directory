@@ -6,9 +6,9 @@ public sealed class Church
 {
     public Guid Id { get; init; } = Guid.CreateVersion7(DateTimeOffset.UtcNow);
 
-    required public string CanonicalName { get; set; } = null!;
+    required public string CanonicalName { get; set; };
 
-    required public string Slug { get; set; } = null!;
+    required public string Slug { get; set; };
 
     required public double Latitude { get; set; }
 
@@ -16,11 +16,11 @@ public sealed class Church
 
     public string? Street { get; set; }
 
-    required public string City { get; set; } = null!;
+    required public string City { get; set; };
 
-    required public string State { get; set; } = null!;
+    required public string State { get; set; };
 
-    required public string Zip { get; set; } = null!;
+    required public string Zip { get; set; };
 
     public string? PhoneNumber { get; set; }
 
@@ -32,7 +32,7 @@ public sealed class Church
 
     public WorshipStyle WorshipStyle { get; set; }
 
-    required public string PrimaryLanguage { get; set; } = null!;
+    required public string PrimaryLanguage { get; set; };
 
     public bool? AcceptsLGBTQ { get; set; }
 
