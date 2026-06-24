@@ -9,7 +9,7 @@ CREATE TABLE [dbo].[ServiceSchedules]
     [CreatedAt]   DATETIME2 (7)    NOT NULL,
     [UpdatedAt]   DATETIME2 (7)    NOT NULL,
     CONSTRAINT [PK_ServiceSchedules] PRIMARY KEY CLUSTERED ([Id] ASC),
-    CONSTRAINT [FK_ServiceSchedules_Directory] FOREIGN KEY ([ChurchId]) REFERENCES [dbo].[Directory] ([Id]) ON DELETE CASCADE,
+    CONSTRAINT [FK_ServiceSchedules_Churches] FOREIGN KEY ([ChurchId]) REFERENCES [dbo].[Churches] ([Id]) ON DELETE CASCADE,
     CONSTRAINT [FK_ServiceSchedules_Campuses] FOREIGN KEY ([CampusId]) REFERENCES [dbo].[Campuses] ([Id])
 );
 

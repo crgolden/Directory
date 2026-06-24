@@ -10,4 +10,7 @@
     <TargetDatabaseSet>True</TargetDatabaseSet>
     <ProjectGuid>{1e511f4e-c8bf-40ff-8497-08e27ead63e2}</ProjectGuid>
   </PropertyGroup>
+  <ItemGroup>
+    <PostDeploy Include="Script.PostDeployment.sql" />
+  </ItemGroup>
 </Project>

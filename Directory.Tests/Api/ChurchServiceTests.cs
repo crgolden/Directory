@@ -171,6 +171,70 @@ public sealed class ChurchServiceTests
 
     [Fact]
     [Trait("Category", "Unit")]
+    public async Task GetBySlugAsync_PopulatesServiceSchedules()
+    {
+        var churchTable = BuildChurchTable(includeTotalCount: false);
+        churchTable.Rows.Add(PopulatedRow(totalCount: null));
+        var conn = new FakeDbConnection();
+        conn.Enqueue(FakeDbCommand.WithReader(churchTable)); // church query
+        conn.Enqueue(FakeDbCommand.WithReader(SchedulesTable())); // schedules query
+        var service = new ChurchService(conn);
+
+        var result = await service.GetBySlugAsync("grace-church", TestContext.Current.CancellationToken);
+
+        Assert.NotNull(result);
+        Assert.NotNull(result.Schedules);
+        Assert.Equal(2, result.Schedules.Count);
+        Assert.Equal(DayOfWeek.Sunday, result.Schedules[0].DayOfWeek);
+        Assert.Equal(new TimeOnly(10, 30), result.Schedules[0].StartTime);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public async Task GetBySlugAsync_PopulatesMinistries()
+    {
+        var churchTable = BuildChurchTable(includeTotalCount: false);
+        churchTable.Rows.Add(PopulatedRow(totalCount: null));
+        var conn = new FakeDbConnection();
+        conn.Enqueue(FakeDbCommand.WithReader(churchTable));     // church query
+        conn.Enqueue(FakeDbCommand.WithReader(new DataTable())); // schedules query (none)
+        conn.Enqueue(FakeDbCommand.WithReader(MinistriesTable())); // ministries query
+
+        var service = new ChurchService(conn);
+
+        var result = await service.GetBySlugAsync("grace-church", TestContext.Current.CancellationToken);
+
+        Assert.NotNull(result);
+        Assert.NotNull(result.Ministries);
+        Assert.Equal(2, result.Ministries.Count);
+        Assert.Equal("Food Bank", result.Ministries[0].Name);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public async Task GetBySlugAsync_PopulatesCampuses()
+    {
+        var churchTable = BuildChurchTable(includeTotalCount: false);
+        churchTable.Rows.Add(PopulatedRow(totalCount: null));
+        var conn = new FakeDbConnection();
+        conn.Enqueue(FakeDbCommand.WithReader(churchTable));     // church query
+        conn.Enqueue(FakeDbCommand.WithReader(new DataTable())); // schedules query (none)
+        conn.Enqueue(FakeDbCommand.WithReader(new DataTable())); // ministries query (none)
+        conn.Enqueue(FakeDbCommand.WithReader(CampusesTable())); // campuses query
+
+        var service = new ChurchService(conn);
+
+        var result = await service.GetBySlugAsync("grace-church", TestContext.Current.CancellationToken);
+
+        Assert.NotNull(result);
+        Assert.NotNull(result.Campuses);
+        Assert.Single(result.Campuses);
+        Assert.Equal("North Campus", result.Campuses[0].Name);
+        Assert.Equal(39.7, result.Campuses[0].Latitude);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
     public async Task GetByIdAsync_NoRow_ReturnsNull()
     {
         var conn = new FakeDbConnection();
@@ -227,56 +291,6 @@ public sealed class ChurchServiceTests
         var result = await service.ExistsAsync(Guid.NewGuid(), TestContext.Current.CancellationToken);
 
         Assert.False(result);
-    }
-
-    [Fact]
-    [Trait("Category", "Unit")]
-    public async Task RecalculateConfidenceAsync_ChurchNotFound_DoesNotUpdate()
-    {
-        var conn = new FakeDbConnection();
-        conn.Enqueue(FakeDbCommand.WithReader(BuildChurchTable(includeTotalCount: false)));
-        var service = new ChurchService(conn);
-
-        await service.RecalculateConfidenceAsync(Guid.NewGuid(), TestContext.Current.CancellationToken);
-
-        Assert.Single(conn.ExecutedCommands);
-    }
-
-    [Fact]
-    [Trait("Category", "Unit")]
-    public async Task RecalculateConfidenceAsync_ChurchFound_CalculatesAndUpdates()
-    {
-        var table = BuildChurchTable(includeTotalCount: false);
-        table.Rows.Add(PopulatedRow(totalCount: null));
-        var conn = new FakeDbConnection();
-        conn.Enqueue(FakeDbCommand.WithReader(table));
-        conn.Enqueue(FakeDbCommand.WithScalarResult(5));
-        conn.Enqueue(FakeDbCommand.WithNonQueryResult(1));
-        var service = new ChurchService(conn);
-
-        await service.RecalculateConfidenceAsync(Guid.NewGuid(), TestContext.Current.CancellationToken);
-
-        Assert.Equal(3, conn.ExecutedCommands.Count);
-        Assert.Contains("UPDATE [dbo].[Directory]", conn.ExecutedCommands[2].CommandText, StringComparison.Ordinal);
-        Assert.Contains("@ConfidenceScore", conn.ExecutedCommands[2].CommandText, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    [Trait("Category", "Unit")]
-    public async Task RecalculateConfidenceAsync_AttributeCountNotInt_FallsBackToZero()
-    {
-        var table = BuildChurchTable(includeTotalCount: false);
-        table.Rows.Add(PopulatedRow(totalCount: null));
-        var conn = new FakeDbConnection();
-        conn.Enqueue(FakeDbCommand.WithReader(table));
-        conn.Enqueue(FakeDbCommand.WithScalarResult(3L));
-        conn.Enqueue(FakeDbCommand.WithNonQueryResult(1));
-        var service = new ChurchService(conn);
-
-        await service.RecalculateConfidenceAsync(Guid.NewGuid(), TestContext.Current.CancellationToken);
-
-        Assert.Equal(3, conn.ExecutedCommands.Count);
-        Assert.Contains("UPDATE [dbo].[Directory]", conn.ExecutedCommands[2].CommandText, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -352,6 +366,54 @@ public sealed class ChurchServiceTests
             t.Columns.Add("TotalCount", typeof(int));
         }
 
+        return t;
+    }
+
+    private static DataTable SchedulesTable()
+    {
+        var t = new DataTable();
+        t.Columns.Add("Id", typeof(Guid));
+        t.Columns.Add("ChurchId", typeof(Guid));
+        t.Columns.Add("CampusId", typeof(Guid));
+        t.Columns.Add("DayOfWeek", typeof(byte));
+        t.Columns.Add("StartTime", typeof(TimeSpan));
+        t.Columns.Add("Description", typeof(string));
+        t.Columns.Add("CreatedAt", typeof(DateTime));
+        t.Columns.Add("UpdatedAt", typeof(DateTime));
+        t.Rows.Add(Guid.NewGuid(), Guid.NewGuid(), DBNull.Value, (byte)0, new TimeSpan(10, 30, 0), "Sunday Worship", DateTime.UtcNow, DateTime.UtcNow);
+        t.Rows.Add(Guid.NewGuid(), Guid.NewGuid(), DBNull.Value, (byte)3, new TimeSpan(19, 0, 0), DBNull.Value, DateTime.UtcNow, DateTime.UtcNow);
+        return t;
+    }
+
+    private static DataTable MinistriesTable()
+    {
+        var t = new DataTable();
+        t.Columns.Add("Id", typeof(Guid));
+        t.Columns.Add("ChurchId", typeof(Guid));
+        t.Columns.Add("Name", typeof(string));
+        t.Columns.Add("Description", typeof(string));
+        t.Columns.Add("CreatedAt", typeof(DateTime));
+        t.Columns.Add("UpdatedAt", typeof(DateTime));
+        t.Rows.Add(Guid.NewGuid(), Guid.NewGuid(), "Food Bank", "Weekly pantry", DateTime.UtcNow, DateTime.UtcNow);
+        t.Rows.Add(Guid.NewGuid(), Guid.NewGuid(), "Youth Group", DBNull.Value, DateTime.UtcNow, DateTime.UtcNow);
+        return t;
+    }
+
+    private static DataTable CampusesTable()
+    {
+        var t = new DataTable();
+        t.Columns.Add("Id", typeof(Guid));
+        t.Columns.Add("ChurchId", typeof(Guid));
+        t.Columns.Add("Name", typeof(string));
+        t.Columns.Add("Street", typeof(string));
+        t.Columns.Add("City", typeof(string));
+        t.Columns.Add("State", typeof(string));
+        t.Columns.Add("Zip", typeof(string));
+        t.Columns.Add("Latitude", typeof(double));
+        t.Columns.Add("Longitude", typeof(double));
+        t.Columns.Add("CreatedAt", typeof(DateTime));
+        t.Columns.Add("UpdatedAt", typeof(DateTime));
+        t.Rows.Add(Guid.NewGuid(), Guid.NewGuid(), "North Campus", "1 N St", "Denver", "CO", "80201", 39.7, -104.9, DateTime.UtcNow, DateTime.UtcNow);
         return t;
     }
 

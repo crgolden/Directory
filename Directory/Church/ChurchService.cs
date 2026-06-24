@@ -5,7 +5,6 @@ using System.Data.Common;
 using System.Text;
 using Entities;
 using Enums;
-using Services;
 
 public sealed class ChurchService
 {
@@ -30,7 +29,7 @@ public sealed class ChurchService
         await using var cmd = _dbConnection.CreateCommand();
         cmd.CommandText = $"""
             SELECT {SelectColumns}, COUNT(*) OVER() AS [TotalCount]
-            FROM [dbo].[Directory] c
+            FROM [dbo].[Churches] c
             WHERE c.[IsActive] = 1
             ORDER BY c.[CanonicalName] ASC
             OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY
@@ -56,20 +55,28 @@ public sealed class ChurchService
     public async Task<Church?> GetBySlugAsync(string slug, CancellationToken ct = default)
     {
         await EnsureOpenAsync(ct);
-        await using var cmd = _dbConnection.CreateCommand();
-        cmd.CommandText = $"""
-            SELECT {SelectColumns}
-            FROM [dbo].[Directory] c
-            WHERE c.[Slug] = @Slug AND c.[IsActive] = 1
-            """;
-        AddParam(cmd, "@Slug", slug);
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        if (!await reader.ReadAsync(ct))
+        Church church;
+        await using (var cmd = _dbConnection.CreateCommand())
         {
-            return null;
+            cmd.CommandText = $"""
+                SELECT {SelectColumns}
+                FROM [dbo].[Churches] c
+                WHERE c.[Slug] = @Slug AND c.[IsActive] = 1
+                """;
+            AddParam(cmd, "@Slug", slug);
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            if (!await reader.ReadAsync(ct))
+            {
+                return null;
+            }
+
+            church = Map(reader);
         }
 
-        return Map(reader);
+        church.Schedules = await LoadSchedulesAsync(church.Id, ct);
+        church.Ministries = await LoadMinistriesAsync(church.Id, ct);
+        church.Campuses = await LoadCampusesAsync(church.Id, ct);
+        return church;
     }
 
     public async Task<Church?> GetByIdAsync(Guid id, CancellationToken ct = default)
@@ -78,7 +85,7 @@ public sealed class ChurchService
         await using var cmd = _dbConnection.CreateCommand();
         cmd.CommandText = $"""
             SELECT {SelectColumns}
-            FROM [dbo].[Directory] c
+            FROM [dbo].[Churches] c
             WHERE c.[Id] = @Id
             """;
         AddParam(cmd, "@Id", id);
@@ -98,7 +105,7 @@ public sealed class ChurchService
         await EnsureOpenAsync(ct);
         await using var cmd = _dbConnection.CreateCommand();
         cmd.CommandText = """
-            INSERT INTO [dbo].[Directory]
+            INSERT INTO [dbo].[Churches]
                 ([Id], [CanonicalName], [Slug], [Latitude], [Longitude], [Street], [City], [State],
                  [Zip], [PhoneNumber], [Website], [EmailAddress], [DenominationId], [WorshipStyle],
                  [PrimaryLanguage], [AcceptsLGBTQ], [WheelchairAccessible], [HasNursery], [HasYouthProgram],
@@ -122,7 +129,7 @@ public sealed class ChurchService
         await EnsureOpenAsync(ct);
         await using var cmd = _dbConnection.CreateCommand();
         cmd.CommandText = """
-            UPDATE [dbo].[Directory]
+            UPDATE [dbo].[Churches]
             SET [CanonicalName] = @CanonicalName, [Slug] = @Slug,
                 [Latitude] = @Latitude, [Longitude] = @Longitude,
                 [Street] = @Street, [City] = @City, [State] = @State, [Zip] = @Zip,
@@ -143,7 +150,7 @@ public sealed class ChurchService
     {
         await EnsureOpenAsync(ct);
         await using var cmd = _dbConnection.CreateCommand();
-        cmd.CommandText = "SELECT COUNT(1) FROM [dbo].[Directory] WHERE [Id] = @Id AND [IsActive] = 1";
+        cmd.CommandText = "SELECT COUNT(1) FROM [dbo].[Churches] WHERE [Id] = @Id AND [IsActive] = 1";
         AddParam(cmd, "@Id", id);
         var result = await cmd.ExecuteScalarAsync(ct);
         return result is > 0;
@@ -154,40 +161,13 @@ public sealed class ChurchService
         await EnsureOpenAsync(ct);
         await using var cmd = _dbConnection.CreateCommand();
         cmd.CommandText = """
-            UPDATE [dbo].[Directory]
+            UPDATE [dbo].[Churches]
             SET [IsActive] = 0, [UpdatedAt] = @UpdatedAt
             WHERE [Id] = @Id
             """;
         AddParam(cmd, "@Id", id);
         AddParam(cmd, "@UpdatedAt", DateTimeOffset.UtcNow.UtcDateTime);
         return await cmd.ExecuteNonQueryAsync(ct) > 0;
-    }
-
-    public async Task RecalculateConfidenceAsync(Guid id, CancellationToken ct = default)
-    {
-        var church = await GetByIdAsync(id, ct);
-        if (church is null)
-        {
-            return;
-        }
-
-        await using var countCmd = _dbConnection.CreateCommand();
-        countCmd.CommandText = "SELECT COUNT(*) FROM [dbo].[ChurchAttributes] WHERE [ChurchId] = @Id";
-        AddParam(countCmd, "@Id", id);
-        var countResult = await countCmd.ExecuteScalarAsync(ct);
-        var attributeCount = countResult is int c ? c : 0;
-        var score = ConfidenceScoreCalculator.Calculate(church, attributeCount);
-
-        await using var updateCmd = _dbConnection.CreateCommand();
-        updateCmd.CommandText = """
-            UPDATE [dbo].[Directory]
-            SET [ConfidenceScore] = @ConfidenceScore, [UpdatedAt] = @UpdatedAt
-            WHERE [Id] = @Id
-            """;
-        AddParam(updateCmd, "@Id", id);
-        AddParam(updateCmd, "@ConfidenceScore", score);
-        AddParam(updateCmd, "@UpdatedAt", DateTimeOffset.UtcNow.UtcDateTime);
-        await updateCmd.ExecuteNonQueryAsync(ct);
     }
 
     private static void BindChurch(DbCommand cmd, Church church)
@@ -275,6 +255,97 @@ public sealed class ChurchService
     private static DateTimeOffset ToUtc(DateTime dt) =>
         new DateTimeOffset(DateTime.SpecifyKind(dt, DateTimeKind.Utc));
 
+    private async Task<IReadOnlyList<ServiceSchedule>> LoadSchedulesAsync(Guid churchId, CancellationToken ct)
+    {
+        await using var cmd = _dbConnection.CreateCommand();
+        cmd.CommandText = """
+            SELECT [Id], [ChurchId], [CampusId], [DayOfWeek], [StartTime], [Description], [CreatedAt], [UpdatedAt]
+            FROM [dbo].[ServiceSchedules]
+            WHERE [ChurchId] = @Id
+            ORDER BY [DayOfWeek] ASC, [StartTime] ASC
+            """;
+        AddParam(cmd, "@Id", churchId);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        var schedules = new List<ServiceSchedule>();
+        while (await reader.ReadAsync(ct))
+        {
+            schedules.Add(new ServiceSchedule
+            {
+                Id = (Guid)reader[0],
+                ChurchId = (Guid)reader[1],
+                CampusId = reader[2] is DBNull ? null : (Guid)reader[2],
+                DayOfWeek = (DayOfWeek)Convert.ToInt32(reader[3], System.Globalization.CultureInfo.InvariantCulture),
+                StartTime = TimeOnly.FromTimeSpan((TimeSpan)reader[4]),
+                Description = reader[5] is DBNull ? null : (string)reader[5],
+                CreatedAt = ToUtc((DateTime)reader[6]),
+                UpdatedAt = ToUtc((DateTime)reader[7]),
+            });
+        }
+
+        return schedules;
+    }
+
+    private async Task<IReadOnlyList<Ministry>> LoadMinistriesAsync(Guid churchId, CancellationToken ct)
+    {
+        await using var cmd = _dbConnection.CreateCommand();
+        cmd.CommandText = """
+            SELECT [Id], [ChurchId], [Name], [Description], [CreatedAt], [UpdatedAt]
+            FROM [dbo].[Ministries]
+            WHERE [ChurchId] = @Id
+            ORDER BY [Name] ASC
+            """;
+        AddParam(cmd, "@Id", churchId);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        var ministries = new List<Ministry>();
+        while (await reader.ReadAsync(ct))
+        {
+            ministries.Add(new Ministry
+            {
+                Id = (Guid)reader[0],
+                ChurchId = (Guid)reader[1],
+                Name = (string)reader[2],
+                Description = reader[3] is DBNull ? null : (string)reader[3],
+                CreatedAt = ToUtc((DateTime)reader[4]),
+                UpdatedAt = ToUtc((DateTime)reader[5]),
+            });
+        }
+
+        return ministries;
+    }
+
+    private async Task<IReadOnlyList<Campus>> LoadCampusesAsync(Guid churchId, CancellationToken ct)
+    {
+        await using var cmd = _dbConnection.CreateCommand();
+        cmd.CommandText = """
+            SELECT [Id], [ChurchId], [Name], [Street], [City], [State], [Zip], [Latitude], [Longitude], [CreatedAt], [UpdatedAt]
+            FROM [dbo].[Campuses]
+            WHERE [ChurchId] = @Id
+            ORDER BY [Name] ASC
+            """;
+        AddParam(cmd, "@Id", churchId);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        var campuses = new List<Campus>();
+        while (await reader.ReadAsync(ct))
+        {
+            campuses.Add(new Campus
+            {
+                Id = (Guid)reader[0],
+                ChurchId = (Guid)reader[1],
+                Name = (string)reader[2],
+                Street = reader[3] is DBNull ? null : (string)reader[3],
+                City = (string)reader[4],
+                State = (string)reader[5],
+                Zip = (string)reader[6],
+                Latitude = (double)reader[7],
+                Longitude = (double)reader[8],
+                CreatedAt = ToUtc((DateTime)reader[9]),
+                UpdatedAt = ToUtc((DateTime)reader[10]),
+            });
+        }
+
+        return campuses;
+    }
+
     private async Task<string> GenerateUniqueSlugAsync(
         string canonicalName, string city, string state, CancellationToken ct)
     {
@@ -294,7 +365,7 @@ public sealed class ChurchService
     {
         await EnsureOpenAsync(ct);
         await using var cmd = _dbConnection.CreateCommand();
-        cmd.CommandText = "SELECT COUNT(1) FROM [dbo].[Directory] WHERE [Slug] = @Slug";
+        cmd.CommandText = "SELECT COUNT(1) FROM [dbo].[Churches] WHERE [Slug] = @Slug";
         AddParam(cmd, "@Slug", slug);
         var result = await cmd.ExecuteScalarAsync(ct);
         return result is > 0;

@@ -34,7 +34,7 @@ public sealed class ModerationService
         cmd.CommandText =
             "SELECT " + SelectCorrection + ", COUNT(*) OVER() AS [TotalCount] " +
             "FROM [dbo].[UserCorrections] c " +
-            "LEFT JOIN [dbo].[Directory] ch ON c.[ChurchId] = ch.[Id] " +
+            "LEFT JOIN [dbo].[Churches] ch ON c.[ChurchId] = ch.[Id] " +
             (status.HasValue ? "WHERE c.[Status] = @Status " : string.Empty) +
             "ORDER BY c.[CreatedAt] DESC " +
             "OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY";
@@ -65,7 +65,7 @@ public sealed class ModerationService
     {
         await EnsureOpenAsync(ct);
         await using var cmd = _dbConnection.CreateCommand();
-        cmd.CommandText = $"SELECT {SelectCorrection} FROM [dbo].[UserCorrections] c LEFT JOIN [dbo].[Directory] ch ON c.[ChurchId] = ch.[Id] WHERE c.[Id] = @Id";
+        cmd.CommandText = $"SELECT {SelectCorrection} FROM [dbo].[UserCorrections] c LEFT JOIN [dbo].[Churches] ch ON c.[ChurchId] = ch.[Id] WHERE c.[Id] = @Id";
         AddParam(cmd, "@Id", id);
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct))
@@ -143,7 +143,7 @@ public sealed class ModerationService
             await using var softDelete = _dbConnection.CreateCommand();
             softDelete.Transaction = tx;
             softDelete.CommandText = """
-                UPDATE [dbo].[Directory]
+                UPDATE [dbo].[Churches]
                 SET [IsActive] = 0, [UpdatedAt] = @Now
                 WHERE [Id] = @Absorbed
                 """;

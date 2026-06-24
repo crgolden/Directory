@@ -11,7 +11,7 @@ CREATE TABLE [dbo].[UserCorrections]
     [ReviewedAt]  DATETIME2 (7)    NULL,
     [CreatedAt]   DATETIME2 (7)    NOT NULL,
     CONSTRAINT [PK_UserCorrections] PRIMARY KEY CLUSTERED ([Id] ASC),
-    CONSTRAINT [FK_UserCorrections_Directory] FOREIGN KEY ([ChurchId]) REFERENCES [dbo].[Directory] ([Id]) ON DELETE CASCADE
+    CONSTRAINT [FK_UserCorrections_Churches] FOREIGN KEY ([ChurchId]) REFERENCES [dbo].[Churches] ([Id]) ON DELETE CASCADE
 );
 
 GO

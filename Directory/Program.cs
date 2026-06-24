@@ -6,11 +6,14 @@ using Azure.Identity;
 using Azure.Monitor.OpenTelemetry.AspNetCore;
 using Azure.Security.KeyVault.Secrets;
 using Directory.Admin;
+using Directory.Campuses;
 using Directory.Church;
 using Directory.Crawling;
 using Directory.Denomination;
 using Directory.Extensions;
+using Directory.Ministries;
 using Directory.Moderation;
+using Directory.Schedules;
 using Directory.Search;
 using Directory.User;
 using Elastic.Ingest.Elasticsearch;
@@ -148,6 +151,9 @@ try
         .AddScoped<CrawlingService>()
         .AddScoped<ModerationService>()
         .AddScoped<DenominationService>()
+        .AddScoped<ScheduleService>()
+        .AddScoped<MinistryService>()
+        .AddScoped<CampusService>()
         .AddOpenApi()
         .AddHealthChecks().Services
         .Configure<ForwardedHeadersOptions>(forwardedHeadersOptions =>
@@ -201,6 +207,9 @@ try
     app.MapCrawlingEndpoints();
     app.MapModerationEndpoints();
     app.MapUserEndpoints();
+    app.MapScheduleEndpoints();
+    app.MapMinistryEndpoints();
+    app.MapCampusEndpoints();
     await app.RunAsync();
 }
 catch (Exception ex) when (ex is not HostAbortedException)

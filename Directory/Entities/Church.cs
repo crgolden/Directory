@@ -51,4 +51,11 @@ public sealed class Church
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     public bool IsActive { get; set; } = true;
+
+    // Populated on the church-detail read; empty on list responses.
+    public IReadOnlyList<ServiceSchedule> Schedules { get; set; } = [];
+
+    public IReadOnlyList<Ministry> Ministries { get; set; } = [];
+
+    public IReadOnlyList<Campus> Campuses { get; set; } = [];
 }

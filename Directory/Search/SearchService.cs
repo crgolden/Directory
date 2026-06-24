@@ -69,7 +69,7 @@ public sealed class SearchService
         }
 
         sb.Append(", COUNT(*) OVER() AS [TotalCount]");
-        sb.Append(" FROM [dbo].[Directory] c WHERE c.[IsActive] = 1");
+        sb.Append(" FROM [dbo].[Churches] c WHERE c.[IsActive] = 1");
 
         if (!string.IsNullOrWhiteSpace(q.Q))
         {

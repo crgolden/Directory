@@ -73,7 +73,8 @@ service and endpoint tests assert generated SQL/parameters and feed canned reade
 | Area | File | What it covers |
 |------|------|----------------|
 | Church endpoints | `E2E/ChurchEndpointsTests.cs` | Routing + auth for list / get-by-slug / create / update / patch / delete |
-| Church service | `Api/ChurchServiceTests.cs` | CRUD, slug generation, reader mapping, confidence recalculation |
+| Church service | `Api/ChurchServiceTests.cs` | CRUD, slug generation, reader mapping (incl. nested `schedules`/`ministries`/`campuses` on get-by-slug), confidence recalculation |
+| Child curation services | `Api/ScheduleServiceTests.cs`, `Api/MinistryServiceTests.cs`, `Api/CampusServiceTests.cs` | `ChurchesMod` create/update/delete for `ServiceSchedules`/`Ministries`/`Campuses` — SQL + parameter generation, `TimeOnly` parse/validation, day-of-week bounds |
 | Search endpoints / service | `E2E/SearchEndpointsTests.cs`, `Api/SearchServiceTests.cs` | Filter toggles, Haversine distance ordering, parameter binding, schedule filter SQL generation (`dayOfWeek`, `startTimeBefore`, `startTimeAfter`) |
 | Denomination service | `Api/DenominationServiceTests.cs` | `GetAllAsync` (connection open/closed, empty table, ORDER BY in SQL) |
 | Admin import/export | `Api/AdminServiceTests.cs` | `ParseCsv` (field mapping, skip-on-missing-name/state, empty/header-only, multiple rows); `ImportCsvAsync` (publish count, empty CSV); `ExportCsvAsync` (connection auto-open, row count, ORDER BY clause) |

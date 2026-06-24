@@ -8,7 +8,7 @@ CREATE TABLE [dbo].[CrawlSources]
     [CreatedAt]     DATETIME2 (7)    NOT NULL,
     [UpdatedAt]     DATETIME2 (7)    NOT NULL,
     CONSTRAINT [PK_CrawlSources] PRIMARY KEY CLUSTERED ([Id] ASC),
-    CONSTRAINT [FK_CrawlSources_Directory] FOREIGN KEY ([ChurchId]) REFERENCES [dbo].[Directory] ([Id])
+    CONSTRAINT [FK_CrawlSources_Churches] FOREIGN KEY ([ChurchId]) REFERENCES [dbo].[Churches] ([Id])
 );
 
 GO

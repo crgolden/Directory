@@ -1,4 +1,4 @@
-CREATE TABLE [dbo].[Directory]
+CREATE TABLE [dbo].[Churches]
 (
     [Id]                   UNIQUEIDENTIFIER NOT NULL,
     [CanonicalName]        NVARCHAR (300)   NOT NULL,
@@ -24,27 +24,27 @@ CREATE TABLE [dbo].[Directory]
     [CreatedAt]            DATETIME2 (7)    NOT NULL,
     [UpdatedAt]            DATETIME2 (7)    NOT NULL,
     [IsActive]             BIT              NOT NULL DEFAULT (1),
-    CONSTRAINT [PK_Directory] PRIMARY KEY CLUSTERED ([Id] ASC),
-    CONSTRAINT [UQ_Directory_Slug] UNIQUE ([Slug]),
-    CONSTRAINT [FK_Directory_Denominations] FOREIGN KEY ([DenominationId]) REFERENCES [dbo].[Denominations] ([Id])
+    CONSTRAINT [PK_Churches] PRIMARY KEY CLUSTERED ([Id] ASC),
+    CONSTRAINT [UQ_Churches_Slug] UNIQUE ([Slug]),
+    CONSTRAINT [FK_Churches_Denominations] FOREIGN KEY ([DenominationId]) REFERENCES [dbo].[Denominations] ([Id])
 );
 
 GO
-CREATE INDEX [IX_Directory_Location]
-    ON [dbo].[Directory] ([Latitude] ASC, [Longitude] ASC);
+CREATE INDEX [IX_Churches_Location]
+    ON [dbo].[Churches] ([Latitude] ASC, [Longitude] ASC);
 
 GO
-CREATE INDEX [IX_Directory_State_City]
-    ON [dbo].[Directory] ([State] ASC, [City] ASC);
+CREATE INDEX [IX_Churches_State_City]
+    ON [dbo].[Churches] ([State] ASC, [City] ASC);
 
 GO
-CREATE INDEX [IX_Directory_IsActive]
-    ON [dbo].[Directory] ([IsActive] ASC);
+CREATE INDEX [IX_Churches_IsActive]
+    ON [dbo].[Churches] ([IsActive] ASC);
 
 GO
-CREATE FULLTEXT CATALOG [DirectoryFTCatalog] AS DEFAULT;
+CREATE FULLTEXT CATALOG [ChurchesFTCatalog] AS DEFAULT;
 
 GO
-CREATE FULLTEXT INDEX ON [dbo].[Directory] ([CanonicalName], [City])
-    KEY INDEX [PK_Directory]
-    ON [DirectoryFTCatalog];
+CREATE FULLTEXT INDEX ON [dbo].[Churches] ([CanonicalName], [City])
+    KEY INDEX [PK_Churches]
+    ON [ChurchesFTCatalog];
