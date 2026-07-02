@@ -3,7 +3,6 @@ using System.Data.Common;
 using System.Diagnostics;
 using System.Security.Claims;
 using Azure.Identity;
-using Azure.Monitor.OpenTelemetry.AspNetCore;
 using Azure.Security.KeyVault.Secrets;
 using Directory.Admin;
 using Directory.Campuses;
@@ -89,12 +88,16 @@ try
                     ["deployment.environment"] = builder.Environment.EnvironmentName.ToLowerInvariant()
                 }))
             .WithMetrics(meterProviderBuilder => meterProviderBuilder
+                .AddMeter("Microsoft.AspNetCore.Hosting")
                 .AddRuntimeInstrumentation()
                 .AddOtlpExporter(o => o.Endpoint = new Uri(builder.Configuration.GetRequired<string>("AlloyEndpoint"))))
             .WithTracing(tracerProviderBuilder => tracerProviderBuilder
                 .SetSampler(new AlwaysOnSampler())
+                .AddAspNetCoreInstrumentation()
+                .AddHttpClientInstrumentation()
+                .AddSqlClientInstrumentation()
                 .AddOtlpExporter(o => o.Endpoint = new Uri(builder.Configuration.GetRequired<string>("AlloyEndpoint"))))
-            .UseAzureMonitor().Services
+            .Services
             .AddDataProtection()
             .SetApplicationName(applicationName)
             .PersistKeysToAzureBlobStorage(blobUri, tokenCredential)
@@ -121,7 +124,7 @@ try
             .UseEphemeralDataProtectionProvider().Services
             .AddAzureClients(azureClientFactoryBuilder =>
             {
-                azureClientFactoryBuilder.AddServiceBusClient(serviceBusConnectionString);
+                azureClientFactoryBuilder.AddServiceBusClient(serviceBusConnectionString).WithName("crgolden");
             });
     }
 

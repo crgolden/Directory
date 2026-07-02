@@ -8,12 +8,12 @@ ASP.NET Core 10 Minimal API serving a nationwide U.S. church directory, backed b
 
 ## Sibling Applications
 
-Directory is a **standalone resource server**. It was extracted from the `Churches` repo: the `Church` / `Search` / `Crawling` / `Moderation` / `User` feature slices and the SQL schema now live here, while `Churches` is reduced to an Angular SPA + BFF that proxies to this API.
+Directory is a **standalone resource server**. It was extracted from the `Churches` repo: the `Church` / `Search` / `Crawling` / `Moderation` / `User` feature slices and the SQL schema now live here, while `Churches` is an Angular SSR app + Node (Express) BFF that proxies to this API.
 
 | Repo | Role | How Directory interacts |
 |---|---|---|
 | [Identity](https://github.com/crgolden/Identity) | OIDC Identity Provider | Issues the access tokens Directory validates (scope `directory`); the `churches.mod` claim authorizes moderators |
-| [Churches](https://github.com/crgolden/Churches) | Angular 21 SPA + ASP.NET Core BFF | Sole interactive client — the BFF proxies `/directory/api/**` to this API, attaching the user access token when present |
+| [Churches](https://github.com/crgolden/Churches) | Angular 21 SSR + Node (Express) BFF | Sole interactive client — the BFF proxies `/directory/api/**` to this API, attaching the user access token when present |
 | [Functions](https://github.com/crgolden/Functions) | Azure Functions isolated worker | The crawl/extract/enrich/dedup processing pipeline writes to the same `Directory` SQL database |
 | [Infrastructure](https://github.com/crgolden/Infrastructure) | Health monitoring dashboard | Not yet — `DirectoryHealthCheck` is planned; currently covered by Uptime Kuma |
 

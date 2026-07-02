@@ -133,14 +133,15 @@ public sealed class ModerationServiceTests
         var (items, totalCount) = await service.GetCorrectionsAsync(
             CorrectionStatus.Pending, 1, 10, TestContext.Current.CancellationToken);
 
-        Assert.Contains("WHERE c.[Status] = @Status", cmd.CapturedCommandText, StringComparison.Ordinal);
+        Assert.Contains("WHERE (@Status IS NULL OR c.[Status] = @Status)", cmd.CapturedCommandText, StringComparison.Ordinal);
+        Assert.Equal((int)CorrectionStatus.Pending, cmd.Parameters["@Status"].Value);
         Assert.Equal(4, totalCount);
         Assert.Equal("999 New St", Assert.Single(items).NewValue);
     }
 
     [Fact]
     [Trait("Category", "Unit")]
-    public async Task GetCorrectionsAsync_WithoutStatusFilter_OmitsWhereClause()
+    public async Task GetCorrectionsAsync_WithoutStatusFilter_PassesDbNullStatus()
     {
         var conn = new FakeDbConnection();
         var cmd = FakeDbCommand.WithReader(BuildCorrectionTable(includeTotalCount: true));
@@ -150,7 +151,7 @@ public sealed class ModerationServiceTests
         var (items, totalCount) = await service.GetCorrectionsAsync(
             null, 1, 10, TestContext.Current.CancellationToken);
 
-        Assert.DoesNotContain("WHERE c.[Status]", cmd.CapturedCommandText, StringComparison.Ordinal);
+        Assert.Equal(DBNull.Value, cmd.Parameters["@Status"].Value);
         Assert.Empty(items);
         Assert.Equal(0, totalCount);
     }

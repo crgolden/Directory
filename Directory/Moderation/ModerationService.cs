@@ -35,14 +35,10 @@ public sealed class ModerationService
             "SELECT " + SelectCorrection + ", COUNT(*) OVER() AS [TotalCount] " +
             "FROM [dbo].[UserCorrections] c " +
             "LEFT JOIN [dbo].[Churches] ch ON c.[ChurchId] = ch.[Id] " +
-            (status.HasValue ? "WHERE c.[Status] = @Status " : string.Empty) +
+            "WHERE (@Status IS NULL OR c.[Status] = @Status) " +
             "ORDER BY c.[CreatedAt] DESC " +
             "OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY";
-        if (status.HasValue)
-        {
-            AddParam(cmd, "@Status", (int)status.Value);
-        }
-
+        AddParam(cmd, "@Status", status.HasValue ? (int)status.Value : DBNull.Value);
         AddParam(cmd, "@Offset", (page - 1) * pageSize);
         AddParam(cmd, "@PageSize", pageSize);
         await using var reader = await cmd.ExecuteReaderAsync(ct);
