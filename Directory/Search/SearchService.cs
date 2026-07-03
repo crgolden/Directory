@@ -22,6 +22,13 @@ public sealed class SearchService
         _dbConnection = dbConnection;
     }
 
+    private enum SortMode
+    {
+        Name,
+        Relevance,
+        Distance,
+    }
+
     public async Task<(IReadOnlyList<SearchResult> Items, int TotalCount)> SearchAsync(
         SearchQuery query, CancellationToken ct = default)
     {
@@ -69,12 +76,16 @@ public sealed class SearchService
         }
 
         sb.Append(", COUNT(*) OVER() AS [TotalCount]");
-        sb.Append(" FROM [dbo].[Churches] c WHERE c.[IsActive] = 1");
+        sb.Append(" FROM [dbo].[Churches] c");
 
-        if (!string.IsNullOrWhiteSpace(q.Q))
+        var containsCondition = BuildContainsCondition(q.Q, out _);
+        var hasFullText = containsCondition is not null;
+        if (hasFullText)
         {
-            sb.Append(" AND FREETEXT((c.[CanonicalName], c.[City]), @Q)");
+            sb.Append(" INNER JOIN CONTAINSTABLE([dbo].[Churches], ([CanonicalName], [City]), @Q) AS ft ON ft.[KEY] = c.[Id]");
         }
+
+        sb.Append(" WHERE c.[IsActive] = 1");
 
         if (!string.IsNullOrWhiteSpace(q.State))
         {
@@ -103,24 +114,50 @@ public sealed class SearchService
 
         AppendScheduleFilter(sb, q);
 
-        if (hasDistance)
-        {
-            sb.Append(" ORDER BY [dbo].[fn_HaversineDistance](@Lat, @Lng, c.[Latitude], c.[Longitude]) ASC, c.[CanonicalName] ASC");
-        }
-        else
-        {
-            sb.Append(" ORDER BY c.[CanonicalName] ASC");
-        }
+        AppendOrderBy(sb, q, hasFullText, hasDistance);
 
         sb.Append(" OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY");
         return sb.ToString();
     }
 
+    /// <summary>
+    /// Cleans a free-text search string into an AND-of-prefix-terms full-text search condition
+    /// suitable for <c>CONTAINSTABLE</c>, e.g. "University Lutheran" -&gt; <c>"University*" AND "Lutheran*"</c>.
+    /// </summary>
+    /// <param name="q">The raw user-supplied search text.</param>
+    /// <param name="terms">The cleaned, non-empty terms extracted from <paramref name="q"/>.</param>
+    /// <returns>The search condition string, or <see langword="null"/> when no usable terms remain.</returns>
+    internal static string? BuildContainsCondition(string? q, out IReadOnlyList<string> terms)
+    {
+        var cleaned = new List<string>();
+        if (!string.IsNullOrWhiteSpace(q))
+        {
+            foreach (var rawTerm in q.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
+            {
+                var cleanedTerm = new string(rawTerm.Where(ch => char.IsLetterOrDigit(ch) || ch == '\'').ToArray());
+                if (cleanedTerm.Length > 0)
+                {
+                    cleaned.Add(cleanedTerm);
+                }
+            }
+        }
+
+        terms = cleaned;
+        if (cleaned.Count == 0)
+        {
+            return null;
+        }
+
+        return string.Join(" AND ", cleaned.Select(t => $"\"{t}*\""));
+    }
+
     internal static void BindParams(DbCommand cmd, SearchQuery q)
     {
-        if (!string.IsNullOrWhiteSpace(q.Q))
+        var containsCondition = BuildContainsCondition(q.Q, out _);
+        var hasFullText = containsCondition is not null;
+        if (hasFullText)
         {
-            AddParam(cmd, "@Q", q.Q);
+            AddParam(cmd, "@Q", containsCondition!);
         }
 
         if (!string.IsNullOrWhiteSpace(q.State))
@@ -143,10 +180,11 @@ public sealed class SearchService
             AddParam(cmd, "@WheelchairAccessible", q.WheelchairAccessible.Value);
         }
 
-        if (q is { Lat: not null, Lng: not null })
+        var hasDistance = q is { Lat: not null, Lng: not null };
+        if (hasDistance)
         {
-            AddParam(cmd, "@Lat", q.Lat.Value);
-            AddParam(cmd, "@Lng", q.Lng.Value);
+            AddParam(cmd, "@Lat", q.Lat!.Value);
+            AddParam(cmd, "@Lng", q.Lng!.Value);
             AddParam(cmd, "@RadiusMiles", q.RadiusMiles ?? 25.0);
         }
 
@@ -165,8 +203,69 @@ public sealed class SearchService
             AddParam(cmd, "@StartTimeBefore", q.StartTimeBefore.Value.ToTimeSpan());
         }
 
+        if (ResolveSortMode(q, hasFullText, hasDistance) == SortMode.Relevance)
+        {
+            AddParam(cmd, "@ExactQ", q.Q!);
+            AddParam(cmd, "@PrefixQ", EscapeLikePrefix(q.Q!) + "%");
+        }
+
         AddParam(cmd, "@Offset", (q.Page - 1) * q.PageSize);
         AddParam(cmd, "@PageSize", q.PageSize);
+    }
+
+    private static SortMode ResolveSortMode(SearchQuery q, bool hasFullText, bool hasDistance)
+    {
+        var requested = q.Sort?.Trim().ToLowerInvariant();
+        switch (requested)
+        {
+            case "relevance":
+                return hasFullText ? SortMode.Relevance : SortMode.Name;
+            case "name":
+                return SortMode.Name;
+            case "distance":
+                return hasDistance ? SortMode.Distance : SortMode.Name;
+            default:
+                if (hasFullText)
+                {
+                    return SortMode.Relevance;
+                }
+
+                return hasDistance ? SortMode.Distance : SortMode.Name;
+        }
+    }
+
+    private static void AppendOrderBy(StringBuilder sb, SearchQuery q, bool hasFullText, bool hasDistance)
+    {
+        switch (ResolveSortMode(q, hasFullText, hasDistance))
+        {
+            case SortMode.Relevance:
+                sb.Append(" ORDER BY CASE WHEN c.[CanonicalName] = @ExactQ THEN 0 " +
+                          "WHEN c.[CanonicalName] LIKE @PrefixQ ESCAPE '\\' THEN 1 " +
+                          "ELSE 2 END ASC, ft.[RANK] DESC, c.[CanonicalName] ASC");
+                break;
+            case SortMode.Distance:
+                sb.Append(" ORDER BY [dbo].[fn_HaversineDistance](@Lat, @Lng, c.[Latitude], c.[Longitude]) ASC, c.[CanonicalName] ASC");
+                break;
+            default:
+                sb.Append(" ORDER BY c.[CanonicalName] ASC");
+                break;
+        }
+    }
+
+    private static string EscapeLikePrefix(string value)
+    {
+        var sb = new StringBuilder();
+        foreach (var ch in value)
+        {
+            if (ch is '\\' or '%' or '_' or '[')
+            {
+                sb.Append('\\');
+            }
+
+            sb.Append(ch);
+        }
+
+        return sb.ToString();
     }
 
     private static void AppendScheduleFilter(StringBuilder sb, SearchQuery q)

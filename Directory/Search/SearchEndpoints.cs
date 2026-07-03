@@ -21,6 +21,7 @@ public static class SearchEndpoints
             int? dayOfWeek,
             TimeOnly? startTimeBefore,
             TimeOnly? startTimeAfter,
+            string? sort,
             SearchService service,
             CancellationToken ct,
             int page = 1,
@@ -41,7 +42,8 @@ public static class SearchEndpoints
                 startTimeBefore,
                 startTimeAfter,
                 page,
-                pageSize);
+                pageSize,
+                sort);
             var (items, totalCount) = await service.SearchAsync(query, ct);
             return Results.Ok(new SearchPagedResult(items, totalCount, page, pageSize));
         }).WithTags("Search");
@@ -63,7 +65,8 @@ public record SearchQuery(
     TimeOnly? StartTimeBefore,
     TimeOnly? StartTimeAfter,
     int Page,
-    int PageSize);
+    int PageSize,
+    string? Sort = null);
 
 public record SearchResult(Church Church, double? DistanceMiles);
 

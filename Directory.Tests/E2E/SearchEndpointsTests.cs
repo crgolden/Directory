@@ -29,4 +29,25 @@ public sealed class SearchEndpointsTests : IClassFixture<DirectoryWebApplication
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
+
+    [Theory]
+    [Trait("Category", "E2E")]
+    [InlineData("relevance")]
+    [InlineData("name")]
+    [InlineData("distance")]
+    public async Task Search_AcceptsSortParam(string sort)
+    {
+        var response = await _client.GetAsync($"/search?q=grace&sort={sort}", TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    [Trait("Category", "E2E")]
+    public async Task Search_UnrecognizedSort_StillReturnsOk()
+    {
+        var response = await _client.GetAsync("/search?sort=bogus", TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
 }

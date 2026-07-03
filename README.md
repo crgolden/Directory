@@ -4,7 +4,7 @@
 
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=crgolden_Directory&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=crgolden_Directory)
 
-ASP.NET Core 10 Minimal API serving a nationwide U.S. church directory, backed by SQL Server through BCL ADO.NET (no EF Core, no Dapper). Public search and church lookup are anonymous; correction submissions require a `directory`-scoped JWT, and moderation/crawl operations require the `churches.mod` claim. Observable via Azure Monitor and documented via OpenAPI.
+ASP.NET Core 10 Minimal API serving a nationwide U.S. church directory, backed by SQL Server through BCL ADO.NET (no EF Core, no Dapper). Public search and church lookup are anonymous; correction submissions require a `directory`-scoped JWT, and moderation/crawl operations require the `churches.mod` claim. Observable via OpenTelemetry (Grafana Alloy) and documented via OpenAPI.
 
 ## Sibling Applications
 
@@ -24,7 +24,8 @@ Directory is a **standalone resource server**. It was extracted from the `Church
 - **JWT Bearer / OIDC** — authorization policies `Directory` (`scope: directory`) and `ChurchesMod` (claim `churches.mod: true`)
 - **Azure Service Bus** — correction submissions are enqueued for the processing pipeline
 - **OpenAPI** (`Microsoft.AspNetCore.OpenApi`) — contract at `/openapi/v1.json`
-- **Azure** — Key Vault (secrets), Blob Storage (data protection keys), Azure Monitor (OpenTelemetry traces & metrics)
+- **Azure** — Key Vault (secrets), Blob Storage (data protection keys)
+- **OpenTelemetry** → Grafana Alloy (OTLP traces & metrics)
 - **Serilog** → Elasticsearch (`logs-dotnet-Directory` data stream)
 
 ## API Endpoints

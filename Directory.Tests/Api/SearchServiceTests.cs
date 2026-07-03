@@ -34,26 +34,39 @@ public sealed class SearchServiceTests
 
     [Fact]
     [Trait("Category", "Unit")]
-    public async Task SearchAsync_IncludesFreetextFilter_WhenKeywordProvided()
+    public async Task SearchAsync_IncludesContainsTableJoin_WhenKeywordProvided()
     {
         var conn = BuildConn(out var cmd);
         var service = new SearchService(conn);
 
         await service.SearchAsync(MinimalQuery(q: "grace"), TestContext.Current.CancellationToken);
 
-        Assert.Contains("FREETEXT", cmd.CapturedCommandText, StringComparison.Ordinal);
+        Assert.Contains("CONTAINSTABLE", cmd.CapturedCommandText, StringComparison.Ordinal);
+        Assert.Contains("ft.[KEY] = c.[Id]", cmd.CapturedCommandText, StringComparison.Ordinal);
     }
 
     [Fact]
     [Trait("Category", "Unit")]
-    public async Task SearchAsync_OmitsFreetextFilter_WhenNoKeyword()
+    public async Task SearchAsync_OmitsContainsTableJoin_WhenNoKeyword()
     {
         var conn = BuildConn(out var cmd);
         var service = new SearchService(conn);
 
         await service.SearchAsync(MinimalQuery(), TestContext.Current.CancellationToken);
 
-        Assert.DoesNotContain("FREETEXT", cmd.CapturedCommandText, StringComparison.Ordinal);
+        Assert.DoesNotContain("CONTAINSTABLE", cmd.CapturedCommandText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public async Task SearchAsync_OmitsContainsTableJoin_WhenKeywordIsJunkOnly()
+    {
+        var conn = BuildConn(out var cmd);
+        var service = new SearchService(conn);
+
+        await service.SearchAsync(MinimalQuery(q: "!!! ---"), TestContext.Current.CancellationToken);
+
+        Assert.DoesNotContain("CONTAINSTABLE", cmd.CapturedCommandText, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -296,6 +309,170 @@ public sealed class SearchServiceTests
         Assert.Null(result.DistanceMiles);
         Assert.Null(result.Church.Street);
         Assert.Null(result.Church.AcceptsLGBTQ);
+    }
+
+    // --- BuildContainsCondition tests ---
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void BuildContainsCondition_MultipleWords_BuildsAndOfPrefixTerms()
+    {
+        var condition = SearchService.BuildContainsCondition("University Lutheran", out var terms);
+
+        Assert.Equal("\"University*\" AND \"Lutheran*\"", condition);
+        Assert.Equal(["University", "Lutheran"], terms);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void BuildContainsCondition_JunkOnlyInput_ReturnsNullAndNoTerms()
+    {
+        var condition = SearchService.BuildContainsCondition("!!! ---", out var terms);
+
+        Assert.Null(condition);
+        Assert.Empty(terms);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void BuildContainsCondition_NullOrWhitespace_ReturnsNullAndNoTerms()
+    {
+        Assert.Null(SearchService.BuildContainsCondition(null, out var terms1));
+        Assert.Empty(terms1);
+
+        Assert.Null(SearchService.BuildContainsCondition("   ", out var terms2));
+        Assert.Empty(terms2);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void BuildContainsCondition_StripsPunctuation_KeepsApostrophe()
+    {
+        var condition = SearchService.BuildContainsCondition("O'Brien!", out var terms);
+
+        Assert.Equal("\"O'Brien*\"", condition);
+        Assert.Equal(["O'Brien"], terms);
+    }
+
+    // --- ORDER BY / sort mode tests ---
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void BuildQuery_RelevanceSortWithKeyword_UsesRankOrdering()
+    {
+        var query = new SearchQuery("grace", null, null, null, null, null, null, null, null, null, null, 1, 10, "relevance");
+
+        var sql = SearchService.BuildQuery(query, out _);
+
+        Assert.Contains("CASE WHEN c.[CanonicalName] = @ExactQ THEN 0", sql, StringComparison.Ordinal);
+        Assert.Contains("ft.[RANK] DESC", sql, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void BuildQuery_RelevanceSortWithoutUsableKeyword_FallsBackToName()
+    {
+        var query = new SearchQuery("!!!", null, null, null, null, null, null, null, null, null, null, 1, 10, "relevance");
+
+        var sql = SearchService.BuildQuery(query, out _);
+
+        Assert.DoesNotContain("ft.[RANK]", sql, StringComparison.Ordinal);
+        Assert.Contains("ORDER BY c.[CanonicalName] ASC", sql, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void BuildQuery_NameSort_AlwaysAlphabetical_EvenWithKeywordAndGeo()
+    {
+        var query = new SearchQuery("grace", 33.4, -112.0, null, null, null, null, null, null, null, null, 1, 10, "name");
+
+        var sql = SearchService.BuildQuery(query, out _);
+
+        Assert.Contains("ORDER BY c.[CanonicalName] ASC", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("fn_HaversineDistance) ASC", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("ft.[RANK]", sql, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void BuildQuery_DistanceSort_UsesHaversineWhenGeoPresent()
+    {
+        var query = new SearchQuery(null, 33.4, -112.0, null, null, null, null, null, null, null, null, 1, 10, "distance");
+
+        var sql = SearchService.BuildQuery(query, out _);
+
+        Assert.Contains("ORDER BY [dbo].[fn_HaversineDistance]", sql, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void BuildQuery_DistanceSortWithoutGeo_FallsBackToName()
+    {
+        var query = new SearchQuery(null, null, null, null, null, null, null, null, null, null, null, 1, 10, "distance");
+
+        var sql = SearchService.BuildQuery(query, out _);
+
+        Assert.Contains("ORDER BY c.[CanonicalName] ASC", sql, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void BuildQuery_DefaultSort_NoSortParam_PrefersRelevanceWhenKeywordPresent()
+    {
+        var query = new SearchQuery("grace", 33.4, -112.0, null, null, null, null, null, null, null, null, 1, 10);
+
+        var sql = SearchService.BuildQuery(query, out _);
+
+        Assert.Contains("ft.[RANK] DESC", sql, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void BuildQuery_DefaultSort_NoKeywordButGeo_UsesDistance()
+    {
+        var query = new SearchQuery(null, 33.4, -112.0, null, null, null, null, null, null, null, null, 1, 10);
+
+        var sql = SearchService.BuildQuery(query, out _);
+
+        Assert.Contains("ORDER BY [dbo].[fn_HaversineDistance]", sql, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void BuildQuery_DefaultSort_NoKeywordNoGeo_UsesName()
+    {
+        var query = new SearchQuery(null, null, null, null, null, null, null, null, null, null, null, 1, 10);
+
+        var sql = SearchService.BuildQuery(query, out _);
+
+        Assert.Contains("ORDER BY c.[CanonicalName] ASC", sql, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void BindParams_RelevanceSort_BindsExactAndPrefixParams()
+    {
+        var cmd = new FakeDbCommand();
+        var query = new SearchQuery("grace", null, null, null, null, null, null, null, null, null, null, 1, 10, "relevance");
+
+        SearchService.BindParams(cmd, query);
+
+        Assert.True(cmd.Parameters.Contains("@ExactQ"));
+        Assert.True(cmd.Parameters.Contains("@PrefixQ"));
+        Assert.Equal("grace", cmd.Parameters["@ExactQ"].Value);
+        Assert.Equal("grace%", cmd.Parameters["@PrefixQ"].Value);
+        Assert.Equal("\"grace*\"", cmd.Parameters["@Q"].Value);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void BindParams_NonRelevanceSort_DoesNotBindExactOrPrefixParams()
+    {
+        var cmd = new FakeDbCommand();
+        var query = new SearchQuery("grace", null, null, null, null, null, null, null, null, null, null, 1, 10, "name");
+
+        SearchService.BindParams(cmd, query);
+
+        Assert.False(cmd.Parameters.Contains("@ExactQ"));
+        Assert.False(cmd.Parameters.Contains("@PrefixQ"));
     }
 
     private static SearchQuery MinimalQuery(
