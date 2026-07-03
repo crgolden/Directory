@@ -142,12 +142,15 @@ az servicebus queue show --namespace-name crgolden --resource-group crgolden --n
   punctuation-strip → null-and-skip). If a batch of OSM dead-letters with this signature predates the
   fix, re-publish the affected states' OSM (`-Source osm -States ...`) on the fixed build — dedup
   skips everything already written, only the previously-failed rows insert.
-- **Geocoding ceiling ≈ 84%.** The ~16% at `0,0` are genuinely Census-unmatchable (rural routes, PO
-  boxes, incomplete street data). `ReGeocodeJob` (admin HTTP `POST /api/re-geocode?max=N`) re-runs the
-  Census single-record lookup on `0,0` rows, but because `GeocoderWorker` already attempts that same
-  lookup inline at write time, its recovery is ~0.2% — keep it for transient-failure cleanup, but it
-  is not a meaningful coverage lever for this data. A better geocoder (Google/Mapbox) is the future
-  path to higher coverage.
+- **Geocoding ceiling ≈ 84%.** A meaningful share of the `0,0` rows are genuinely Census-unmatchable
+  (PO boxes, rural routes, malformed/incomplete street data — verified directly against the Census API
+  for real samples). `ReGeocodeJob` (admin HTTP `POST /api/re-geocode?max=N`) re-runs the Census
+  single-record lookup on `0,0` rows. Its query originally had no `ORDER BY`, so once a batch of a given
+  size failed 100%, every identical-size retry deterministically returned the *same* stuck rows forever
+  — small repeated batches could look like a ~0% recovery rate even though larger one-off calls (e.g.
+  `max=5000`) found real matches further into the table. Fixed with `ORDER BY NEWID()` so each call
+  samples fresh rows; the true steady-state recovery rate hasn't been re-measured post-fix. A better
+  geocoder (Google/Mapbox) remains the path to materially higher coverage beyond whatever this recovers.
 - **Dead-letter purge**: `az` cannot purge DLQ messages. Receive+complete them via the SDK — load
   `Azure.Messaging.ServiceBus.dll` (from the Functions output) in PowerShell, create a receiver with
   `SubQueue = DeadLetter` on `geocoding-requests`, and complete in a loop until empty.
