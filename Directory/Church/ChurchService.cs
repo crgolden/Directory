@@ -102,6 +102,7 @@ public sealed class ChurchService
     {
         church.Slug = await GenerateUniqueSlugAsync(church.CanonicalName, church.City, church.State, ct);
         var now = DateTimeOffset.UtcNow.UtcDateTime;
+        EnsureValid(church, now, now);
         await EnsureOpenAsync(ct);
         await using var cmd = _dbConnection.CreateCommand();
         cmd.CommandText = """
@@ -126,6 +127,7 @@ public sealed class ChurchService
 
     public async Task<bool> UpdateAsync(Church church, CancellationToken ct = default)
     {
+        EnsureValid(church, church.CreatedAt.UtcDateTime, DateTimeOffset.UtcNow.UtcDateTime);
         await EnsureOpenAsync(ct);
         await using var cmd = _dbConnection.CreateCommand();
         cmd.CommandText = """
@@ -169,6 +171,36 @@ public sealed class ChurchService
         AddParam(cmd, "@UpdatedAt", DateTimeOffset.UtcNow.UtcDateTime);
         return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
+
+    // Constructs (and discards) a Shared.Domain.Church purely to run its Create(...) invariant checks
+    // before this Church ever reaches SQL — a bad value (e.g. blank City) fails fast here with a
+    // specific ArgumentException/ArgumentOutOfRangeException instead of a raw SQL constraint violation.
+    private static void EnsureValid(Church church, DateTime createdAt, DateTime updatedAt) =>
+        Shared.Domain.Church.Create(
+            church.Id,
+            church.CanonicalName,
+            church.Slug,
+            church.Latitude,
+            church.Longitude,
+            church.Street,
+            church.City,
+            church.State,
+            church.Zip,
+            church.PhoneNumber,
+            church.Website,
+            church.EmailAddress,
+            church.DenominationId,
+            (int)church.WorshipStyle,
+            church.PrimaryLanguage,
+            church.AcceptsLGBTQ,
+            church.WheelchairAccessible,
+            church.HasNursery,
+            church.HasYouthProgram,
+            church.ConfidenceScore,
+            church.LastVerifiedAt?.UtcDateTime,
+            createdAt,
+            updatedAt,
+            church.IsActive);
 
     private static void BindChurch(DbCommand cmd, Church church)
     {

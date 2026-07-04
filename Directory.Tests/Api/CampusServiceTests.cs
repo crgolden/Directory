@@ -23,6 +23,21 @@ public sealed class CampusServiceTests
 
     [Fact]
     [Trait("Category", "Unit")]
+    public async Task CreateAsync_BlankName_ThrowsWithoutTouchingDb()
+    {
+        var conn = new FakeDbConnection();
+        var service = new CampusService(conn);
+        var campus = new Campus { ChurchId = Guid.NewGuid(), Name = string.Empty, City = "Denver", State = "CO", Zip = "80201", Latitude = 39.7, Longitude = -104.9 };
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
+            service.CreateAsync(campus.ChurchId, campus, TestContext.Current.CancellationToken));
+
+        Assert.Equal("name", ex.ParamName);
+        Assert.Empty(conn.ExecutedCommands);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
     public async Task UpdateAsync_RowAffected_ReturnsTrue()
     {
         var conn = new FakeDbConnection();

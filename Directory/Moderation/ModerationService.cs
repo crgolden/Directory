@@ -113,7 +113,23 @@ public sealed class ModerationService
         string mergedBy,
         CancellationToken ct = default)
     {
+        if (survivingId == absorbedId)
+        {
+            throw new ArgumentException("A church cannot be merged into itself.", nameof(absorbedId));
+        }
+
         await EnsureOpenAsync(ct);
+
+        if (!await ChurchIsActiveAsync(survivingId, ct))
+        {
+            throw new InvalidOperationException($"Surviving church '{survivingId}' does not exist or is not active.");
+        }
+
+        if (!await ChurchIsActiveAsync(absorbedId, ct))
+        {
+            throw new InvalidOperationException($"Absorbed church '{absorbedId}' does not exist or is not active.");
+        }
+
         await using var tx = await _dbConnection.BeginTransactionAsync(ct);
         try
         {
@@ -195,6 +211,15 @@ public sealed class ModerationService
 
     private static DateTimeOffset ToUtc(DateTime dt) =>
         new DateTimeOffset(DateTime.SpecifyKind(dt, DateTimeKind.Utc));
+
+    private async Task<bool> ChurchIsActiveAsync(Guid id, CancellationToken ct)
+    {
+        await using var cmd = _dbConnection.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(1) FROM [dbo].[Churches] WHERE [Id] = @Id AND [IsActive] = 1";
+        AddParam(cmd, "@Id", id);
+        var result = await cmd.ExecuteScalarAsync(ct);
+        return result is > 0;
+    }
 
     private async Task EnsureOpenAsync(CancellationToken ct)
     {

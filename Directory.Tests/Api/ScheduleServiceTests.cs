@@ -21,6 +21,20 @@ public sealed class ScheduleServiceTests
 
     [Fact]
     [Trait("Category", "Unit")]
+    public async Task CreateAsync_DayOfWeekAboveSix_ThrowsWithoutTouchingDb()
+    {
+        var conn = new FakeDbConnection();
+        var service = new ScheduleService(conn);
+
+        var ex = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            service.CreateAsync(Guid.NewGuid(), 7, new TimeOnly(10, 30), "Worship", TestContext.Current.CancellationToken));
+
+        Assert.Equal("dayOfWeek", ex.ParamName);
+        Assert.Empty(conn.ExecutedCommands);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
     public async Task UpdateAsync_RowAffected_ReturnsTrue()
     {
         var conn = new FakeDbConnection();
@@ -32,6 +46,20 @@ public sealed class ScheduleServiceTests
         Assert.True(updated);
         Assert.Contains(conn.ExecutedCommands, c =>
             c.CommandText.Contains("UPDATE [dbo].[ServiceSchedules]", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public async Task UpdateAsync_DayOfWeekAboveSix_ThrowsWithoutTouchingDb()
+    {
+        var conn = new FakeDbConnection();
+        var service = new ScheduleService(conn);
+
+        var ex = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            service.UpdateAsync(Guid.NewGuid(), 7, new TimeOnly(9, 0), null, TestContext.Current.CancellationToken));
+
+        Assert.Equal("dayOfWeek", ex.ParamName);
+        Assert.Empty(conn.ExecutedCommands);
     }
 
     [Fact]

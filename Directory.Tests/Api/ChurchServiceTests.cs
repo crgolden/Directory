@@ -61,6 +61,43 @@ public sealed class ChurchServiceTests
 
     [Fact]
     [Trait("Category", "Unit")]
+    public async Task CreateAsync_BlankCity_ThrowsBeforeInsert()
+    {
+        var conn = new FakeDbConnection();
+
+        // Slug generation (a harmless read checking for collisions) runs before validation, so one
+        // command is expected here — the point of this test is that the actual INSERT never happens.
+        conn.Enqueue(FakeDbCommand.WithScalarResult(0));
+        var service = new ChurchService(conn);
+        var church = BuildChurch();
+        church.City = string.Empty;
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
+            service.CreateAsync(church, TestContext.Current.CancellationToken));
+
+        Assert.Equal("city", ex.ParamName);
+        Assert.DoesNotContain(conn.ExecutedCommands, c =>
+            c.CommandText.Contains("INSERT INTO [dbo].[Churches]", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public async Task UpdateAsync_BlankState_ThrowsWithoutTouchingDb()
+    {
+        var conn = new FakeDbConnection();
+        var service = new ChurchService(conn);
+        var church = BuildChurch();
+        church.State = "Arizona";
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
+            service.UpdateAsync(church, TestContext.Current.CancellationToken));
+
+        Assert.Equal("state", ex.ParamName);
+        Assert.Empty(conn.ExecutedCommands);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
     public async Task GetBySlugAsync_ReturnsNull_WhenNoRows()
     {
         var conn = new FakeDbConnection();

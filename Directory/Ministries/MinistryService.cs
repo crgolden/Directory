@@ -14,6 +14,7 @@ public sealed class MinistryService
     {
         var ministry = new Ministry { ChurchId = churchId, Name = name, Description = description };
         var now = DateTimeOffset.UtcNow.UtcDateTime;
+        EnsureValid(ministry.Id, churchId, name, description, now, now);
         await EnsureOpenAsync(ct);
         await using var cmd = _dbConnection.CreateCommand();
         cmd.CommandText = """
@@ -31,6 +32,14 @@ public sealed class MinistryService
 
     public async Task<bool> UpdateAsync(Guid id, string name, string? description, CancellationToken ct = default)
     {
+        // ChurchId isn't part of this UPDATE (it never changes), so the full Shared.Domain.Ministry
+        // factory (which requires it) doesn't apply here — Name is the only NOT NULL field being
+        // written, so it's the only thing that needs a guard on this path.
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw new ArgumentException("Name is required.", nameof(name));
+        }
+
         await EnsureOpenAsync(ct);
         await using var cmd = _dbConnection.CreateCommand();
         cmd.CommandText = """
@@ -53,6 +62,11 @@ public sealed class MinistryService
         AddParam(cmd, "@Id", id);
         return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
+
+    // Constructs (and discards) a Shared.Domain.Ministry purely to run its Create(...) invariant
+    // checks before this Ministry ever reaches SQL.
+    private static void EnsureValid(Guid id, Guid churchId, string name, string? description, DateTime createdAt, DateTime updatedAt) =>
+        Shared.Domain.Ministry.Create(id, churchId, name, description, createdAt, updatedAt);
 
     private static void AddParam(DbCommand cmd, string name, object value)
     {

@@ -13,6 +13,7 @@ public sealed class CampusService
     public async Task<Campus> CreateAsync(Guid churchId, Campus campus, CancellationToken ct = default)
     {
         var now = DateTimeOffset.UtcNow.UtcDateTime;
+        EnsureValid(campus.Id, churchId, campus, now, now);
         await EnsureOpenAsync(ct);
         await using var cmd = _dbConnection.CreateCommand();
         cmd.CommandText = """
@@ -35,6 +36,7 @@ public sealed class CampusService
 
     public async Task<bool> UpdateAsync(Guid id, Campus campus, CancellationToken ct = default)
     {
+        EnsureValid(id, campus.ChurchId, campus, campus.CreatedAt.UtcDateTime, DateTimeOffset.UtcNow.UtcDateTime);
         await EnsureOpenAsync(ct);
         await using var cmd = _dbConnection.CreateCommand();
         cmd.CommandText = """
@@ -63,6 +65,22 @@ public sealed class CampusService
         AddParam(cmd, "@Id", id);
         return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
+
+    // Constructs (and discards) a Shared.Domain.Campus purely to run its Create(...) invariant checks
+    // before this Campus ever reaches SQL.
+    private static void EnsureValid(Guid id, Guid churchId, Campus campus, DateTime createdAt, DateTime updatedAt) =>
+        Shared.Domain.Campus.Create(
+            id,
+            churchId,
+            campus.Name,
+            campus.Street,
+            campus.City,
+            campus.State,
+            campus.Zip,
+            campus.Latitude,
+            campus.Longitude,
+            createdAt,
+            updatedAt);
 
     private static void AddParam(DbCommand cmd, string name, object value)
     {

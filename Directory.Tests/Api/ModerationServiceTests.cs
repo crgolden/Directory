@@ -88,7 +88,10 @@ public sealed class ModerationServiceTests
     {
         var conn = new FakeDbConnection();
 
-        // 6 repoint UPDATEs + 1 soft delete + 1 audit INSERT
+        // 2 pre-transaction existence checks (surviving, then absorbed) + 6 repoint UPDATEs
+        // + 1 soft delete + 1 audit INSERT
+        conn.Enqueue(FakeDbCommand.WithScalarResult(1));
+        conn.Enqueue(FakeDbCommand.WithScalarResult(1));
         for (var i = 0; i < 8; i++)
         {
             conn.Enqueue(FakeDbCommand.WithNonQueryResult(1));
@@ -110,6 +113,10 @@ public sealed class ModerationServiceTests
     public async Task MergeAsync_WhenCommandThrows_RollsBackAndRethrows()
     {
         var conn = new FakeDbConnection();
+
+        // Existence checks succeed so the transaction actually begins; the first statement inside it throws.
+        conn.Enqueue(FakeDbCommand.WithScalarResult(1));
+        conn.Enqueue(FakeDbCommand.WithScalarResult(1));
         conn.Enqueue(FakeDbCommand.WithException(new InvalidOperationException("boom")));
         var service = Create(conn);
 
@@ -117,6 +124,50 @@ public sealed class ModerationServiceTests
             service.MergeAsync(Guid.NewGuid(), Guid.NewGuid(), "moderator@example.com", TestContext.Current.CancellationToken));
 
         Assert.True(conn.LastTransaction?.RolledBack);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public async Task MergeAsync_SameSurvivingAndAbsorbedId_ThrowsWithoutTouchingDb()
+    {
+        var conn = new FakeDbConnection();
+        var id = Guid.NewGuid();
+        var service = Create(conn);
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
+            service.MergeAsync(id, id, "moderator@example.com", TestContext.Current.CancellationToken));
+
+        Assert.Equal("absorbedId", ex.ParamName);
+        Assert.Empty(conn.ExecutedCommands);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public async Task MergeAsync_SurvivingChurchNotActive_ThrowsAndNeverStartsTransaction()
+    {
+        var conn = new FakeDbConnection();
+        conn.Enqueue(FakeDbCommand.WithScalarResult(0));
+        var service = Create(conn);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.MergeAsync(Guid.NewGuid(), Guid.NewGuid(), "moderator@example.com", TestContext.Current.CancellationToken));
+
+        Assert.Null(conn.LastTransaction);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public async Task MergeAsync_AbsorbedChurchNotActive_ThrowsAndNeverStartsTransaction()
+    {
+        var conn = new FakeDbConnection();
+        conn.Enqueue(FakeDbCommand.WithScalarResult(1));
+        conn.Enqueue(FakeDbCommand.WithScalarResult(0));
+        var service = Create(conn);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.MergeAsync(Guid.NewGuid(), Guid.NewGuid(), "moderator@example.com", TestContext.Current.CancellationToken));
+
+        Assert.Null(conn.LastTransaction);
     }
 
     [Fact]
