@@ -149,8 +149,16 @@ az servicebus queue show --namespace-name crgolden --resource-group crgolden --n
   size failed 100%, every identical-size retry deterministically returned the *same* stuck rows forever
   — small repeated batches could look like a ~0% recovery rate even though larger one-off calls (e.g.
   `max=5000`) found real matches further into the table. Fixed with `ORDER BY NEWID()` so each call
-  samples fresh rows; the true steady-state recovery rate hasn't been re-measured post-fix. A better
-  geocoder (Google/Mapbox) remains the path to materially higher coverage beyond whatever this recovers.
+  samples fresh rows. A second, larger issue found afterward: PO Box addresses have no street-level
+  TIGER/Line match, so Census's address geocoder can *never* resolve them — a live production sample
+  found roughly three-quarters of all `0,0` rows were PO Boxes, so a random batch was overwhelmingly
+  wasted on permanently-unresolvable rows even with fresh sampling. `ReGeocodeJob`'s candidate query
+  now excludes PO Box addresses (`NOT LIKE 'PO BOX%'` etc., the same exclusion already used in
+  `DeduplicationJob`), so retries spend their budget only on rows that can plausibly resolve. The true
+  steady-state recovery rate on the remaining real-street-address rows hasn't been re-measured
+  post-fix. A better geocoder (Google/Mapbox) remains the path to materially higher coverage beyond
+  whatever this recovers — and neither this nor a better geocoder does anything for PO Box rows, which
+  need a fundamentally different strategy (e.g. ZIP-centroid fallback) if they're ever to leave `0,0`.
 - **Dead-letter purge**: `az` cannot purge DLQ messages. Receive+complete them via the SDK — load
   `Azure.Messaging.ServiceBus.dll` (from the Functions output) in PowerShell, create a receiver with
   `SubQueue = DeadLetter` on `geocoding-requests`, and complete in a loop until empty.
