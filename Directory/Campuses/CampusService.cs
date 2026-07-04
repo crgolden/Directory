@@ -66,21 +66,22 @@ public sealed class CampusService
         return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
 
-    // Constructs (and discards) a Shared.Domain.Campus purely to run its Create(...) invariant checks
+    // Builds (and discards) a Shared.Domain.Campus purely to run its With*/Build() invariant checks
     // before this Campus ever reaches SQL.
     private static void EnsureValid(Guid id, Guid churchId, Campus campus, DateTime createdAt, DateTime updatedAt) =>
-        Shared.Domain.Campus.Create(
-            id,
-            churchId,
-            campus.Name,
-            campus.Street,
-            campus.City,
-            campus.State,
-            campus.Zip,
-            campus.Latitude,
-            campus.Longitude,
-            createdAt,
-            updatedAt);
+        new Shared.Domain.CampusBuilder()
+            .WithId(id)
+            .WithChurchId(churchId)
+            .WithName(campus.Name)
+            .WithStreet(campus.Street)
+            .WithCity(campus.City)
+            .WithState(campus.State)
+            .WithZip(campus.Zip)
+            .WithLatitude(campus.Latitude)
+            .WithLongitude(campus.Longitude)
+            .WithCreatedAt(createdAt)
+            .WithUpdatedAt(updatedAt)
+            .Build();
 
     private static void AddParam(DbCommand cmd, string name, object value)
     {

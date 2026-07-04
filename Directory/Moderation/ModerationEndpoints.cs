@@ -9,6 +9,9 @@ using Enums;
 [ExcludeFromCodeCoverage]
 public static class ModerationEndpoints
 {
+    private const string ChurchesModPolicy = "ChurchesMod";
+    private const string MissingSubClaimMessage = "Missing 'sub' claim.";
+
     public static IEndpointRouteBuilder MapModerationEndpoints(this IEndpointRouteBuilder app)
     {
         var modGroup = app.MapGroup("/corrections")
@@ -25,7 +28,7 @@ public static class ModerationEndpoints
             pageSize = Math.Clamp(pageSize, 1, 50);
             var (items, total) = await service.GetCorrectionsAsync(status, page, pageSize, ct);
             return Results.Ok(new PagedResult<UserCorrection>(items, total, page, pageSize));
-        }).RequireAuthorization("ChurchesMod");
+        }).RequireAuthorization(ChurchesModPolicy);
 
         modGroup.MapGet("/{id:guid}", async (
             Guid id,
@@ -34,7 +37,7 @@ public static class ModerationEndpoints
         {
             var correction = await service.GetCorrectionByIdAsync(id, ct);
             return correction is null ? Results.NotFound() : Results.Ok(correction);
-        }).RequireAuthorization("ChurchesMod");
+        }).RequireAuthorization(ChurchesModPolicy);
 
         modGroup.MapPost("/", async (
             SubmitCorrectionRequest req,
@@ -49,7 +52,7 @@ public static class ModerationEndpoints
             }
 
             var userId = user.FindFirstValue("sub")
-                ?? throw new InvalidOperationException("Missing 'sub' claim.");
+                ?? throw new InvalidOperationException(MissingSubClaimMessage);
             var id = await service.SubmitCorrectionAsync(
                 req.ChurchId, userId, req.Field, req.OldValue, req.NewValue, ct);
             return Results.Accepted($"/corrections/{id}", new { Id = id });
@@ -62,10 +65,10 @@ public static class ModerationEndpoints
             CancellationToken ct) =>
         {
             var reviewedBy = user.FindFirstValue("sub")
-                ?? throw new InvalidOperationException("Missing 'sub' claim.");
+                ?? throw new InvalidOperationException(MissingSubClaimMessage);
             var updated = await service.ReviewCorrectionAsync(id, CorrectionStatus.Approved, reviewedBy, ct);
             return updated ? Results.NoContent() : Results.NotFound();
-        }).RequireAuthorization("ChurchesMod");
+        }).RequireAuthorization(ChurchesModPolicy);
 
         modGroup.MapPatch("/{id:guid}/reject", async (
             Guid id,
@@ -74,10 +77,10 @@ public static class ModerationEndpoints
             CancellationToken ct) =>
         {
             var reviewedBy = user.FindFirstValue("sub")
-                ?? throw new InvalidOperationException("Missing 'sub' claim.");
+                ?? throw new InvalidOperationException(MissingSubClaimMessage);
             var updated = await service.ReviewCorrectionAsync(id, CorrectionStatus.Rejected, reviewedBy, ct);
             return updated ? Results.NoContent() : Results.NotFound();
-        }).RequireAuthorization("ChurchesMod");
+        }).RequireAuthorization(ChurchesModPolicy);
 
         app.MapPost("/churches/{survivingId:guid}/merge/{absorbedId:guid}", async (
             Guid survivingId,
@@ -87,10 +90,10 @@ public static class ModerationEndpoints
             CancellationToken ct) =>
         {
             var mergedBy = user.FindFirstValue("sub")
-                ?? throw new InvalidOperationException("Missing 'sub' claim.");
+                ?? throw new InvalidOperationException(MissingSubClaimMessage);
             await service.MergeAsync(survivingId, absorbedId, mergedBy, ct);
             return Results.NoContent();
-        }).WithTags("Moderation").RequireAuthorization("ChurchesMod");
+        }).WithTags("Moderation").RequireAuthorization(ChurchesModPolicy);
 
         return app;
     }

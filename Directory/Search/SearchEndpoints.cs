@@ -10,40 +10,27 @@ public static class SearchEndpoints
     public static IEndpointRouteBuilder MapSearchEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapGet("/search", async (
-            string? q,
-            double? lat,
-            double? lng,
-            double? radiusMiles,
-            string? state,
-            Guid? denominationId,
-            WorshipStyle? worshipStyle,
-            bool? wheelchairAccessible,
-            int? dayOfWeek,
-            TimeOnly? startTimeBefore,
-            TimeOnly? startTimeAfter,
-            string? sort,
+            [AsParameters] SearchRequest request,
             SearchService service,
-            CancellationToken ct,
-            int page = 1,
-            int pageSize = 20) =>
+            CancellationToken ct) =>
         {
-            page = Math.Max(1, page);
-            pageSize = Math.Clamp(pageSize, 1, 50);
+            var page = Math.Max(1, request.Page);
+            var pageSize = Math.Clamp(request.PageSize, 1, 50);
             var query = new SearchQuery(
-                q,
-                lat,
-                lng,
-                radiusMiles,
-                state,
-                denominationId,
-                worshipStyle,
-                wheelchairAccessible,
-                dayOfWeek,
-                startTimeBefore,
-                startTimeAfter,
+                request.Q,
+                request.Lat,
+                request.Lng,
+                request.RadiusMiles,
+                request.State,
+                request.DenominationId,
+                request.WorshipStyle,
+                request.WheelchairAccessible,
+                request.DayOfWeek,
+                request.StartTimeBefore,
+                request.StartTimeAfter,
                 page,
                 pageSize,
-                sort);
+                request.Sort);
             var (items, totalCount) = await service.SearchAsync(query, ct);
             return Results.Ok(new SearchPagedResult(items, totalCount, page, pageSize));
         }).WithTags("Search");
@@ -51,6 +38,25 @@ public static class SearchEndpoints
         return app;
     }
 }
+
+// Bundles the query-string-bound search filters via [AsParameters] so the route handler's own
+// parameter list stays under the lambda-parameter-count limit; DI services (SearchService,
+// CancellationToken) remain direct lambda parameters.
+public readonly record struct SearchRequest(
+    string? Q,
+    double? Lat,
+    double? Lng,
+    double? RadiusMiles,
+    string? State,
+    Guid? DenominationId,
+    WorshipStyle? WorshipStyle,
+    bool? WheelchairAccessible,
+    int? DayOfWeek,
+    TimeOnly? StartTimeBefore,
+    TimeOnly? StartTimeAfter,
+    string? Sort,
+    int Page = 1,
+    int PageSize = 20);
 
 public record SearchQuery(
     string? Q,

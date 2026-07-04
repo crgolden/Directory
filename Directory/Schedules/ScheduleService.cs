@@ -71,10 +71,18 @@ public sealed class ScheduleService
         return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
 
-    // Constructs (and discards) a Shared.Domain.ServiceSchedule purely to run its Create(...) invariant
+    // Builds (and discards) a Shared.Domain.ServiceSchedule purely to run its With*/Build() invariant
     // checks (including the DayOfWeek 0-6 range) before this ServiceSchedule ever reaches SQL.
     private static void EnsureValid(Guid id, Guid churchId, byte dayOfWeek, TimeOnly startTime, string? description, DateTime createdAt, DateTime updatedAt) =>
-        Shared.Domain.ServiceSchedule.Create(id, churchId, campusId: null, dayOfWeek, startTime, description, createdAt, updatedAt);
+        new Shared.Domain.ServiceScheduleBuilder()
+            .WithId(id)
+            .WithChurchId(churchId)
+            .WithDayOfWeek(dayOfWeek)
+            .WithStartTime(startTime)
+            .WithDescription(description)
+            .WithCreatedAt(createdAt)
+            .WithUpdatedAt(updatedAt)
+            .Build();
 
     private static void AddParam(DbCommand cmd, string name, object value)
     {

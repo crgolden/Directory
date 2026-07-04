@@ -63,10 +63,17 @@ public sealed class MinistryService
         return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
 
-    // Constructs (and discards) a Shared.Domain.Ministry purely to run its Create(...) invariant
+    // Builds (and discards) a Shared.Domain.Ministry purely to run its With*/Build() invariant
     // checks before this Ministry ever reaches SQL.
     private static void EnsureValid(Guid id, Guid churchId, string name, string? description, DateTime createdAt, DateTime updatedAt) =>
-        Shared.Domain.Ministry.Create(id, churchId, name, description, createdAt, updatedAt);
+        new Shared.Domain.MinistryBuilder()
+            .WithId(id)
+            .WithChurchId(churchId)
+            .WithName(name)
+            .WithDescription(description)
+            .WithCreatedAt(createdAt)
+            .WithUpdatedAt(updatedAt)
+            .Build();
 
     private static void AddParam(DbCommand cmd, string name, object value)
     {

@@ -172,35 +172,36 @@ public sealed class ChurchService
         return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
 
-    // Constructs (and discards) a Shared.Domain.Church purely to run its Create(...) invariant checks
+    // Builds (and discards) a Shared.Domain.Church purely to run its With*/Build() invariant checks
     // before this Church ever reaches SQL — a bad value (e.g. blank City) fails fast here with a
     // specific ArgumentException/ArgumentOutOfRangeException instead of a raw SQL constraint violation.
     private static void EnsureValid(Church church, DateTime createdAt, DateTime updatedAt) =>
-        Shared.Domain.Church.Create(
-            church.Id,
-            church.CanonicalName,
-            church.Slug,
-            church.Latitude,
-            church.Longitude,
-            church.Street,
-            church.City,
-            church.State,
-            church.Zip,
-            church.PhoneNumber,
-            church.Website,
-            church.EmailAddress,
-            church.DenominationId,
-            (int)church.WorshipStyle,
-            church.PrimaryLanguage,
-            church.AcceptsLGBTQ,
-            church.WheelchairAccessible,
-            church.HasNursery,
-            church.HasYouthProgram,
-            church.ConfidenceScore,
-            church.LastVerifiedAt?.UtcDateTime,
-            createdAt,
-            updatedAt,
-            church.IsActive);
+        new Shared.Domain.ChurchBuilder()
+            .WithId(church.Id)
+            .WithCanonicalName(church.CanonicalName)
+            .WithSlug(church.Slug)
+            .WithLatitude(church.Latitude)
+            .WithLongitude(church.Longitude)
+            .WithStreet(church.Street)
+            .WithCity(church.City)
+            .WithState(church.State)
+            .WithZip(church.Zip)
+            .WithPhoneNumber(church.PhoneNumber)
+            .WithWebsite(church.Website)
+            .WithEmailAddress(church.EmailAddress)
+            .WithDenominationId(church.DenominationId)
+            .WithWorshipStyle((int)church.WorshipStyle)
+            .WithPrimaryLanguage(church.PrimaryLanguage)
+            .WithAcceptsLGBTQ(church.AcceptsLGBTQ)
+            .WithWheelchairAccessible(church.WheelchairAccessible)
+            .WithHasNursery(church.HasNursery)
+            .WithHasYouthProgram(church.HasYouthProgram)
+            .WithConfidenceScore(church.ConfidenceScore)
+            .WithLastVerifiedAt(church.LastVerifiedAt?.UtcDateTime)
+            .WithCreatedAt(createdAt)
+            .WithUpdatedAt(updatedAt)
+            .WithIsActive(church.IsActive)
+            .Build();
 
     private static void BindChurch(DbCommand cmd, Church church)
     {
