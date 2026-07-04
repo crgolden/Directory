@@ -97,6 +97,9 @@ jobs:
             /d:sonar.scanner.skipJreProvisioning=true
 
       - name: Build with dotnet
+        env:
+          GITHUB_TOKEN: ${{ secrets.PACKAGES_READ_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
         run: dotnet build --no-incremental --configuration Release
 
       - name: Run unit tests with coverage
@@ -149,6 +152,9 @@ jobs:
           path: Directory.Tests/bin/Release/net10.0/TestResults/
 
       - name: dotnet publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.PACKAGES_READ_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
         run: >
           dotnet publish Directory/Directory.csproj
           -c Release
