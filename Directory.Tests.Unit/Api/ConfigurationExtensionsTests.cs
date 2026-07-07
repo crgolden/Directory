@@ -1,4 +1,4 @@
-namespace Directory.Tests.Api;
+namespace Directory.Tests.Unit.Api;
 
 using Extensions;
 using Microsoft.Extensions.Configuration;

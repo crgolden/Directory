@@ -55,7 +55,7 @@ wanted it is identical to the Functions `ToSlug` table.
 
 The branch mass is `BuildQuery`, a **pure** `private static` SQL builder with six independent filter
 toggles plus `out bool hasDistance`. **🔧 Seam (DONE):** `BuildQuery` and `BindParams` →
-`internal static` + `InternalsVisibleTo Directory.Tests` (in `Directory.csproj`). Testing the
+`internal static` + `InternalsVisibleTo Directory.Tests.Unit` (in `Directory.csproj`). Testing the
 generated SQL/params directly per toggle is far cleaner than asserting `CommandText` through a full
 `SearchAsync` mock.
 

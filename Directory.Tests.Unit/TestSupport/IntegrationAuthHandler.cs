@@ -1,4 +1,4 @@
-namespace Directory.Tests.TestSupport;
+namespace Directory.Tests.Unit.TestSupport;
 
 using System.Security.Claims;
 using System.Text.Encodings.Web;

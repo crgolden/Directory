@@ -105,8 +105,8 @@ dotnet run --project Directory/
 curl https://localhost:7002/openapi/v1.json
 
 # Run unit tests (no Azure creds, no live SQL — fully mocked)
-dotnet build Directory.Tests --configuration Debug
-.\Directory.Tests\bin\Debug\net10.0\Directory.Tests.exe -trait "Category=Unit" -showLiveOutput
+dotnet build Directory.Tests.Unit --configuration Debug
+.\Directory.Tests.Unit\bin\Debug\net10.0\Directory.Tests.Unit.exe -trait "Category=Unit" -showLiveOutput
 ```
 
 ### Database schema

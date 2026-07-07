@@ -4,7 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <RootNamespace>Directory.Tests</RootNamespace>
+    <RootNamespace>Directory.Tests.Unit</RootNamespace>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <OutputType>Exe</OutputType>
     <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
@@ -33,7 +33,6 @@
   <ItemGroup>
   	<PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.9" />
   	<PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.7.0" />
-  	<PackageReference Include="Microsoft.Playwright" Version="1.61.0" />
   	<PackageReference Include="Moq" Version="4.20.72" />
   	<PackageReference Include="SonarAnalyzer.CSharp" Version="10.28.0.143324">
   		<PrivateAssets>all</PrivateAssets>

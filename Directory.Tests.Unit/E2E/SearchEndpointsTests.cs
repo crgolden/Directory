@@ -1,4 +1,4 @@
-namespace Directory.Tests.E2E;
+namespace Directory.Tests.Unit.E2E;
 
 using System.Net;
 using TestSupport;

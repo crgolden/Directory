@@ -1,9 +1,10 @@
 # Testing
 
-The Directory test suite uses xUnit v3 (`xunit.v3.mtp-v2`, exe runner). Every test is tagged
-`[Trait("Category", "Unit")]` and runs with **no external dependencies** — the in-process host uses a fake
-`DbConnection` and a mocked Service Bus, so there is no live SQL Server, Key Vault, or Azure credential in the
-loop.
+The Directory test suite uses xUnit v3 (`xunit.v3.mtp-v2`, exe runner), split into two tiers by
+`[Trait("Category", ...)]`: `Unit` (service/domain tests against a fake `DbConnection` and mocked Service Bus —
+no live SQL Server, Key Vault, or Azure credential in the loop) and `E2E` (the `E2E/*EndpointsTests.cs` files,
+which drive the real `Program.cs` pipeline through `DirectoryWebApplicationFactory` against a real SQL Server
+schema deployed via `SqlPackage` in CI).
 
 Unit test coding standards (MockBehavior.Strict, argument verification, SetupSequence, no control-flow in
 tests, etc.) are in the workspace-level [Unit Test Standards](../TESTING.md#unit-test-standards).
@@ -12,14 +13,14 @@ tests, etc.) are in the workspace-level [Unit Test Standards](../TESTING.md#unit
 
 | Tier | Trait | Project | Requires Azure / SQL? | Runs in CI |
 |------|-------|---------|-----------------------|------------|
-| Unit | `Category=Unit` | `Directory.Tests` | No — fake DB + mocked Service Bus | Every push/PR |
+| Unit | `Category=Unit` | `Directory.Tests.Unit` | No — fake DB + mocked Service Bus | Every push/PR |
+| E2E | `Category=E2E` | `Directory.Tests.Unit` | Yes — real SQL Server (schema deployed via `SqlPackage`) | Every push/PR |
 
-The suite has two flavors of unit test, both `Category=Unit`:
-
-- **Endpoint tests** (`Api/*EndpointsTests.cs`) — drive the real `Program.cs` pipeline through
-  `DirectoryWebApplicationFactory`, exercising routing, model binding, and authorization against a fake DB.
-- **Service / domain tests** (`Api/*ServiceTests.cs`, `Domain/ConfidenceScoreCalculatorTests.cs`) — test the
-  feature services and the confidence-score calculator directly with a mocked `DbConnection`.
+- **Unit — service / domain tests** (`Api/*ServiceTests.cs`, `Domain/ConfidenceScoreCalculatorTests.cs`) — test
+  the feature services and the confidence-score calculator directly with a mocked `DbConnection`.
+- **E2E — endpoint tests** (`E2E/*EndpointsTests.cs`) — drive the real `Program.cs` pipeline through
+  `DirectoryWebApplicationFactory`, exercising routing, model binding, and authorization against a real SQL
+  Server database.
 
 ---
 
@@ -32,8 +33,8 @@ User Secrets ID: `61549613-3239-4c31-8300-39334a7c2657` (not needed for unit tes
 in-memory configuration).
 
 ```powershell
-dotnet build Directory.Tests --configuration Debug
-.\Directory.Tests\bin\Debug\net10.0\Directory.Tests.exe -trait "Category=Unit" -showLiveOutput
+dotnet build Directory.Tests.Unit --configuration Debug
+.\Directory.Tests.Unit\bin\Debug\net10.0\Directory.Tests.Unit.exe -trait "Category=Unit" -showLiveOutput
 ```
 
 ---
@@ -96,9 +97,13 @@ The GitHub Actions workflow (`.github/workflows/main_crgolden-directory.yml`) ru
 1. Build solution (`dotnet build --no-incremental --configuration Release`) — also compiles
    `Directory.Data.sqlproj` to a `.dacpac`
 2. Unit tests with coverage (`dotnet coverlet … --filter-trait Category=Unit`, OpenCover →
-   `coverage.opencover.xml`), `ASPNETCORE_ENVIRONMENT=CI`; TRX written to `TestResults/unit-tests.trx`
-3. SonarCloud analysis
-4. Publish the web app and upload the app + dacpac artifacts
+   `coverage.opencover.xml`); TRX written to `TestResults/unit-tests.trx`
+3. Deploy the E2E test database schema (`SqlPackage` against the `DB_NAME_E2E` database)
+4. E2E tests with coverage (`dotnet-coverage collect … --filter-trait Category=E2E`, VS Coverage XML →
+   `coverage-e2e.xml`), `ASPNETCORE_ENVIRONMENT=CI` against the real SQL Server; TRX written to
+   `TestResults/e2e-tests.trx`
+5. SonarCloud analysis
+6. Publish the web app and upload the app + dacpac artifacts
 
 The deploy job deploys the dacpac (via `SqlPackage`) and then the app to `crgolden-directory`.
 
@@ -108,27 +113,33 @@ The deploy job deploys the dacpac (via `SqlPackage`) and then the app to `crgold
 
 Generate coverage first, then run from `Directory/`. Unit coverage is OpenCover (branch-bearing, via
 `coverlet.console` pinned in `dotnet-tools.json` — restore with `dotnet tool restore`; see the workspace
-`TESTING.md` for the command rationale). Directory has no integration/E2E suite, so OpenCover is the only report.
+`TESTING.md` for the command rationale). E2E coverage is Visual Studio Coverage XML (via `dotnet-coverage`
+against a real SQL Server), fed to Sonar as a second, separate report.
 
 ```powershell
-dotnet build Directory.Tests --configuration Release
+dotnet build Directory.Tests.Unit --configuration Release
 dotnet tool restore
-dotnet coverlet Directory.Tests\bin\Release\net10.0 `
+dotnet coverlet Directory.Tests.Unit\bin\Release\net10.0 `
   --target "dotnet" `
-  --targetargs "test --project Directory.Tests --no-build --configuration Release -- --filter-trait Category=Unit" `
+  --targetargs "test --project Directory.Tests.Unit --no-build --configuration Release -- --filter-trait Category=Unit" `
   --format opencover --output "coverage.opencover.xml" `
   --skipautoprops --exclude-by-attribute GeneratedCodeAttribute `
   --exclude-by-file "**/obj/**" --exclude-by-file "**/Program.cs" `
   --does-not-return-attribute DoesNotReturnAttribute --include "[Directory]*"
+
+dotnet-coverage collect `
+  "dotnet test --project Directory.Tests.Unit --no-build --configuration Release -- --filter-trait Category=E2E" `
+  -f xml -o "coverage-e2e.xml" -s "coverage.settings.xml"
 
 $env:SONAR_TOKEN = "<token>"
 & "$env:SystemDrive\sonar-scanner-8.0.1.6346-windows-x64\bin\sonar-scanner.bat" `
   "-Dsonar.projectKey=crgolden_Directory" `
   "-Dsonar.organization=crgolden" `
   "-Dsonar.sources=Directory" `
-  "-Dsonar.tests=Directory.Tests" `
+  "-Dsonar.tests=Directory.Tests.Unit" `
   "-Dsonar.exclusions=**/bin/**,**/obj/**" `
-  "-Dsonar.cs.opencover.reportsPaths=coverage.opencover.xml"
+  "-Dsonar.cs.opencover.reportsPaths=coverage.opencover.xml" `
+  "-Dsonar.cs.vscoveragexml.reportsPaths=coverage-e2e.xml"
 ```
 
 Required coverage files: `coverage.opencover.xml` (unit, OpenCover).

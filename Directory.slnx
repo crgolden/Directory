@@ -14,6 +14,6 @@
     <Build />
     <Deploy />
   </Project>
-  <Project Path="Directory.Tests/Directory.Tests.csproj" Id="37e1d097-f35f-4eff-bed0-f3cb90e31e71" />
+  <Project Path="Directory.Tests.Unit/Directory.Tests.Unit.csproj" Id="37e1d097-f35f-4eff-bed0-f3cb90e31e71" />
   <Project Path="Directory/Directory.csproj" />
 </Solution>

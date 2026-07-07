@@ -1,4 +1,4 @@
-namespace Directory.Tests.TestSupport;
+namespace Directory.Tests.Unit.TestSupport;
 
 using System.Data;
 using System.Data.Common;

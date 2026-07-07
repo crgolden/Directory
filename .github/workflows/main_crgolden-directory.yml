@@ -103,9 +103,9 @@ jobs:
 
       - name: Run unit tests with coverage
         run: |
-          dotnet coverlet Directory.Tests\bin\Release\net10.0 `
+          dotnet coverlet Directory.Tests.Unit\bin\Release\net10.0 `
             --target "dotnet" `
-            --targetargs "test --project Directory.Tests --no-build --configuration Release -- --filter-trait Category=Unit --report-xunit-trx --report-xunit-trx-filename unit-tests.trx" `
+            --targetargs "test --project Directory.Tests.Unit --no-build --configuration Release -- --filter-trait Category=Unit --report-xunit-trx --report-xunit-trx-filename unit-tests.trx" `
             --format opencover --output "coverage.opencover.xml" `
             --skipautoprops `
             --exclude-by-attribute GeneratedCodeAttribute `
@@ -140,7 +140,7 @@ jobs:
           ServiceBusConnectionString: ${{ secrets.SERVICE_BUS_CONNECTION_STRING }}
         run: |
           dotnet-coverage collect `
-            "dotnet test --project Directory.Tests --no-build --configuration Release -- --filter-trait Category=E2E --report-xunit-trx --report-xunit-trx-filename e2e-tests.trx" `
+            "dotnet test --project Directory.Tests.Unit --no-build --configuration Release -- --filter-trait Category=E2E --report-xunit-trx --report-xunit-trx-filename e2e-tests.trx" `
             -f xml -o "coverage-e2e.xml" -s "coverage.settings.xml"
 
       - name: Upload test results
@@ -148,7 +148,7 @@ jobs:
         if: always()
         with:
           name: test-results
-          path: Directory.Tests/bin/Release/net10.0/TestResults/
+          path: Directory.Tests.Unit/bin/Release/net10.0/TestResults/
 
       - name: dotnet publish
         env:

@@ -1,4 +1,4 @@
-namespace Directory.Tests.Api;
+namespace Directory.Tests.Unit.Api;
 
 using Campuses;
 using Entities;
