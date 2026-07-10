@@ -84,22 +84,22 @@ Bus + storage, because the seed-pipeline functions only exist in the working tre
 This requires temporary, **uncommitted** changes that MUST be reverted afterward:
 
 1. `Functions/local.settings.json`:
-   - `SqlConnectionStringBuilder__*` → prod (`DataSource=crgolden.com`, SQL auth `directory` user) instead of localhost/IntegratedSecurity.
-   - `AzureWebJobsStorage` → the real `crgolden` storage connection string (not `UseDevelopmentStorage=true`; use the real account rather than running Azurite).
+   - `SqlConnectionStringBuilder__*` → the production SQL host + SQL-auth login instead of localhost/IntegratedSecurity.
+   - `AzureWebJobsStorage` → the production storage account's connection string (not `UseDevelopmentStorage=true`; use the real account rather than running Azurite).
    - `ServiceBusConnection` / `StorageConnectionString` → shared-key connection strings.
 2. `Functions/host.json`: a `"functions": [ ... ]` allow-list naming only the seed-pipeline functions
    (`BulkImportJob`, `GeocoderWorker`, `CalculateConfidenceScore`, `ReGeocodeJob`) to quiesce the
    scraper/extractor/enrichment/email/timer functions locally.
 3. Enable shared-key access on the locked-down prod resources (normally disabled):
    ```powershell
-   az storage account update --name crgolden --resource-group crgolden --allow-shared-key-access true
-   az servicebus namespace update --name crgolden --resource-group crgolden --disable-local-auth false
+   az storage account update --name <storage-account> --resource-group <rg> --allow-shared-key-access true
+   az servicebus namespace update --name <sb-namespace> --resource-group <rg> --disable-local-auth false
    ```
 
 ### Run
 
 ```powershell
-$env:SEED_STORAGE_KEY = (az storage account keys list --account-name crgolden --query "[0].value" -o tsv)
+$env:SEED_STORAGE_KEY = (az storage account keys list --account-name <storage-account> --query "[0].value" -o tsv)
 # 1-3: acquire + pre-geocode data (skip if data/ already populated)
 Tools/Seeding/Get-IrsChurchData.ps1
 Tools/Seeding/Get-OsmChurchData.ps1
@@ -113,7 +113,7 @@ Tools/Seeding/Invoke-DirectorySeeding.ps1 -AccountKey $env:SEED_STORAGE_KEY
 Watch `geocoding-requests` drain and confirm no dead-letters:
 
 ```powershell
-az servicebus queue show --namespace-name crgolden --resource-group crgolden --name geocoding-requests `
+az servicebus queue show --namespace-name <sb-namespace> --resource-group <rg> --name geocoding-requests `
   --query "countDetails.{active:activeMessageCount, dead:deadLetterMessageCount}" -o json
 ```
 
@@ -122,10 +122,10 @@ az servicebus queue show --namespace-name crgolden --resource-group crgolden --n
 1. Revert the `local.settings.json` and `host.json` temp changes.
 2. Re-disable shared-key access (return to the normal locked-down state):
    ```powershell
-   az storage account update --name crgolden --resource-group crgolden --allow-shared-key-access false
-   az servicebus namespace update --name crgolden --resource-group crgolden --disable-local-auth true
+   az storage account update --name <storage-account> --resource-group <rg> --allow-shared-key-access false
+   az servicebus namespace update --name <sb-namespace> --resource-group <rg> --disable-local-auth true
    ```
-3. Restart the deployed app: `az functionapp restart --name crgolden-functions --resource-group crgolden`.
+3. Restart the deployed app: `az functionapp restart --name <function-app> --resource-group <rg>`.
    It uses **Managed Identity** for storage + Service Bus (`*__credential` / `*__fullyQualifiedNamespace`),
    so disabling shared-key does not affect it.
 

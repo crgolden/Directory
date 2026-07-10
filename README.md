@@ -10,6 +10,8 @@ ASP.NET Core 10 Minimal API serving a nationwide U.S. church directory, backed b
 
 Directory is a **standalone resource server**. It was extracted from the `Churches` repo: the `Church` / `Search` / `Crawling` / `Moderation` / `User` feature slices and the SQL schema now live here, while `Churches` is an Angular SSR app + Node (Express) BFF that proxies to this API.
 
+The end-to-end platform architecture — how this API, the Churches UI/BFF, and the Functions data pipeline fit together (queue cascade, single-writer invariant, corrections lifecycle, Azure hosting/RBAC) — is documented in [Churches/ARCHITECTURE.md](https://github.com/crgolden/Churches/blob/main/ARCHITECTURE.md). This README is the API-level reference.
+
 | Repo | Role | How Directory interacts |
 |---|---|---|
 | [Identity](https://github.com/crgolden/Identity) | OIDC Identity Provider | Issues the access tokens Directory validates (scope `directory`); the `churches.mod` claim authorizes moderators |
@@ -69,7 +71,7 @@ The schema is owned by `Directory.Data` (SQL Database Project). Core tables:
 | `UserCorrections` | Submitted corrections awaiting moderation |
 | `MergeAuditLog` | Audit trail for church merges |
 
-`Functions/fn_HaversineDistance` powers radius search. `ConfidenceScoreCalculator` (in `Directory/Services/`) derives each church's confidence score from its populated attributes.
+`Functions/fn_HaversineDistance` powers radius search. Each church's `ConfidenceScore` is computed by the processing pipeline: `ConfidenceScoreCalculator` lives in the [Functions](https://github.com/crgolden/Functions) repo and runs when `ConfidenceWorker` consumes a `confidence-requests` message after every pipeline write.
 
 ## Configuration
 
