@@ -28,7 +28,7 @@ The end-to-end platform architecture — how this API, the Churches UI/BFF, and 
 - **OpenAPI** (`Microsoft.AspNetCore.OpenApi`) — contract at `/openapi/v1.json`
 - **Azure** — Key Vault (secrets), Blob Storage (data protection keys)
 - **OpenTelemetry** → Grafana Alloy (OTLP traces & metrics)
-- **Serilog** → Elasticsearch (`logs-dotnet-Directory` data stream)
+- **Serilog** → Elasticsearch (`logs-app-Directory` data stream)
 
 ## API Endpoints
 
