@@ -3,7 +3,6 @@ using System.Data.Common;
 using System.Diagnostics;
 using System.Security.Claims;
 using Azure.Identity;
-using Azure.Security.KeyVault.Secrets;
 using Directory.Admin;
 using Directory.Campuses;
 using Directory.Church;
@@ -43,20 +42,17 @@ try
         var tokenCredential = new DefaultAzureCredential(defaultAzureCredentialOptions);
         Uri blobUri = builder.Configuration.GetRequired<Uri>("BlobUri"),
             dataProtectionKeyIdentifier = builder.Configuration.GetRequired<Uri>("DataProtectionKeyIdentifier"),
-            elasticsearchNode = builder.Configuration.GetRequired<Uri>("ElasticsearchNode"),
-            keyVaultUrl = builder.Configuration.GetRequired<Uri>("KeyVaultUri");
+            elasticsearchNode = builder.Configuration.GetRequired<Uri>("ElasticsearchNode");
         string applicationName = builder.Configuration.GetRequired<string>("WEBSITE_SITE_NAME"),
             serviceBusNamespace = builder.Configuration.GetRequired<string>("ServiceBusNamespace");
-        var secretClient = new SecretClient(keyVaultUrl, tokenCredential);
-        var secrets = secretClient.GetDirectorySecrets();
-        sqlConnectionStringBuilder.UserID = secrets.SqlServerUserId.Value;
-        sqlConnectionStringBuilder.Password = secrets.SqlServerPassword.Value;
         builder.Services.Configure<AspNetCoreTraceInstrumentationOptions>(options => options.Filter = context => !context.Request.Path.StartsWithSegments("/health", StringComparison.OrdinalIgnoreCase));
         builder.Logging.AddOpenTelemetry(openTelemetryLoggerOptions =>
         {
             openTelemetryLoggerOptions.IncludeFormattedMessage = true;
             openTelemetryLoggerOptions.IncludeScopes = true;
         });
+        var elasticsearchUsername = builder.Configuration.GetRequired<string>("ElasticsearchUsername");
+        var elasticsearchPassword = builder.Configuration.GetRequired<string>("ElasticsearchPassword");
         builder.Services
             .AddSerilog((serviceProvider, loggerConfiguration) => loggerConfiguration
                 .ReadFrom.Configuration(builder.Configuration)
@@ -77,7 +73,7 @@ try
                     },
                     transportConfiguration =>
                     {
-                        var header = new BasicAuthentication(secrets.ElasticsearchUsername.Value, secrets.ElasticsearchPassword.Value);
+                        var header = new BasicAuthentication(elasticsearchUsername, elasticsearchPassword);
                         transportConfiguration.Authentication(header);
                     }))
             .AddOpenTelemetry()

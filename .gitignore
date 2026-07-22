@@ -7,6 +7,10 @@
 .claude/
 .playwright-cli/
 
+# SonarCloud/SonarQube scanner working directories
+.scannerwork/
+.sonarqube/
+
 # Playwright
 experience.client/playwright-report/
 experience.client/test-results/

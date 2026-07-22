@@ -88,7 +88,6 @@ In production these are sourced from Azure Key Vault and App Service configurati
 | `ElasticsearchNode` | Config | Elasticsearch node URL |
 | `ElasticsearchUsername` | Key Vault secret | Elasticsearch username |
 | `ElasticsearchPassword` | Key Vault secret | Elasticsearch password |
-| `KeyVaultUri` | Config | Azure Key Vault URI (production) |
 | `BlobUri` | Config | Azure Blob Storage URL for data protection keys (production) |
 | `DataProtectionKeyIdentifier` | Config | Azure Key Vault key URI for data protection (production) |
 
