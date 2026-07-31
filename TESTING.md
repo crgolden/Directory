@@ -7,7 +7,7 @@ which drive the real `Program.cs` pipeline through `DirectoryWebApplicationFacto
 schema deployed via `SqlPackage` in CI).
 
 Unit test coding standards (MockBehavior.Strict, argument verification, SetupSequence, no control-flow in
-tests, etc.) are in the workspace-level [Unit Test Standards](../TESTING.md#unit-test-standards).
+tests, etc.) are in the workspace-level [Unit Test Standards](../AGENTS/TESTING.md#unit-test-standards).
 
 ## Test tiers
 
@@ -27,7 +27,7 @@ tests, etc.) are in the workspace-level [Unit Test Standards](../TESTING.md#unit
 ## Running Tests Locally
 
 For the `.NET 10 SDK xUnit caveat` (why `dotnet test` doesn't work) and the exe-runner flags, see the
-workspace-level [TESTING.md](../TESTING.md).
+workspace-level [TESTING.md](../AGENTS/TESTING.md).
 
 User Secrets ID: `61549613-3239-4c31-8300-39334a7c2657` (not needed for unit tests — the factory injects
 in-memory configuration).
@@ -149,4 +149,4 @@ Required coverage files: `coverage.opencover.xml` (unit, OpenCover).
 The coverage **score is read from SonarCloud, never hand-maintained** here. Build a per-method table in
 `COVERAGE-TRUTH-TABLES.md` only when SonarCloud flags a method with **cognitive complexity > 15 AND uncovered
 conditions > 0**: the table is escalation for the gnarly few, not a per-class deliverable. See
-`../DESIGN-LANGUAGE.md` and `../TESTING-COVERAGE.md`.
+`../AGENTS/DESIGN-LANGUAGE.md` and `../AGENTS/TESTING-COVERAGE.md`.
