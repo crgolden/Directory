@@ -120,13 +120,6 @@ public sealed class SearchService
         return sb.ToString();
     }
 
-    /// <summary>
-    /// Cleans a free-text search string into an AND-of-prefix-terms full-text search condition
-    /// suitable for <c>CONTAINSTABLE</c>, e.g. "University Lutheran" -&gt; <c>"University*" AND "Lutheran*"</c>.
-    /// </summary>
-    /// <param name="q">The raw user-supplied search text.</param>
-    /// <param name="terms">The cleaned, non-empty terms extracted from <paramref name="q"/>.</param>
-    /// <returns>The search condition string, or <see langword="null"/> when no usable terms remain.</returns>
     internal static string? BuildContainsCondition(string? q, out IReadOnlyList<string> terms)
     {
         var cleaned = new List<string>();

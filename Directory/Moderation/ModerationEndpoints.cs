@@ -1,4 +1,5 @@
 namespace Directory.Moderation;
+
 using System.Diagnostics.CodeAnalysis;
 
 using System.Security.Claims;

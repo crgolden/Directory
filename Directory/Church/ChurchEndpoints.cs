@@ -1,4 +1,5 @@
 namespace Directory.Church;
+
 using System.Diagnostics.CodeAnalysis;
 
 using Entities;

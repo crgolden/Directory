@@ -1,4 +1,5 @@
 namespace Directory.User;
+
 using System.Diagnostics.CodeAnalysis;
 
 using System.Security.Claims;

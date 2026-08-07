@@ -66,8 +66,6 @@ public sealed class CampusService
         return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
 
-    // Builds (and discards) a Shared.Domain.Campus purely to run its With*/Build() invariant checks
-    // before this Campus ever reaches SQL.
     private static void EnsureValid(Guid id, Guid churchId, Campus campus, DateTime createdAt, DateTime updatedAt) =>
         new Shared.Domain.CampusBuilder()
             .WithId(id)

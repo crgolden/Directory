@@ -1,4 +1,5 @@
 namespace Directory.Search;
+
 using System.Diagnostics.CodeAnalysis;
 
 using Entities;
@@ -39,9 +40,6 @@ public static class SearchEndpoints
     }
 }
 
-// Bundles the query-string-bound search filters via [AsParameters] so the route handler's own
-// parameter list stays under the lambda-parameter-count limit; DI services (SearchService,
-// CancellationToken) remain direct lambda parameters.
 public readonly record struct SearchRequest(
     string? Q,
     double? Lat,

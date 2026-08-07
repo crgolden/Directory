@@ -1,4 +1,5 @@
 namespace Directory.Denomination;
+
 using System.Diagnostics.CodeAnalysis;
 
 [ExcludeFromCodeCoverage]

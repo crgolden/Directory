@@ -1,4 +1,5 @@
 namespace Directory.Crawling;
+
 using System.Diagnostics.CodeAnalysis;
 
 [ExcludeFromCodeCoverage]

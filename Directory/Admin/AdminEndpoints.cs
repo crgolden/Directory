@@ -1,4 +1,5 @@
 namespace Directory.Admin;
+
 using System.Diagnostics.CodeAnalysis;
 
 [ExcludeFromCodeCoverage]

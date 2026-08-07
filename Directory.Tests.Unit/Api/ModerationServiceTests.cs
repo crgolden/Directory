@@ -87,15 +87,9 @@ public sealed class ModerationServiceTests
     public async Task MergeAsync_CommitsTransaction()
     {
         var conn = new FakeDbConnection();
-
-        // 2 pre-transaction existence checks (surviving, then absorbed) + 6 repoint UPDATEs
-        // + 1 soft delete + 1 audit INSERT
-        conn.Enqueue(FakeDbCommand.WithScalarResult(1));
-        conn.Enqueue(FakeDbCommand.WithScalarResult(1));
-        for (var i = 0; i < 8; i++)
-        {
-            conn.Enqueue(FakeDbCommand.WithNonQueryResult(1));
-        }
+        conn.Enqueue(SurvivingChurchExists());
+        conn.Enqueue(AbsorbedChurchExists());
+        EnqueueSuccessfulMergeWrites(conn);
 
         var service = Create(conn);
 
@@ -113,10 +107,8 @@ public sealed class ModerationServiceTests
     public async Task MergeAsync_WhenCommandThrows_RollsBackAndRethrows()
     {
         var conn = new FakeDbConnection();
-
-        // Existence checks succeed so the transaction actually begins; the first statement inside it throws.
-        conn.Enqueue(FakeDbCommand.WithScalarResult(1));
-        conn.Enqueue(FakeDbCommand.WithScalarResult(1));
+        conn.Enqueue(SurvivingChurchExists());
+        conn.Enqueue(AbsorbedChurchExists());
         conn.Enqueue(FakeDbCommand.WithException(new InvalidOperationException("boom")));
         var service = Create(conn);
 
@@ -243,6 +235,18 @@ public sealed class ModerationServiceTests
         Assert.Equal("e2e-mod-id", result.ReviewedBy);
         Assert.NotNull(result.ReviewedAt);
         Assert.Equal("First Baptist Church Austin", result.ChurchName);
+    }
+
+    private static FakeDbCommand SurvivingChurchExists() => FakeDbCommand.WithScalarResult(1);
+
+    private static FakeDbCommand AbsorbedChurchExists() => FakeDbCommand.WithScalarResult(1);
+
+    private static void EnqueueSuccessfulMergeWrites(FakeDbConnection conn)
+    {
+        for (var i = 0; i < 8; i++)
+        {
+            conn.Enqueue(FakeDbCommand.WithNonQueryResult(1));
+        }
     }
 
     private static ModerationService Create(FakeDbConnection conn, Mock<ServiceBusSender>? senderMock = null)

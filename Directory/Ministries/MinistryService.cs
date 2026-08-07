@@ -32,9 +32,6 @@ public sealed class MinistryService
 
     public async Task<bool> UpdateAsync(Guid id, string name, string? description, CancellationToken ct = default)
     {
-        // ChurchId isn't part of this UPDATE (it never changes), so the full Shared.Domain.Ministry
-        // factory (which requires it) doesn't apply here — Name is the only NOT NULL field being
-        // written, so it's the only thing that needs a guard on this path.
         if (string.IsNullOrWhiteSpace(name))
         {
             throw new ArgumentException("Name is required.", nameof(name));
@@ -63,8 +60,6 @@ public sealed class MinistryService
         return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
 
-    // Builds (and discards) a Shared.Domain.Ministry purely to run its With*/Build() invariant
-    // checks before this Ministry ever reaches SQL.
     private static void EnsureValid(Guid id, Guid churchId, string name, string? description, DateTime createdAt, DateTime updatedAt) =>
         new Shared.Domain.MinistryBuilder()
             .WithId(id)

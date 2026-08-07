@@ -9,7 +9,6 @@ using TestSupport;
 
 public sealed class AdminServiceTests
 {
-    // --- ParseCsv (pure, internal static) ---
     [Fact]
     [Trait("Category", "Unit")]
     public void ParseCsv_SingleRow_MapsAllFields()
@@ -93,7 +92,6 @@ public sealed class AdminServiceTests
         Assert.Equal("Trinity", rows[1].CanonicalName);
     }
 
-    // --- ImportCsvAsync (instance; Service Bus publish) ---
     [Fact]
     [Trait("Category", "Unit")]
     public async Task ImportCsvAsync_TwoRows_PublishesTwo()
@@ -125,7 +123,6 @@ public sealed class AdminServiceTests
         sender.Verify(s => s.SendMessageAsync(It.IsAny<ServiceBusMessage>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
-    // --- ExportCsvAsync (instance; DB read) ---
     [Fact]
     [Trait("Category", "Unit")]
     public async Task ExportCsvAsync_ConnectionClosed_OpensAndReturnsHeaderRow()

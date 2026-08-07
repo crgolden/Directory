@@ -172,9 +172,6 @@ public sealed class ChurchService
         return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
 
-    // Builds (and discards) a Shared.Domain.Church purely to run its With*/Build() invariant checks
-    // before this Church ever reaches SQL — a bad value (e.g. blank City) fails fast here with a
-    // specific ArgumentException/ArgumentOutOfRangeException instead of a raw SQL constraint violation.
     private static void EnsureValid(Church church, DateTime createdAt, DateTime updatedAt) =>
         new Shared.Domain.ChurchBuilder()
             .WithId(church.Id)

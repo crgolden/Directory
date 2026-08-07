@@ -39,9 +39,6 @@ public sealed class ScheduleService
 
     public async Task<bool> UpdateAsync(Guid id, byte dayOfWeek, TimeOnly startTime, string? description, CancellationToken ct = default)
     {
-        // ChurchId isn't part of this UPDATE (it never changes), so the full Shared.Domain.ServiceSchedule
-        // factory (which requires it) doesn't apply here — DayOfWeek's range is the field this path needs
-        // guarded (unlike CreateAsync, this had no check at all before).
         if (dayOfWeek > 6)
         {
             throw new ArgumentOutOfRangeException(nameof(dayOfWeek), dayOfWeek, "DayOfWeek must be 0 (Sunday) through 6 (Saturday).");
@@ -71,8 +68,6 @@ public sealed class ScheduleService
         return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
 
-    // Builds (and discards) a Shared.Domain.ServiceSchedule purely to run its With*/Build() invariant
-    // checks (including the DayOfWeek 0-6 range) before this ServiceSchedule ever reaches SQL.
     private static void EnsureValid(Guid id, Guid churchId, byte dayOfWeek, TimeOnly startTime, string? description, DateTime createdAt, DateTime updatedAt) =>
         new Shared.Domain.ServiceScheduleBuilder()
             .WithId(id)

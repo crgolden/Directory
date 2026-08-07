@@ -65,9 +65,7 @@ public sealed class ChurchServiceTests
     {
         var conn = new FakeDbConnection();
 
-        // Slug generation (a harmless read checking for collisions) runs before validation, so one
-        // command is expected here — the point of this test is that the actual INSERT never happens.
-        conn.Enqueue(FakeDbCommand.WithScalarResult(0));
+        conn.Enqueue(SlugFree());
         var service = new ChurchService(conn);
         var church = BuildChurch();
         church.City = string.Empty;
@@ -115,11 +113,8 @@ public sealed class ChurchServiceTests
     {
         var conn = new FakeDbConnection();
 
-        // slug existence check → 0 means slug is free
-        conn.Enqueue(FakeDbCommand.WithScalarResult(0));
-
-        // INSERT
-        conn.Enqueue(FakeDbCommand.WithNonQueryResult(1));
+        conn.Enqueue(SlugFree());
+        conn.Enqueue(InsertSucceeds());
 
         var service = new ChurchService(conn);
         var church = BuildChurch();
@@ -136,14 +131,9 @@ public sealed class ChurchServiceTests
     {
         var conn = new FakeDbConnection();
 
-        // first check: slug exists
-        conn.Enqueue(FakeDbCommand.WithScalarResult(1));
-
-        // second check: slug-2 is free
-        conn.Enqueue(FakeDbCommand.WithScalarResult(0));
-
-        // INSERT
-        conn.Enqueue(FakeDbCommand.WithNonQueryResult(1));
+        conn.Enqueue(SlugExists());
+        conn.Enqueue(SlugFree());
+        conn.Enqueue(InsertSucceeds());
 
         var service = new ChurchService(conn);
         var church = BuildChurch();
@@ -213,8 +203,8 @@ public sealed class ChurchServiceTests
         var churchTable = BuildChurchTable(includeTotalCount: false);
         churchTable.Rows.Add(PopulatedRow(totalCount: null));
         var conn = new FakeDbConnection();
-        conn.Enqueue(FakeDbCommand.WithReader(churchTable)); // church query
-        conn.Enqueue(FakeDbCommand.WithReader(SchedulesTable())); // schedules query
+        conn.Enqueue(FakeDbCommand.WithReader(churchTable));
+        conn.Enqueue(FakeDbCommand.WithReader(SchedulesTable()));
         var service = new ChurchService(conn);
 
         var result = await service.GetBySlugAsync("grace-church", TestContext.Current.CancellationToken);
@@ -233,9 +223,9 @@ public sealed class ChurchServiceTests
         var churchTable = BuildChurchTable(includeTotalCount: false);
         churchTable.Rows.Add(PopulatedRow(totalCount: null));
         var conn = new FakeDbConnection();
-        conn.Enqueue(FakeDbCommand.WithReader(churchTable));     // church query
-        conn.Enqueue(FakeDbCommand.WithReader(new DataTable())); // schedules query (none)
-        conn.Enqueue(FakeDbCommand.WithReader(MinistriesTable())); // ministries query
+        conn.Enqueue(FakeDbCommand.WithReader(churchTable));
+        conn.Enqueue(FakeDbCommand.WithReader(new DataTable()));
+        conn.Enqueue(FakeDbCommand.WithReader(MinistriesTable()));
 
         var service = new ChurchService(conn);
 
@@ -254,10 +244,10 @@ public sealed class ChurchServiceTests
         var churchTable = BuildChurchTable(includeTotalCount: false);
         churchTable.Rows.Add(PopulatedRow(totalCount: null));
         var conn = new FakeDbConnection();
-        conn.Enqueue(FakeDbCommand.WithReader(churchTable));     // church query
-        conn.Enqueue(FakeDbCommand.WithReader(new DataTable())); // schedules query (none)
-        conn.Enqueue(FakeDbCommand.WithReader(new DataTable())); // ministries query (none)
-        conn.Enqueue(FakeDbCommand.WithReader(CampusesTable())); // campuses query
+        conn.Enqueue(FakeDbCommand.WithReader(churchTable));
+        conn.Enqueue(FakeDbCommand.WithReader(new DataTable()));
+        conn.Enqueue(FakeDbCommand.WithReader(new DataTable()));
+        conn.Enqueue(FakeDbCommand.WithReader(CampusesTable()));
 
         var service = new ChurchService(conn);
 
@@ -335,8 +325,8 @@ public sealed class ChurchServiceTests
     public async Task CreateAsync_FullyPopulatedChurch_BindsOptionalValues()
     {
         var conn = new FakeDbConnection();
-        conn.Enqueue(FakeDbCommand.WithScalarResult(0)); // slug free
-        conn.Enqueue(FakeDbCommand.WithNonQueryResult(1)); // insert
+        conn.Enqueue(SlugFree());
+        conn.Enqueue(InsertSucceeds());
         var service = new ChurchService(conn);
         var church = BuildChurch();
         church.Street = "123 Main";
@@ -358,6 +348,12 @@ public sealed class ChurchServiceTests
         Assert.NotEqual(DBNull.Value, insert.Parameters["@DenominationId"].Value);
         Assert.NotEqual(DBNull.Value, insert.Parameters["@LastVerifiedAt"].Value);
     }
+
+    private static FakeDbCommand SlugFree() => FakeDbCommand.WithScalarResult(0);
+
+    private static FakeDbCommand SlugExists() => FakeDbCommand.WithScalarResult(1);
+
+    private static FakeDbCommand InsertSucceeds() => FakeDbCommand.WithNonQueryResult(1);
 
     private static Church BuildChurch() => new Church
     {

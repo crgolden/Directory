@@ -142,7 +142,6 @@ public sealed class SearchServiceTests
         Assert.Contains("c.[WorshipStyle] = @WorshipStyle", sql, StringComparison.Ordinal);
     }
 
-    // --- Schedule filter tests (Gap 5) ---
     [Fact]
     [Trait("Category", "Unit")]
     public void BuildQuery_DayOfWeekSet_AddsScheduleJoin()
@@ -311,7 +310,6 @@ public sealed class SearchServiceTests
         Assert.Null(result.Church.AcceptsLGBTQ);
     }
 
-    // --- BuildContainsCondition tests ---
     [Fact]
     [Trait("Category", "Unit")]
     public void BuildContainsCondition_MultipleWords_BuildsAndOfPrefixTerms()
@@ -353,7 +351,6 @@ public sealed class SearchServiceTests
         Assert.Equal(["O'Brien"], terms);
     }
 
-    // --- ORDER BY / sort mode tests ---
     [Fact]
     [Trait("Category", "Unit")]
     public void BuildQuery_RelevanceSortWithKeyword_UsesRankOrdering()

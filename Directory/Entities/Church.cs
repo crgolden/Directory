@@ -52,7 +52,6 @@ public sealed class Church
 
     public bool IsActive { get; set; } = true;
 
-    // Populated on the church-detail read; empty on list responses.
     public IReadOnlyList<ServiceSchedule> Schedules { get; set; } = [];
 
     public IReadOnlyList<Ministry> Ministries { get; set; } = [];
