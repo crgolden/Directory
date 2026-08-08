@@ -13,7 +13,6 @@ on:
 
 jobs:
   build:
-    if: github.actor != 'dependabot[bot]'
     name: Build and analyze
     runs-on: windows-latest
     permissions:
@@ -22,6 +21,7 @@ jobs:
 
     steps:
       - name: Set up JDK 21
+        if: github.actor != 'dependabot[bot]'
         uses: actions/setup-java@v5
         with:
           java-version: 21
@@ -35,10 +35,11 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json', '**/*.csproj') }}
           restore-keys: ${{ runner.os }}-nuget-
 
       - name: Cache SonarQube Cloud packages
+        if: github.actor != 'dependabot[bot]'
         uses: actions/cache@v5
         with:
           path: ~\sonar\cache
@@ -47,6 +48,7 @@ jobs:
 
       - name: Cache SonarQube Cloud scanner
         id: cache-sonar-scanner
+        if: github.actor != 'dependabot[bot]'
         uses: actions/cache@v5
         with:
           path: ${{ runner.temp }}\scanner
@@ -54,7 +56,7 @@ jobs:
           restore-keys: ${{ runner.os }}-sonar-scanner
 
       - name: Install SonarQube Cloud scanner
-        if: steps.cache-sonar-scanner.outputs.cache-hit != 'true'
+        if: steps.cache-sonar-scanner.outputs.cache-hit != 'true' && github.actor != 'dependabot[bot]'
         shell: powershell
         run: |
           New-Item -Path ${{ runner.temp }}\scanner -ItemType Directory
@@ -80,6 +82,7 @@ jobs:
         run: dotnet tool restore
 
       - name: Begin Sonar analysis
+        if: github.actor != 'dependabot[bot]'
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
@@ -100,7 +103,7 @@ jobs:
       - name: Build with dotnet
         env:
           NuGetPackageSourceCredentials_GitHub: Username=${{ github.actor }};Password=${{ secrets.PACKAGES_READ_TOKEN }}
-        run: dotnet build --no-incremental --configuration Release
+        run: dotnet build --no-incremental --configuration Release /p:RestoreLockedMode=true
 
       - name: Run unit tests with coverage
         run: |
@@ -116,9 +119,11 @@ jobs:
             --include "[Directory]*"
 
       - name: Install SqlPackage
+        if: github.actor != 'dependabot[bot]'
         run: dotnet tool install --global microsoft.sqlpackage
 
       - name: Deploy E2E test database schema
+        if: github.actor != 'dependabot[bot]'
         env:
           DB_SERVER: ${{ vars.DB_SERVER }}
           DB_USERID: ${{ secrets.DB_USERID }}
@@ -130,6 +135,7 @@ jobs:
           sqlpackage /Action:Publish /SourceFile:Directory.Data/bin/Release/Directory.Data.dacpac /TargetConnectionString:"$connStr"
 
       - name: Run E2E tests with coverage
+        if: github.actor != 'dependabot[bot]'
         env:
           ASPNETCORE_ENVIRONMENT: CI
           OidcAuthority: ${{ vars.OIDC_AUTHORITY }}
@@ -174,6 +180,7 @@ jobs:
           path: Directory.Data/bin/Release/Directory.Data.dacpac
 
       - name: End Sonar analysis
+        if: github.actor != 'dependabot[bot]'
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         shell: powershell
@@ -183,6 +190,7 @@ jobs:
   deploy:
     runs-on: windows-latest
     needs: build
+    if: github.event_name != 'pull_request'
     permissions:
       id-token: write #This is required for requesting the JWT
       contents: read #This is required for actions/checkout
