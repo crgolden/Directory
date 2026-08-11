@@ -36,7 +36,7 @@ public sealed class AdminServiceTests
     [Trait("Category", "Unit")]
     public void ParseCsv_MissingNameColumn_SkipsRow()
     {
-        // Arrange — name blank → row skipped
+        // Arrange
         const string csv = "CanonicalName,State\n,AZ";
 
         // Act
@@ -127,7 +127,7 @@ public sealed class AdminServiceTests
     [Trait("Category", "Unit")]
     public async Task ExportCsvAsync_ConnectionClosed_OpensAndReturnsHeaderRow()
     {
-        // Arrange — empty table (no data rows)
+        // Arrange
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithReader(new DataTable()));
         var (service, _) = BuildService(conn);
@@ -135,7 +135,7 @@ public sealed class AdminServiceTests
         // Act
         var csv = await service.ExportCsvAsync(TestContext.Current.CancellationToken);
 
-        // Assert — connection was opened; header row present
+        // Assert
         Assert.Equal(System.Data.ConnectionState.Open, conn.State);
         Assert.StartsWith("Id,CanonicalName", csv, StringComparison.Ordinal);
     }
@@ -156,7 +156,7 @@ public sealed class AdminServiceTests
         var csv = await service.ExportCsvAsync(TestContext.Current.CancellationToken);
         var lines = csv.Split('\n', StringSplitOptions.RemoveEmptyEntries);
 
-        // Assert — header + 2 data rows
+        // Assert
         Assert.Equal(3, lines.Length);
         Assert.Contains("Grace Church", lines[1], StringComparison.Ordinal);
         Assert.Contains("Trinity", lines[2], StringComparison.Ordinal);
@@ -166,7 +166,7 @@ public sealed class AdminServiceTests
     [Trait("Category", "Unit")]
     public async Task ExportCsvAsync_ContentTypeHeader_IsTextCsvInSqlCommand()
     {
-        // Arrange — verify ORDER BY clause is present
+        // Arrange
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithReader(new DataTable()));
         var (service, _) = BuildService(conn);
@@ -174,7 +174,7 @@ public sealed class AdminServiceTests
         // Act
         await service.ExportCsvAsync(TestContext.Current.CancellationToken);
 
-        // Assert — ORDER BY in generated SQL
+        // Assert
         var cmd = Assert.Single(conn.ExecutedCommands);
         Assert.Contains("ORDER BY [State] ASC, [CanonicalName] ASC", cmd.CommandText, StringComparison.Ordinal);
     }

@@ -10,7 +10,7 @@ public sealed class DenominationServiceTests
     [Trait("Category", "Unit")]
     public async Task GetAllAsync_ConnectionClosed_OpensAndReturnsRows()
     {
-        // Arrange — reader returns two denominations; connection starts Closed
+        // Arrange
         var table = new DataTable();
         table.Columns.Add("Id", typeof(Guid));
         table.Columns.Add("Name", typeof(string));
@@ -26,7 +26,7 @@ public sealed class DenominationServiceTests
         // Act
         var result = await service.GetAllAsync(TestContext.Current.CancellationToken);
 
-        // Assert — connection opened; two rows returned in order
+        // Assert
         Assert.Equal(System.Data.ConnectionState.Open, conn.State);
         Assert.Equal(2, result.Count);
         Assert.Equal("Baptist", result[0].Name);
@@ -39,7 +39,7 @@ public sealed class DenominationServiceTests
     [Trait("Category", "Unit")]
     public async Task GetAllAsync_ConnectionAlreadyOpen_DoesNotReopenOrFail()
     {
-        // Arrange — connection already Open; reader has one row
+        // Arrange
         var table = new DataTable();
         table.Columns.Add("Id", typeof(Guid));
         table.Columns.Add("Name", typeof(string));
@@ -82,7 +82,7 @@ public sealed class DenominationServiceTests
     [Trait("Category", "Unit")]
     public async Task GetAllAsync_OrdersByNameAscending()
     {
-        // Arrange — DataTable rows in reverse order; the ORDER BY is in SQL so our reader reflects that order
+        // Arrange
         var table = new DataTable();
         table.Columns.Add("Id", typeof(Guid));
         table.Columns.Add("Name", typeof(string));
@@ -97,7 +97,7 @@ public sealed class DenominationServiceTests
         // Act
         var result = await service.GetAllAsync(TestContext.Current.CancellationToken);
 
-        // Assert — the service returns whatever order the DB gives; ORDER BY is verified in the SQL text
+        // Assert
         Assert.Equal(3, result.Count);
         var cmd = Assert.Single(conn.ExecutedCommands);
         Assert.Contains("ORDER BY [Name] ASC", cmd.CommandText, StringComparison.Ordinal);

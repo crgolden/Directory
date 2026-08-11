@@ -146,13 +146,13 @@ public sealed class SearchServiceTests
     [Trait("Category", "Unit")]
     public void BuildQuery_DayOfWeekSet_AddsScheduleJoin()
     {
-        // Arrange — only dayOfWeek provided (no time range)
+        // Arrange
         var query = new SearchQuery(null, null, null, null, null, null, null, null, 0, null, null, 1, 10);
 
         // Act
         var sql = SearchService.BuildQuery(query, out _);
 
-        // Assert — EXISTS subquery with DayOfWeek filter
+        // Assert
         Assert.Contains("[ServiceSchedules]", sql, StringComparison.Ordinal);
         Assert.Contains("ss.[DayOfWeek] = @DayOfWeek", sql, StringComparison.Ordinal);
         Assert.DoesNotContain("@StartTimeAfter", sql, StringComparison.Ordinal);
@@ -195,13 +195,13 @@ public sealed class SearchServiceTests
     [Trait("Category", "Unit")]
     public void BuildQuery_AllScheduleFiltersSet_AddsAllConditions()
     {
-        // Arrange — Sunday (0) with time window 9:00–12:00
+        // Arrange
         var query = new SearchQuery(null, null, null, null, null, null, null, null, 0, new TimeOnly(12, 0), new TimeOnly(9, 0), 1, 10);
 
         // Act
         var sql = SearchService.BuildQuery(query, out _);
 
-        // Assert — all three conditions present within the EXISTS clause
+        // Assert
         Assert.Contains("ss.[DayOfWeek] = @DayOfWeek", sql, StringComparison.Ordinal);
         Assert.Contains("ss.[StartTime] >= @StartTimeAfter", sql, StringComparison.Ordinal);
         Assert.Contains("ss.[StartTime] <= @StartTimeBefore", sql, StringComparison.Ordinal);
@@ -217,7 +217,7 @@ public sealed class SearchServiceTests
         // Act
         var sql = SearchService.BuildQuery(query, out _);
 
-        // Assert — no EXISTS subquery
+        // Assert
         Assert.DoesNotContain("[ServiceSchedules]", sql, StringComparison.Ordinal);
     }
 
@@ -232,7 +232,7 @@ public sealed class SearchServiceTests
         // Act
         SearchService.BindParams(cmd, query);
 
-        // Assert — all three schedule params bound; @StartTimeAfter > @StartTimeBefore as TimeSpan
+        // Assert
         Assert.True(cmd.Parameters.Contains("@DayOfWeek"));
         Assert.True(cmd.Parameters.Contains("@StartTimeAfter"));
         Assert.True(cmd.Parameters.Contains("@StartTimeBefore"));
