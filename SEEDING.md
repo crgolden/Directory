@@ -85,21 +85,21 @@ This requires temporary, **uncommitted** changes that MUST be reverted afterward
 
 1. `Functions/local.settings.json`:
    - `SqlConnectionStringBuilder__*` → the production SQL host + SQL-auth login instead of localhost/IntegratedSecurity.
-   - `AzureWebJobsStorage` → the production storage account's connection string (not `UseDevelopmentStorage=true`; use the real account rather than running Azurite).
-   - `ServiceBusConnection` / `StorageConnectionString` → shared-key connection strings.
 2. `Functions/host.json`: a `"functions": [ ... ]` allow-list naming only the seed-pipeline functions
    (`BulkImportJob`, `GeocoderWorker`, `CalculateConfidenceScore`, `ReGeocodeJob`) to quiesce the
    scraper/extractor/enrichment/email/timer functions locally.
-3. Enable shared-key access on the locked-down prod resources (normally disabled):
-   ```powershell
-   az storage account update --name <storage-account> --resource-group <rg> --allow-shared-key-access true
-   az servicebus namespace update --name <sb-namespace> --resource-group <rg> --disable-local-auth false
-   ```
+
+Service Bus and storage need no temporary change. Both resources refuse shared keys, and the local host
+authenticates to both as the developer's `az login` — see [AGENTS/Functions.md](../AGENTS/Functions.md).
+Set `AzureFunctionsWebHost__hostid` to something local-only so the host does not take the deployed app's
+blob singleton leases.
 
 ### Run
 
+Blob uploads authenticate as the signed-in `az` identity, which needs **Storage Blob Data Contributor**
+(or Owner) on the account — subscription Owner alone is a control-plane role and does not grant it.
+
 ```powershell
-$env:SEED_STORAGE_KEY = (az storage account keys list --account-name <storage-account> --query "[0].value" -o tsv)
 # 1-3: acquire + pre-geocode data (skip if data/ already populated)
 Tools/Seeding/Get-IrsChurchData.ps1
 Tools/Seeding/Get-OsmChurchData.ps1
@@ -117,14 +117,10 @@ az servicebus queue show --namespace-name <sb-namespace> --resource-group <rg> -
   --query "countDetails.{active:activeMessageCount, dead:deadLetterMessageCount}" -o json
 ```
 
-### Teardown (re-lock — do this when seeding is verified)
+### Teardown
 
-1. Revert the `local.settings.json` and `host.json` temp changes.
-2. Re-disable shared-key access (return to the normal locked-down state):
-   ```powershell
-   az storage account update --name <storage-account> --resource-group <rg> --allow-shared-key-access false
-   az servicebus namespace update --name <sb-namespace> --resource-group <rg> --disable-local-auth true
-   ```
+Revert the `local.settings.json` and `host.json` temp changes. Nothing needs re-locking — the seed never
+unlocks Service Bus or storage.
 3. Restart the deployed app: `az functionapp restart --name <function-app> --resource-group <rg>`.
    It uses **Managed Identity** for storage + Service Bus (`*__credential` / `*__fullyQualifiedNamespace`),
    so disabling shared-key does not affect it.
