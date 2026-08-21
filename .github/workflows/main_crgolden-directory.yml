@@ -214,7 +214,7 @@ jobs:
           restore-keys: ${{ runner.os }}-dotnet-tools-
 
       - name: Login to Azure
-        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5  # v2
+        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca  # v3.0.1
         with:
           client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_01DB8FAB8DFE49AD906830AE61E70B7C }}
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_304DD3C041DD43D7A26FB1B92DD52877 }}
@@ -235,7 +235,7 @@ jobs:
 
       - name: Deploy to Azure Web App
         id: deploy-to-webapp
-        uses: azure/webapps-deploy@84a80cfe7e9889f35148ed88c307e6e93bf02578  # v3
+        uses: azure/webapps-deploy@02a81bead70021f5284939794bcec79c271ab383  # v3.0.8
         with:
           app-name: 'crgolden-directory'
           slot-name: 'Production'
