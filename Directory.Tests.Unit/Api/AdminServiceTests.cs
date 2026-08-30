@@ -1,20 +1,38 @@
 namespace Directory.Tests.Unit.Api;
 
 using System.Data;
+using System.Globalization;
 using Admin;
 using Azure.Messaging.ServiceBus;
+using Messaging;
 using Microsoft.Extensions.Azure;
 using Moq;
 using TestSupport;
 
 public sealed class AdminServiceTests
 {
+    private const string FullCsvHeader = "CanonicalName,Street,City,State,Zip,PhoneNumber,Website,EmailAddress";
+
+    private const string MinimalCsvHeader = "CanonicalName,State";
+
+    private const string ExportCsvHeaderPrefix = "Id,CanonicalName";
+
+    private static readonly CultureInfo CommaDecimalDottedDateCulture = CultureInfo.GetCultureInfo("de-DE");
+
     [Fact]
     [Trait("Category", "Unit")]
     public void ParseCsv_SingleRow_MapsAllFields()
     {
         // Arrange
-        const string csv = "CanonicalName,Street,City,State,Zip,PhoneNumber,Website,EmailAddress\nGrace Church,123 Main St,Phoenix,AZ,85001,602-555-1212,https://grace.example,info@grace.example";
+        var canonicalName = TestValues.NewName();
+        var street = TestValues.NewStreet();
+        var city = TestValues.NewCity();
+        var state = TestValues.NewStateCode();
+        var zip = TestValues.NewZip();
+        var phoneNumber = TestValues.NewPhoneNumber();
+        var website = TestValues.NewWebsite();
+        var emailAddress = TestValues.NewEmailAddress();
+        var csv = $"{FullCsvHeader}\n{canonicalName},{street},{city},{state},{zip},{phoneNumber},{website},{emailAddress}";
 
         // Act
         var rows = AdminService.ParseCsv(csv).ToList();
@@ -22,14 +40,14 @@ public sealed class AdminServiceTests
         // Assert
         Assert.Single(rows);
         var r = rows[0];
-        Assert.Equal("Grace Church", r.CanonicalName);
-        Assert.Equal("123 Main St", r.Street);
-        Assert.Equal("Phoenix", r.City);
-        Assert.Equal("AZ", r.State);
-        Assert.Equal("85001", r.Zip);
-        Assert.Equal("602-555-1212", r.PhoneNumber);
-        Assert.Equal("https://grace.example", r.Website);
-        Assert.Equal("info@grace.example", r.EmailAddress);
+        Assert.Equal(canonicalName, r.CanonicalName);
+        Assert.Equal(street, r.Street);
+        Assert.Equal(city, r.City);
+        Assert.Equal(state, r.State);
+        Assert.Equal(zip, r.Zip);
+        Assert.Equal(phoneNumber, r.PhoneNumber);
+        Assert.Equal(website, r.Website);
+        Assert.Equal(emailAddress, r.EmailAddress);
     }
 
     [Fact]
@@ -37,7 +55,8 @@ public sealed class AdminServiceTests
     public void ParseCsv_MissingNameColumn_SkipsRow()
     {
         // Arrange
-        const string csv = "CanonicalName,State\n,AZ";
+        var state = TestValues.NewStateCode();
+        var csv = $"{MinimalCsvHeader}\n,{state}";
 
         // Act
         var rows = AdminService.ParseCsv(csv).ToList();
@@ -51,7 +70,8 @@ public sealed class AdminServiceTests
     public void ParseCsv_MissingStateColumn_SkipsRow()
     {
         // Arrange
-        const string csv = "CanonicalName,State\nGrace Church,";
+        var canonicalName = TestValues.NewName();
+        var csv = $"{MinimalCsvHeader}\n{canonicalName},";
 
         // Act
         var rows = AdminService.ParseCsv(csv).ToList();
@@ -73,7 +93,7 @@ public sealed class AdminServiceTests
     public void ParseCsv_HeaderOnly_YieldsNothing()
     {
         // Act
-        Assert.Empty(AdminService.ParseCsv("CanonicalName,State"));
+        Assert.Empty(AdminService.ParseCsv(MinimalCsvHeader));
     }
 
     [Fact]
@@ -81,15 +101,17 @@ public sealed class AdminServiceTests
     public void ParseCsv_MultipleRows_ParsesAll()
     {
         // Arrange
-        const string csv = "CanonicalName,State\nGrace Church,AZ\nTrinity,CO";
+        var firstChurchName = TestValues.NewName();
+        var secondChurchName = TestValues.NewName();
+        var csv = BuildTwoRowCsv(firstChurchName, secondChurchName);
 
         // Act
         var rows = AdminService.ParseCsv(csv).ToList();
 
         // Assert
         Assert.Equal(2, rows.Count);
-        Assert.Equal("Grace Church", rows[0].CanonicalName);
-        Assert.Equal("Trinity", rows[1].CanonicalName);
+        Assert.Equal(firstChurchName, rows[0].CanonicalName);
+        Assert.Equal(secondChurchName, rows[1].CanonicalName);
     }
 
     [Fact]
@@ -97,7 +119,9 @@ public sealed class AdminServiceTests
     public async Task ImportCsvAsync_TwoRows_PublishesTwo()
     {
         // Arrange
-        const string csv = "CanonicalName,State\nGrace Church,AZ\nTrinity,CO";
+        var firstChurchName = TestValues.NewName();
+        var secondChurchName = TestValues.NewName();
+        var csv = BuildTwoRowCsv(firstChurchName, secondChurchName);
         var (service, sender) = BuildService(new FakeDbConnection());
 
         // Act
@@ -137,7 +161,7 @@ public sealed class AdminServiceTests
 
         // Assert
         Assert.Equal(System.Data.ConnectionState.Open, conn.State);
-        Assert.StartsWith("Id,CanonicalName", csv, StringComparison.Ordinal);
+        Assert.StartsWith(ExportCsvHeaderPrefix, csv, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -145,9 +169,11 @@ public sealed class AdminServiceTests
     public async Task ExportCsvAsync_HasRows_RowCountMatchesDataTable()
     {
         // Arrange
+        var firstChurchName = TestValues.NewName();
+        var secondChurchName = TestValues.NewName();
         var table = BuildExportTable();
-        table.Rows.Add(ExportRow("Grace Church"));
-        table.Rows.Add(ExportRow("Trinity"));
+        table.Rows.Add(ExportRow(firstChurchName));
+        table.Rows.Add(ExportRow(secondChurchName));
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithReader(table));
         var (service, _) = BuildService(conn);
@@ -158,13 +184,13 @@ public sealed class AdminServiceTests
 
         // Assert
         Assert.Equal(3, lines.Length);
-        Assert.Contains("Grace Church", lines[1], StringComparison.Ordinal);
-        Assert.Contains("Trinity", lines[2], StringComparison.Ordinal);
+        Assert.Contains(firstChurchName, lines[1], StringComparison.Ordinal);
+        Assert.Contains(secondChurchName, lines[2], StringComparison.Ordinal);
     }
 
     [Fact]
     [Trait("Category", "Unit")]
-    public async Task ExportCsvAsync_ContentTypeHeader_IsTextCsvInSqlCommand()
+    public async Task ExportCsvAsync_OrdersByStateThenCanonicalName()
     {
         // Arrange
         var conn = new FakeDbConnection();
@@ -179,6 +205,65 @@ public sealed class AdminServiceTests
         Assert.Contains("ORDER BY [State] ASC, [CanonicalName] ASC", cmd.CommandText, StringComparison.Ordinal);
     }
 
+    [Fact]
+    [Trait("Category", "Unit")]
+    public async Task ExportCsvAsync_ServerCultureIsNotInvariant_FormatsNumbersAndTimestampsInvariantly()
+    {
+        // Arrange
+        var churchName = TestValues.NewName();
+        var confidenceScore = TestValues.NewConfidenceScore();
+        var createdAt = TestValues.NewUtcTimestamp();
+        var updatedAt = TestValues.NewUtcTimestamp();
+        var exportRow = ExportRow(churchName, confidenceScore, createdAt, updatedAt);
+
+        // Act
+        var csv = await ExportCsvUnderCultureAsync(CommaDecimalDottedDateCulture, exportRow);
+
+        // Assert
+        Assert.NotEqual(
+            updatedAt.ToString(CultureInfo.InvariantCulture),
+            updatedAt.ToString(CommaDecimalDottedDateCulture));
+        Assert.Contains(
+            confidenceScore.ToString(CultureInfo.InvariantCulture),
+            csv,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            createdAt.ToString(CultureInfo.InvariantCulture),
+            csv,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            updatedAt.ToString(CultureInfo.InvariantCulture),
+            csv,
+            StringComparison.Ordinal);
+    }
+
+    private static async Task<string> ExportCsvUnderCultureAsync(CultureInfo culture, object[] exportRow)
+    {
+        var table = BuildExportTable();
+        table.Rows.Add(exportRow);
+        var conn = new FakeDbConnection();
+        conn.Enqueue(FakeDbCommand.WithReader(table));
+        var (service, _) = BuildService(conn);
+
+        var originalCulture = CultureInfo.CurrentCulture;
+        CultureInfo.CurrentCulture = culture;
+        try
+        {
+            return await service.ExportCsvAsync(TestContext.Current.CancellationToken);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = originalCulture;
+        }
+    }
+
+    private static string BuildTwoRowCsv(string firstChurchName, string secondChurchName)
+    {
+        var firstState = TestValues.NewStateCode();
+        var secondState = TestValues.NewStateCode();
+        return $"{MinimalCsvHeader}\n{firstChurchName},{firstState}\n{secondChurchName},{secondState}";
+    }
+
     private static (AdminService Service, Mock<ServiceBusSender> Sender) BuildService(FakeDbConnection connection)
     {
         var sender = new Mock<ServiceBusSender>(MockBehavior.Strict);
@@ -186,10 +271,10 @@ public sealed class AdminServiceTests
         sender.Setup(s => s.DisposeAsync()).Returns(ValueTask.CompletedTask);
 
         var busClient = new Mock<ServiceBusClient>(MockBehavior.Strict);
-        busClient.Setup(c => c.CreateSender("geocoding-requests")).Returns(sender.Object);
+        busClient.Setup(c => c.CreateSender(ServiceBusNames.GeocodingRequests)).Returns(sender.Object);
 
         var busFactory = new Mock<IAzureClientFactory<ServiceBusClient>>(MockBehavior.Strict);
-        busFactory.Setup(f => f.CreateClient("crgolden")).Returns(busClient.Object);
+        busFactory.Setup(f => f.CreateClient(ServiceBusNames.Client)).Returns(busClient.Object);
 
         return (new AdminService(connection, busFactory.Object), sender);
     }
@@ -214,15 +299,37 @@ public sealed class AdminServiceTests
         t.Columns.Add("HasNursery", typeof(bool));
         t.Columns.Add("HasYouthProgram", typeof(bool));
         t.Columns.Add("ConfidenceScore", typeof(decimal));
-        t.Columns.Add("CreatedAt", typeof(DateTime));
-        t.Columns.Add("UpdatedAt", typeof(DateTime));
+        t.Columns.Add("CreatedAt", typeof(DateTimeOffset));
+        t.Columns.Add("UpdatedAt", typeof(DateTimeOffset));
         return t;
     }
 
-    private static object[] ExportRow(string name) =>
-    [
-        Guid.NewGuid(), name, "slug", "123 Main", "Phoenix", "AZ", "85001",
-        DBNull.Value, DBNull.Value, DBNull.Value, 1, "English",
-        true, false, true, false, 0.9m, DateTime.UtcNow, DateTime.UtcNow,
-    ];
+    private static object[] ExportRow(string canonicalName) =>
+        ExportRow(
+            canonicalName,
+            TestValues.NewConfidenceScore(),
+            TestValues.NewUtcTimestamp(),
+            TestValues.NewUtcTimestamp());
+
+    private static object[] ExportRow(
+        string canonicalName,
+        decimal confidenceScore,
+        DateTimeOffset createdAt,
+        DateTimeOffset updatedAt)
+    {
+        var churchId = Guid.NewGuid();
+        var slug = TestValues.NewSlug();
+        var street = TestValues.NewStreet();
+        var city = TestValues.NewCity();
+        var state = TestValues.NewStateCode();
+        var zip = TestValues.NewZip();
+        var worshipStyle = TestValues.NewWorshipStyle();
+        var primaryLanguage = TestValues.NewLanguage();
+        return
+        [
+            churchId, canonicalName, slug, street, city, state, zip,
+            DBNull.Value, DBNull.Value, DBNull.Value, (int)worshipStyle, primaryLanguage,
+            true, false, true, false, confidenceScore, createdAt, updatedAt,
+        ];
+    }
 }

@@ -8,6 +8,14 @@ using Enums;
 
 public sealed class SearchService
 {
+    internal const double DefaultRadiusMiles = 25.0;
+
+    internal const string SortByRelevance = "relevance";
+
+    internal const string SortByName = "name";
+
+    internal const string SortByDistance = "distance";
+
     private const string BaseColumns =
         "c.[Id], c.[CanonicalName], c.[Slug], c.[Latitude], c.[Longitude], c.[Street], " +
         "c.[City], c.[State], c.[Zip], c.[PhoneNumber], c.[Website], c.[EmailAddress], " +
@@ -148,9 +156,9 @@ public sealed class SearchService
     {
         var containsCondition = BuildContainsCondition(q.Q, out _);
         var hasFullText = containsCondition is not null;
-        if (hasFullText)
+        if (containsCondition is not null)
         {
-            AddParam(cmd, "@Q", containsCondition!);
+            AddParam(cmd, "@Q", containsCondition);
         }
 
         if (!string.IsNullOrWhiteSpace(q.State))
@@ -174,11 +182,11 @@ public sealed class SearchService
         }
 
         var hasDistance = q is { Lat: not null, Lng: not null };
-        if (hasDistance)
+        if (q is { Lat: { } latitude, Lng: { } longitude })
         {
-            AddParam(cmd, "@Lat", q.Lat!.Value);
-            AddParam(cmd, "@Lng", q.Lng!.Value);
-            AddParam(cmd, "@RadiusMiles", q.RadiusMiles ?? 25.0);
+            AddParam(cmd, "@Lat", latitude);
+            AddParam(cmd, "@Lng", longitude);
+            AddParam(cmd, "@RadiusMiles", q.RadiusMiles ?? DefaultRadiusMiles);
         }
 
         if (q.DayOfWeek.HasValue)
@@ -196,10 +204,10 @@ public sealed class SearchService
             AddParam(cmd, "@StartTimeBefore", q.StartTimeBefore.Value.ToTimeSpan());
         }
 
-        if (ResolveSortMode(q, hasFullText, hasDistance) == SortMode.Relevance)
+        if (ResolveSortMode(q, hasFullText, hasDistance) == SortMode.Relevance && q.Q is { } relevanceQuery)
         {
-            AddParam(cmd, "@ExactQ", q.Q!);
-            AddParam(cmd, "@PrefixQ", EscapeLikePrefix(q.Q!) + "%");
+            AddParam(cmd, "@ExactQ", relevanceQuery);
+            AddParam(cmd, "@PrefixQ", EscapeLikePrefix(relevanceQuery) + "%");
         }
 
         AddParam(cmd, "@Offset", (q.Page - 1) * q.PageSize);
@@ -211,11 +219,11 @@ public sealed class SearchService
         var requested = q.Sort?.Trim().ToLowerInvariant();
         switch (requested)
         {
-            case "relevance":
+            case SortByRelevance:
                 return hasFullText ? SortMode.Relevance : SortMode.Name;
-            case "name":
+            case SortByName:
                 return SortMode.Name;
-            case "distance":
+            case SortByDistance:
                 return hasDistance ? SortMode.Distance : SortMode.Name;
             default:
                 if (hasFullText)
@@ -317,12 +325,9 @@ public sealed class SearchService
         HasNursery = r[17] is DBNull ? null : (bool)r[17],
         HasYouthProgram = r[18] is DBNull ? null : (bool)r[18],
         ConfidenceScore = (decimal)r[19],
-        LastVerifiedAt = r[20] is DBNull ? null : ToUtc((DateTime)r[20]),
-        CreatedAt = ToUtc((DateTime)r[21]),
-        UpdatedAt = ToUtc((DateTime)r[22]),
+        LastVerifiedAt = r.IsDBNull(20) ? null : r.GetFieldValue<DateTimeOffset>(20),
+        CreatedAt = r.GetFieldValue<DateTimeOffset>(21),
+        UpdatedAt = r.GetFieldValue<DateTimeOffset>(22),
         IsActive = (bool)r[23],
     };
-
-    private static DateTimeOffset ToUtc(DateTime dt) =>
-        new DateTimeOffset(DateTime.SpecifyKind(dt, DateTimeKind.Utc));
 }

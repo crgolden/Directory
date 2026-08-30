@@ -5,6 +5,7 @@ using System.Data.Common;
 using Azure.Messaging.ServiceBus;
 using Entities;
 using Enums;
+using Messaging;
 using Microsoft.Extensions.Azure;
 
 public sealed class CrawlingService
@@ -18,7 +19,7 @@ public sealed class CrawlingService
     public CrawlingService(DbConnection dbConnection, IAzureClientFactory<ServiceBusClient> serviceBusClientFactory)
     {
         _dbConnection = dbConnection;
-        _serviceBusClient = serviceBusClientFactory.CreateClient("crgolden");
+        _serviceBusClient = serviceBusClientFactory.CreateClient(ServiceBusNames.Client);
     }
 
     public async Task<IReadOnlyList<CrawlSource>> GetAllAsync(CancellationToken ct = default)
@@ -44,7 +45,7 @@ public sealed class CrawlingService
             ChurchId = churchId,
             LastStatus = CrawlStatus.Pending,
         };
-        var now = DateTimeOffset.UtcNow.UtcDateTime;
+        var now = DateTimeOffset.UtcNow;
         await EnsureOpenAsync(ct);
         await using var cmd = _dbConnection.CreateCommand();
         cmd.CommandText = """
@@ -83,7 +84,7 @@ public sealed class CrawlingService
         }
 
         var payload = BinaryData.FromObjectAsJson(new { CrawlSourceId = id, Url = url });
-        var serviceBusSender = _serviceBusClient.CreateSender("scrape-requests");
+        var serviceBusSender = _serviceBusClient.CreateSender(ServiceBusNames.ScrapeRequests);
         await serviceBusSender.SendMessageAsync(new ServiceBusMessage(payload), ct);
 
         await using var updateCmd = _dbConnection.CreateCommand();
@@ -94,7 +95,7 @@ public sealed class CrawlingService
             """;
         AddParam(updateCmd, "@Id", id);
         AddParam(updateCmd, "@Status", (int)CrawlStatus.Pending);
-        AddParam(updateCmd, "@Now", DateTimeOffset.UtcNow.UtcDateTime);
+        AddParam(updateCmd, "@Now", DateTimeOffset.UtcNow);
         await updateCmd.ExecuteNonQueryAsync(ct);
         return true;
     }
@@ -112,14 +113,11 @@ public sealed class CrawlingService
         Id = (Guid)r[0],
         ChurchId = r[1] is DBNull ? null : (Guid)r[1],
         Url = (string)r[2],
-        LastCrawledAt = r[3] is DBNull ? null : ToUtc((DateTime)r[3]),
+        LastCrawledAt = r.IsDBNull(3) ? null : r.GetFieldValue<DateTimeOffset>(3),
         LastStatus = (CrawlStatus)(int)r[4],
-        CreatedAt = ToUtc((DateTime)r[5]),
-        UpdatedAt = ToUtc((DateTime)r[6]),
+        CreatedAt = r.GetFieldValue<DateTimeOffset>(5),
+        UpdatedAt = r.GetFieldValue<DateTimeOffset>(6),
     };
-
-    private static DateTimeOffset ToUtc(DateTime dt) =>
-        new DateTimeOffset(DateTime.SpecifyKind(dt, DateTimeKind.Utc));
 
     private async Task EnsureOpenAsync(CancellationToken ct)
     {

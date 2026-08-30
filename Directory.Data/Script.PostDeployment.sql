@@ -52,4 +52,4 @@ USING (VALUES
     ON target.[Name] = source.[Name]
 WHEN NOT MATCHED BY TARGET THEN
     INSERT ([Id], [Name], [CreatedAt], [UpdatedAt])
-    VALUES (NEWID(), source.[Name], SYSUTCDATETIME(), SYSUTCDATETIME());
+    VALUES (NEWID(), source.[Name], SYSUTCDATETIME() AT TIME ZONE 'UTC', SYSUTCDATETIME() AT TIME ZONE 'UTC');

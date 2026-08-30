@@ -294,3 +294,22 @@ dotnet_diagnostic.sa1642.severity = none
 dotnet_diagnostic.sa1643.severity = none
 dotnet_diagnostic.sa1650.severity = none
 dotnet_diagnostic.sa1651.severity = none
+
+dotnet_diagnostic.CA1054.severity = warning
+dotnet_diagnostic.CA1055.severity = warning
+dotnet_diagnostic.CA1056.severity = warning
+dotnet_diagnostic.CA1307.severity = warning
+dotnet_diagnostic.CA1309.severity = warning
+dotnet_diagnostic.CA1310.severity = warning
+dotnet_diagnostic.CA1862.severity = warning
+dotnet_diagnostic.CA1308.severity = none  # every site produces a lowercase value as its contract - church slugs, the search sort key, the OTel deployment.environment attribute - rather than case-folding to compare
+
+# CA1054/CA1056: the crawl source URL is persisted verbatim in [dbo].[CrawlSources].[Url] and
+# republished unchanged onto the Service Bus payload the crawler consumes, so it is a byte-exact
+# wire value per AGENTS/CODE-STYLE.md "Where rule 2 stops"; Uri normalizes host case and escaping.
+[Directory/Crawling/**.cs]
+dotnet_diagnostic.CA1054.severity = none
+dotnet_diagnostic.CA1056.severity = none
+
+[Directory/Entities/**.cs]
+dotnet_diagnostic.CA1056.severity = none

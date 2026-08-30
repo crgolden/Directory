@@ -101,7 +101,7 @@ public sealed class ChurchService
     public async Task<Church> CreateAsync(Church church, CancellationToken ct = default)
     {
         church.Slug = await GenerateUniqueSlugAsync(church.CanonicalName, church.City, church.State, ct);
-        var now = DateTimeOffset.UtcNow.UtcDateTime;
+        var now = DateTimeOffset.UtcNow;
         EnsureValid(church, now, now);
         await EnsureOpenAsync(ct);
         await using var cmd = _dbConnection.CreateCommand();
@@ -127,7 +127,7 @@ public sealed class ChurchService
 
     public async Task<bool> UpdateAsync(Church church, CancellationToken ct = default)
     {
-        EnsureValid(church, church.CreatedAt.UtcDateTime, DateTimeOffset.UtcNow.UtcDateTime);
+        EnsureValid(church, church.CreatedAt, DateTimeOffset.UtcNow);
         await EnsureOpenAsync(ct);
         await using var cmd = _dbConnection.CreateCommand();
         cmd.CommandText = """
@@ -144,7 +144,7 @@ public sealed class ChurchService
             WHERE [Id] = @Id
             """;
         BindChurch(cmd, church);
-        AddParam(cmd, "@UpdatedAt", DateTimeOffset.UtcNow.UtcDateTime);
+        AddParam(cmd, "@UpdatedAt", DateTimeOffset.UtcNow);
         return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
 
@@ -168,11 +168,11 @@ public sealed class ChurchService
             WHERE [Id] = @Id
             """;
         AddParam(cmd, "@Id", id);
-        AddParam(cmd, "@UpdatedAt", DateTimeOffset.UtcNow.UtcDateTime);
+        AddParam(cmd, "@UpdatedAt", DateTimeOffset.UtcNow);
         return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
 
-    private static void EnsureValid(Church church, DateTime createdAt, DateTime updatedAt) =>
+    private static void EnsureValid(Church church, DateTimeOffset createdAt, DateTimeOffset updatedAt) =>
         new Shared.Domain.ChurchBuilder()
             .WithId(church.Id)
             .WithCanonicalName(church.CanonicalName)
@@ -194,7 +194,7 @@ public sealed class ChurchService
             .WithHasNursery(church.HasNursery)
             .WithHasYouthProgram(church.HasYouthProgram)
             .WithConfidenceScore(church.ConfidenceScore)
-            .WithLastVerifiedAt(church.LastVerifiedAt?.UtcDateTime)
+            .WithLastVerifiedAt(church.LastVerifiedAt)
             .WithCreatedAt(createdAt)
             .WithUpdatedAt(updatedAt)
             .WithIsActive(church.IsActive)
@@ -222,7 +222,7 @@ public sealed class ChurchService
         AddParam(cmd, "@HasNursery", church.HasNursery.HasValue ? church.HasNursery.Value : DBNull.Value);
         AddParam(cmd, "@HasYouthProgram", church.HasYouthProgram.HasValue ? church.HasYouthProgram.Value : DBNull.Value);
         AddParam(cmd, "@ConfidenceScore", church.ConfidenceScore);
-        AddParam(cmd, "@LastVerifiedAt", church.LastVerifiedAt.HasValue ? church.LastVerifiedAt.Value.UtcDateTime : DBNull.Value);
+        AddParam(cmd, "@LastVerifiedAt", church.LastVerifiedAt.HasValue ? church.LastVerifiedAt.Value : DBNull.Value);
     }
 
     private static void AddParam(DbCommand cmd, string name, object? value)
@@ -276,14 +276,11 @@ public sealed class ChurchService
         HasNursery = r[17] is DBNull ? null : (bool)r[17],
         HasYouthProgram = r[18] is DBNull ? null : (bool)r[18],
         ConfidenceScore = (decimal)r[19],
-        LastVerifiedAt = r[20] is DBNull ? null : ToUtc((DateTime)r[20]),
-        CreatedAt = ToUtc((DateTime)r[21]),
-        UpdatedAt = ToUtc((DateTime)r[22]),
+        LastVerifiedAt = r.IsDBNull(20) ? null : r.GetFieldValue<DateTimeOffset>(20),
+        CreatedAt = r.GetFieldValue<DateTimeOffset>(21),
+        UpdatedAt = r.GetFieldValue<DateTimeOffset>(22),
         IsActive = (bool)r[23],
     };
-
-    private static DateTimeOffset ToUtc(DateTime dt) =>
-        new DateTimeOffset(DateTime.SpecifyKind(dt, DateTimeKind.Utc));
 
     private async Task<IReadOnlyList<ServiceSchedule>> LoadSchedulesAsync(Guid churchId, CancellationToken ct)
     {
@@ -307,8 +304,8 @@ public sealed class ChurchService
                 DayOfWeek = (DayOfWeek)Convert.ToInt32(reader[3], System.Globalization.CultureInfo.InvariantCulture),
                 StartTime = TimeOnly.FromTimeSpan((TimeSpan)reader[4]),
                 Description = reader[5] is DBNull ? null : (string)reader[5],
-                CreatedAt = ToUtc((DateTime)reader[6]),
-                UpdatedAt = ToUtc((DateTime)reader[7]),
+                CreatedAt = reader.GetFieldValue<DateTimeOffset>(6),
+                UpdatedAt = reader.GetFieldValue<DateTimeOffset>(7),
             });
         }
 
@@ -335,8 +332,8 @@ public sealed class ChurchService
                 ChurchId = (Guid)reader[1],
                 Name = (string)reader[2],
                 Description = reader[3] is DBNull ? null : (string)reader[3],
-                CreatedAt = ToUtc((DateTime)reader[4]),
-                UpdatedAt = ToUtc((DateTime)reader[5]),
+                CreatedAt = reader.GetFieldValue<DateTimeOffset>(4),
+                UpdatedAt = reader.GetFieldValue<DateTimeOffset>(5),
             });
         }
 
@@ -368,8 +365,8 @@ public sealed class ChurchService
                 Zip = (string)reader[6],
                 Latitude = (double)reader[7],
                 Longitude = (double)reader[8],
-                CreatedAt = ToUtc((DateTime)reader[9]),
-                UpdatedAt = ToUtc((DateTime)reader[10]),
+                CreatedAt = reader.GetFieldValue<DateTimeOffset>(9),
+                UpdatedAt = reader.GetFieldValue<DateTimeOffset>(10),
             });
         }
 

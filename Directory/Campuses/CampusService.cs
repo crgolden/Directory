@@ -12,7 +12,7 @@ public sealed class CampusService
 
     public async Task<Campus> CreateAsync(Guid churchId, Campus campus, CancellationToken ct = default)
     {
-        var now = DateTimeOffset.UtcNow.UtcDateTime;
+        var now = DateTimeOffset.UtcNow;
         EnsureValid(campus.Id, churchId, campus, now, now);
         await EnsureOpenAsync(ct);
         await using var cmd = _dbConnection.CreateCommand();
@@ -36,7 +36,7 @@ public sealed class CampusService
 
     public async Task<bool> UpdateAsync(Guid id, Campus campus, CancellationToken ct = default)
     {
-        EnsureValid(id, campus.ChurchId, campus, campus.CreatedAt.UtcDateTime, DateTimeOffset.UtcNow.UtcDateTime);
+        EnsureValid(id, campus.ChurchId, campus, campus.CreatedAt, DateTimeOffset.UtcNow);
         await EnsureOpenAsync(ct);
         await using var cmd = _dbConnection.CreateCommand();
         cmd.CommandText = """
@@ -53,7 +53,7 @@ public sealed class CampusService
         AddParam(cmd, "@Zip", campus.Zip);
         AddParam(cmd, "@Lat", campus.Latitude);
         AddParam(cmd, "@Lng", campus.Longitude);
-        AddParam(cmd, "@Now", DateTimeOffset.UtcNow.UtcDateTime);
+        AddParam(cmd, "@Now", DateTimeOffset.UtcNow);
         return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
 
@@ -66,7 +66,7 @@ public sealed class CampusService
         return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
 
-    private static void EnsureValid(Guid id, Guid churchId, Campus campus, DateTime createdAt, DateTime updatedAt) =>
+    private static void EnsureValid(Guid id, Guid churchId, Campus campus, DateTimeOffset createdAt, DateTimeOffset updatedAt) =>
         new Shared.Domain.CampusBuilder()
             .WithId(id)
             .WithChurchId(churchId)

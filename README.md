@@ -81,8 +81,8 @@ In production these are sourced from Azure Key Vault and App Service configurati
 |-----|--------|-------------|
 | `OidcAuthority` | Config | OIDC authority URL for JWT validation |
 | `SqlConnectionStringBuilder:DataSource` | Config | SQL Server host (catalog defaults to `Directory`) |
-| `SqlServerUserId` | Key Vault secret | SQL Server login user |
-| `SqlServerPassword` | Key Vault secret | SQL Server login password |
+| `SqlConnectionStringBuilder:UserID` | Key Vault secret | SQL Server login user |
+| `SqlConnectionStringBuilder:Password` | Key Vault secret | SQL Server login password |
 | `ServiceBusNamespace` | Config | Service Bus fully-qualified namespace (production) |
 | `ServiceBusConnectionString` | Config | Service Bus connection string (non-production) |
 | `ElasticsearchNode` | Config | Elasticsearch node URL |

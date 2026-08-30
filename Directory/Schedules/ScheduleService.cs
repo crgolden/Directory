@@ -19,7 +19,7 @@ public sealed class ScheduleService
             StartTime = startTime,
             Description = description,
         };
-        var now = DateTimeOffset.UtcNow.UtcDateTime;
+        var now = DateTimeOffset.UtcNow;
         EnsureValid(schedule.Id, churchId, dayOfWeek, startTime, description, now, now);
         await EnsureOpenAsync(ct);
         await using var cmd = _dbConnection.CreateCommand();
@@ -55,7 +55,7 @@ public sealed class ScheduleService
         AddParam(cmd, "@Day", dayOfWeek);
         AddParam(cmd, "@Start", startTime.ToTimeSpan());
         AddParam(cmd, "@Desc", (object?)description ?? DBNull.Value);
-        AddParam(cmd, "@Now", DateTimeOffset.UtcNow.UtcDateTime);
+        AddParam(cmd, "@Now", DateTimeOffset.UtcNow);
         return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
 
@@ -68,7 +68,7 @@ public sealed class ScheduleService
         return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
 
-    private static void EnsureValid(Guid id, Guid churchId, byte dayOfWeek, TimeOnly startTime, string? description, DateTime createdAt, DateTime updatedAt) =>
+    private static void EnsureValid(Guid id, Guid churchId, byte dayOfWeek, TimeOnly startTime, string? description, DateTimeOffset createdAt, DateTimeOffset updatedAt) =>
         new Shared.Domain.ServiceScheduleBuilder()
             .WithId(id)
             .WithChurchId(churchId)

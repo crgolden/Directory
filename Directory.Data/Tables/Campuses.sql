@@ -9,8 +9,8 @@ CREATE TABLE [dbo].[Campuses]
     [Zip]       NVARCHAR (10)    NOT NULL,
     [Latitude]  FLOAT            NOT NULL,
     [Longitude] FLOAT            NOT NULL,
-    [CreatedAt] DATETIME2 (7)    NOT NULL,
-    [UpdatedAt] DATETIME2 (7)    NOT NULL,
+    [CreatedAt] DATETIMEOFFSET (7) NOT NULL,
+    [UpdatedAt] DATETIMEOFFSET (7) NOT NULL,
     CONSTRAINT [PK_Campuses] PRIMARY KEY CLUSTERED ([Id] ASC),
     CONSTRAINT [FK_Campuses_Churches] FOREIGN KEY ([ChurchId]) REFERENCES [dbo].[Churches] ([Id]) ON DELETE CASCADE
 );

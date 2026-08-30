@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -26,14 +26,14 @@
     <PackageReference Include="OpenTelemetry.Exporter.Console" Version="1.16.0" />
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.16.0" />
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.16.0" />
-    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.16.0" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.17.0" />
     <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.16.0" />
     <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" Version="1.15.1" />
     <PackageReference Include="OpenTelemetry.Instrumentation.SqlClient" Version="1.16.0" />
     <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
     <PackageReference Include="Serilog.Enrichers.Environment" Version="3.0.1" />
     <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
-    <PackageReference Include="Shared" Version="1.1.0" />
+    <PackageReference Include="Shared" Version="1.2.0" />
     <PackageReference Include="SonarAnalyzer.CSharp" Version="10.28.0.143324">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

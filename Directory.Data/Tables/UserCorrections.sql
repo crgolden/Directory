@@ -8,8 +8,8 @@ CREATE TABLE [dbo].[UserCorrections]
     [NewValue]    NVARCHAR (1000)  NOT NULL,
     [Status]      INT              NOT NULL DEFAULT (0),
     [ReviewedBy]  NVARCHAR (100)   NULL,
-    [ReviewedAt]  DATETIME2 (7)    NULL,
-    [CreatedAt]   DATETIME2 (7)    NOT NULL,
+    [ReviewedAt]  DATETIMEOFFSET (7) NULL,
+    [CreatedAt]   DATETIMEOFFSET (7) NOT NULL,
     CONSTRAINT [PK_UserCorrections] PRIMARY KEY CLUSTERED ([Id] ASC),
     CONSTRAINT [FK_UserCorrections_Churches] FOREIGN KEY ([ChurchId]) REFERENCES [dbo].[Churches] ([Id]) ON DELETE CASCADE
 );

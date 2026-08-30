@@ -2,8 +2,10 @@ namespace Directory.Admin;
 
 using System.Data;
 using System.Data.Common;
+using System.Globalization;
 using System.Text;
 using Azure.Messaging.ServiceBus;
+using Messaging;
 using Microsoft.Extensions.Azure;
 
 public sealed class AdminService
@@ -14,13 +16,13 @@ public sealed class AdminService
     public AdminService(DbConnection dbConnection, IAzureClientFactory<ServiceBusClient> serviceBusClientFactory)
     {
         _dbConnection = dbConnection;
-        _serviceBusClient = serviceBusClientFactory.CreateClient("crgolden");
+        _serviceBusClient = serviceBusClientFactory.CreateClient(ServiceBusNames.Client);
     }
 
     public async Task<int> ImportCsvAsync(string csv, CancellationToken ct = default)
     {
         var rows = ParseCsv(csv);
-        await using var sender = _serviceBusClient.CreateSender("geocoding-requests");
+        await using var sender = _serviceBusClient.CreateSender(ServiceBusNames.GeocodingRequests);
         var published = 0;
         foreach (var row in rows)
         {
@@ -111,8 +113,10 @@ public sealed class AdminService
             return string.Empty;
         }
 
-        var s = value.ToString() ?? string.Empty;
-        return s.Contains(',') || s.Contains('"') ? $"\"{s.Replace("\"", "\"\"")}\"" : s;
+        var s = value is IFormattable formattable
+            ? formattable.ToString(null, CultureInfo.InvariantCulture)
+            : value.ToString() ?? string.Empty;
+        return s.Contains(',', StringComparison.Ordinal) || s.Contains('"', StringComparison.Ordinal) ? $"\"{s.Replace("\"", "\"\"", StringComparison.Ordinal)}\"" : s;
     }
 
     private static string FormatRow(DbDataReader r)

@@ -6,6 +6,8 @@ using TestSupport;
 
 public sealed class CampusServiceTests
 {
+    private const string BlankFieldValue = " ";
+
     [Fact]
     [Trait("Category", "Unit")]
     public async Task CreateAsync_InsertsCampus()
@@ -27,7 +29,7 @@ public sealed class CampusServiceTests
     {
         var conn = new FakeDbConnection();
         var service = new CampusService(conn);
-        var campus = new Campus { ChurchId = Guid.NewGuid(), Name = string.Empty, City = "Denver", State = "CO", Zip = "80201", Latitude = 39.7, Longitude = -104.9 };
+        var campus = new Campus { ChurchId = Guid.NewGuid(), Name = BlankFieldValue, City = "Denver", State = "CO", Zip = "80201", Latitude = 39.7, Longitude = -104.9 };
 
         var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
             service.CreateAsync(campus.ChurchId, campus, TestContext.Current.CancellationToken));

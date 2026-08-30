@@ -7,6 +7,8 @@ using TestSupport;
 
 public sealed class ChurchServiceTests
 {
+    private const string BlankFieldValue = " ";
+
     [Fact]
     [Trait("Category", "Unit")]
     public async Task DeleteAsync_ReturnsFalse_WhenNoRowsAffected()
@@ -68,7 +70,7 @@ public sealed class ChurchServiceTests
         conn.Enqueue(SlugFree());
         var service = new ChurchService(conn);
         var church = BuildChurch();
-        church.City = string.Empty;
+        church.City = BlankFieldValue;
 
         var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
             service.CreateAsync(church, TestContext.Current.CancellationToken));
@@ -117,12 +119,14 @@ public sealed class ChurchServiceTests
         conn.Enqueue(InsertSucceeds());
 
         var service = new ChurchService(conn);
+        var callerSuppliedSlug = $"caller-supplied-slug-{Guid.NewGuid()}";
         var church = BuildChurch();
-        church.Slug = string.Empty;
+        church.Slug = callerSuppliedSlug;
 
         var result = await service.CreateAsync(church, TestContext.Current.CancellationToken);
 
         Assert.Equal("grace-church-phoenix-az", result.Slug);
+        Assert.NotEqual(callerSuppliedSlug, result.Slug);
     }
 
     [Fact]
@@ -136,12 +140,14 @@ public sealed class ChurchServiceTests
         conn.Enqueue(InsertSucceeds());
 
         var service = new ChurchService(conn);
+        var callerSuppliedSlug = $"caller-supplied-slug-{Guid.NewGuid()}";
         var church = BuildChurch();
-        church.Slug = string.Empty;
+        church.Slug = callerSuppliedSlug;
 
         var result = await service.CreateAsync(church, TestContext.Current.CancellationToken);
 
         Assert.Equal("grace-church-phoenix-az-2", result.Slug);
+        Assert.NotEqual(callerSuppliedSlug, result.Slug);
     }
 
     [Fact]
@@ -349,6 +355,94 @@ public sealed class ChurchServiceTests
         Assert.NotEqual(DBNull.Value, insert.Parameters["@LastVerifiedAt"].Value);
     }
 
+    [Fact]
+    [Trait("Category", "Unit")]
+    public async Task CreateAsync_NewChurch_BindsCreatedAtAsDateTimeOffset()
+    {
+        var conn = new FakeDbConnection();
+        conn.Enqueue(SlugFree());
+        conn.Enqueue(InsertSucceeds());
+        var service = new ChurchService(conn);
+
+        await service.CreateAsync(BuildChurch(), TestContext.Current.CancellationToken);
+
+        var insert = conn.ExecutedCommands[1];
+        Assert.IsType<DateTimeOffset>(insert.Parameters["@CreatedAt"].Value);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public async Task CreateAsync_NewChurch_BindsCreatedAtInUtc()
+    {
+        var conn = new FakeDbConnection();
+        conn.Enqueue(SlugFree());
+        conn.Enqueue(InsertSucceeds());
+        var service = new ChurchService(conn);
+
+        await service.CreateAsync(BuildChurch(), TestContext.Current.CancellationToken);
+
+        var insert = conn.ExecutedCommands[1];
+        Assert.Equal(TimeSpan.Zero, Assert.IsType<DateTimeOffset>(insert.Parameters["@CreatedAt"].Value).Offset);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public async Task CreateAsync_LastVerifiedAtCarriesNonZeroOffset_BindsTheSameInstant()
+    {
+        var lastVerifiedAtInSourceOffset = TestValues.NewTimestampWithNonZeroOffset();
+        var conn = new FakeDbConnection();
+        conn.Enqueue(SlugFree());
+        conn.Enqueue(InsertSucceeds());
+        var service = new ChurchService(conn);
+        var church = BuildChurch();
+        church.LastVerifiedAt = lastVerifiedAtInSourceOffset;
+
+        await service.CreateAsync(church, TestContext.Current.CancellationToken);
+
+        var insert = conn.ExecutedCommands[1];
+        Assert.Equal(
+            lastVerifiedAtInSourceOffset.UtcDateTime,
+            Assert.IsType<DateTimeOffset>(insert.Parameters["@LastVerifiedAt"].Value).UtcDateTime);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public async Task GetByIdAsync_StoredOffsetIsNotZero_PreservesTheInstant()
+    {
+        var storedCreatedAt = TestValues.NewTimestampWithNonZeroOffset();
+        var conn = new FakeDbConnection();
+        conn.Enqueue(FakeDbCommand.WithReader(TableWithCreatedAt(storedCreatedAt)));
+        var service = new ChurchService(conn);
+
+        var result = await service.GetByIdAsync(Guid.NewGuid(), TestContext.Current.CancellationToken);
+
+        Assert.NotNull(result);
+        Assert.Equal(storedCreatedAt.UtcDateTime, result.CreatedAt.UtcDateTime);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public async Task GetByIdAsync_StoredOffsetIsNotZero_PreservesTheOffset()
+    {
+        var storedCreatedAt = TestValues.NewTimestampWithNonZeroOffset();
+        var conn = new FakeDbConnection();
+        conn.Enqueue(FakeDbCommand.WithReader(TableWithCreatedAt(storedCreatedAt)));
+        var service = new ChurchService(conn);
+
+        var result = await service.GetByIdAsync(Guid.NewGuid(), TestContext.Current.CancellationToken);
+
+        Assert.NotNull(result);
+        Assert.Equal(storedCreatedAt.Offset, result.CreatedAt.Offset);
+    }
+
+    private static DataTable TableWithCreatedAt(DateTimeOffset createdAt)
+    {
+        var table = BuildChurchTable(includeTotalCount: false);
+        var onlyRow = table.Rows.Add(PopulatedRow(totalCount: null));
+        onlyRow[nameof(Church.CreatedAt)] = createdAt;
+        return table;
+    }
+
     private static FakeDbCommand SlugFree() => FakeDbCommand.WithScalarResult(0);
 
     private static FakeDbCommand SlugExists() => FakeDbCommand.WithScalarResult(1);
@@ -390,9 +484,9 @@ public sealed class ChurchServiceTests
         t.Columns.Add("HasNursery", typeof(bool));
         t.Columns.Add("HasYouthProgram", typeof(bool));
         t.Columns.Add("ConfidenceScore", typeof(decimal));
-        t.Columns.Add("LastVerifiedAt", typeof(DateTime));
-        t.Columns.Add("CreatedAt", typeof(DateTime));
-        t.Columns.Add("UpdatedAt", typeof(DateTime));
+        t.Columns.Add("LastVerifiedAt", typeof(DateTimeOffset));
+        t.Columns.Add("CreatedAt", typeof(DateTimeOffset));
+        t.Columns.Add("UpdatedAt", typeof(DateTimeOffset));
         t.Columns.Add("IsActive", typeof(bool));
         if (includeTotalCount)
         {
@@ -411,10 +505,10 @@ public sealed class ChurchServiceTests
         t.Columns.Add("DayOfWeek", typeof(byte));
         t.Columns.Add("StartTime", typeof(TimeSpan));
         t.Columns.Add("Description", typeof(string));
-        t.Columns.Add("CreatedAt", typeof(DateTime));
-        t.Columns.Add("UpdatedAt", typeof(DateTime));
-        t.Rows.Add(Guid.NewGuid(), Guid.NewGuid(), DBNull.Value, (byte)0, new TimeSpan(10, 30, 0), "Sunday Worship", DateTime.UtcNow, DateTime.UtcNow);
-        t.Rows.Add(Guid.NewGuid(), Guid.NewGuid(), DBNull.Value, (byte)3, new TimeSpan(19, 0, 0), DBNull.Value, DateTime.UtcNow, DateTime.UtcNow);
+        t.Columns.Add("CreatedAt", typeof(DateTimeOffset));
+        t.Columns.Add("UpdatedAt", typeof(DateTimeOffset));
+        t.Rows.Add(Guid.NewGuid(), Guid.NewGuid(), DBNull.Value, (byte)0, new TimeSpan(10, 30, 0), "Sunday Worship", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+        t.Rows.Add(Guid.NewGuid(), Guid.NewGuid(), DBNull.Value, (byte)3, new TimeSpan(19, 0, 0), DBNull.Value, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
         return t;
     }
 
@@ -425,10 +519,10 @@ public sealed class ChurchServiceTests
         t.Columns.Add("ChurchId", typeof(Guid));
         t.Columns.Add("Name", typeof(string));
         t.Columns.Add("Description", typeof(string));
-        t.Columns.Add("CreatedAt", typeof(DateTime));
-        t.Columns.Add("UpdatedAt", typeof(DateTime));
-        t.Rows.Add(Guid.NewGuid(), Guid.NewGuid(), "Food Bank", "Weekly pantry", DateTime.UtcNow, DateTime.UtcNow);
-        t.Rows.Add(Guid.NewGuid(), Guid.NewGuid(), "Youth Group", DBNull.Value, DateTime.UtcNow, DateTime.UtcNow);
+        t.Columns.Add("CreatedAt", typeof(DateTimeOffset));
+        t.Columns.Add("UpdatedAt", typeof(DateTimeOffset));
+        t.Rows.Add(Guid.NewGuid(), Guid.NewGuid(), "Food Bank", "Weekly pantry", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+        t.Rows.Add(Guid.NewGuid(), Guid.NewGuid(), "Youth Group", DBNull.Value, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
         return t;
     }
 
@@ -444,9 +538,9 @@ public sealed class ChurchServiceTests
         t.Columns.Add("Zip", typeof(string));
         t.Columns.Add("Latitude", typeof(double));
         t.Columns.Add("Longitude", typeof(double));
-        t.Columns.Add("CreatedAt", typeof(DateTime));
-        t.Columns.Add("UpdatedAt", typeof(DateTime));
-        t.Rows.Add(Guid.NewGuid(), Guid.NewGuid(), "North Campus", "1 N St", "Denver", "CO", "80201", 39.7, -104.9, DateTime.UtcNow, DateTime.UtcNow);
+        t.Columns.Add("CreatedAt", typeof(DateTimeOffset));
+        t.Columns.Add("UpdatedAt", typeof(DateTimeOffset));
+        t.Rows.Add(Guid.NewGuid(), Guid.NewGuid(), "North Campus", "1 N St", "Denver", "CO", "80201", 39.7, -104.9, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
         return t;
     }
 
@@ -457,7 +551,7 @@ public sealed class ChurchServiceTests
             Guid.NewGuid(), "Grace Church", "grace-church", 33.4, -112.0, "123 Main",
             "Phoenix", "AZ", "85001", "602-555-1212", "https://grace.example", "hi@grace.example",
             Guid.NewGuid(), 1, "English", true, true, true, true, 0.9m,
-            DateTime.UtcNow, DateTime.UtcNow, DateTime.UtcNow, true,
+            DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, true,
         };
         if (totalCount.HasValue)
         {
@@ -472,6 +566,6 @@ public sealed class ChurchServiceTests
         Guid.NewGuid(), "Grace Church", "grace-church", 33.4, -112.0, DBNull.Value,
         "Phoenix", "AZ", "85001", DBNull.Value, DBNull.Value, DBNull.Value,
         DBNull.Value, 1, "English", DBNull.Value, DBNull.Value, DBNull.Value, DBNull.Value, 0.9m,
-        DBNull.Value, DateTime.UtcNow, DateTime.UtcNow, true,
+        DBNull.Value, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, true,
     ];
 }

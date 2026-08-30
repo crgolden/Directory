@@ -8,7 +8,7 @@ using Directory.Campuses;
 using Directory.Church;
 using Directory.Crawling;
 using Directory.Denomination;
-using Directory.Extensions;
+using Directory.Messaging;
 using Directory.Ministries;
 using Directory.Moderation;
 using Directory.Schedules;
@@ -27,6 +27,7 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Serilog;
+using Shared.Extensions;
 #pragma warning restore SA1200
 
 Log.Logger = new LoggerConfiguration().WriteTo.Console().CreateBootstrapLogger();
@@ -101,7 +102,7 @@ try
             .AddAzureClients(azureClientFactoryBuilder =>
             {
                 azureClientFactoryBuilder.UseCredential(tokenCredential);
-                azureClientFactoryBuilder.AddServiceBusClientWithNamespace(serviceBusNamespace).WithName("crgolden");
+                azureClientFactoryBuilder.AddServiceBusClientWithNamespace(serviceBusNamespace).WithName(ServiceBusNames.Client);
             });
     }
     else
@@ -120,7 +121,7 @@ try
             .UseEphemeralDataProtectionProvider().Services
             .AddAzureClients(azureClientFactoryBuilder =>
             {
-                azureClientFactoryBuilder.AddServiceBusClient(serviceBusConnectionString).WithName("crgolden");
+                azureClientFactoryBuilder.AddServiceBusClient(serviceBusConnectionString).WithName(ServiceBusNames.Client);
             });
     }
 

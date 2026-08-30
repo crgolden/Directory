@@ -166,7 +166,7 @@ public sealed class ModerationEndpointsTests : IClassFixture<DirectoryWebApplica
     private async Task<Guid> SeedCorrectionAsync(Guid churchId)
     {
         var id = Guid.CreateVersion7(DateTimeOffset.UtcNow);
-        var now = DateTime.UtcNow;
+        var now = DateTimeOffset.UtcNow;
         await using var conn = await _factory.OpenTestConnectionAsync(TestContext.Current.CancellationToken);
         await using var cmd = new SqlCommand(
             """

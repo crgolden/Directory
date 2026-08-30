@@ -13,7 +13,7 @@ public sealed class MinistryService
     public async Task<Ministry> CreateAsync(Guid churchId, string name, string? description, CancellationToken ct = default)
     {
         var ministry = new Ministry { ChurchId = churchId, Name = name, Description = description };
-        var now = DateTimeOffset.UtcNow.UtcDateTime;
+        var now = DateTimeOffset.UtcNow;
         EnsureValid(ministry.Id, churchId, name, description, now, now);
         await EnsureOpenAsync(ct);
         await using var cmd = _dbConnection.CreateCommand();
@@ -47,7 +47,7 @@ public sealed class MinistryService
         AddParam(cmd, "@Id", id);
         AddParam(cmd, "@Name", name);
         AddParam(cmd, "@Desc", (object?)description ?? DBNull.Value);
-        AddParam(cmd, "@Now", DateTimeOffset.UtcNow.UtcDateTime);
+        AddParam(cmd, "@Now", DateTimeOffset.UtcNow);
         return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
 
@@ -60,7 +60,7 @@ public sealed class MinistryService
         return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
 
-    private static void EnsureValid(Guid id, Guid churchId, string name, string? description, DateTime createdAt, DateTime updatedAt) =>
+    private static void EnsureValid(Guid id, Guid churchId, string name, string? description, DateTimeOffset createdAt, DateTimeOffset updatedAt) =>
         new Shared.Domain.MinistryBuilder()
             .WithId(id)
             .WithChurchId(churchId)

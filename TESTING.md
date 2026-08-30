@@ -82,7 +82,6 @@ service and endpoint tests assert generated SQL/parameters and feed canned reade
 | Crawling endpoints / service | `E2E/CrawlingEndpointsTests.cs`, `Api/CrawlingServiceTests.cs` | Crawl-source CRUD and trigger |
 | Moderation endpoints / service | `E2E/ModerationEndpointsTests.cs`, `Api/ModerationServiceTests.cs` | Corrections lifecycle, transactional merge (commit vs rollback) |
 | User endpoint | `E2E/UserEndpointsTests.cs` | `/me` identity projection |
-| Configuration extensions | `Api/ConfigurationExtensionsTests.cs` | `GetRequired<T>` binding helpers |
 | Confidence score | `Domain/ConfidenceScoreCalculatorTests.cs` | Score derivation from populated attributes |
 
 See [COVERAGE-TRUTH-TABLES.md](COVERAGE-TRUTH-TABLES.md) for the demand-driven MC/DC tables behind the service

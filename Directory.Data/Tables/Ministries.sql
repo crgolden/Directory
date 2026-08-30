@@ -4,8 +4,8 @@ CREATE TABLE [dbo].[Ministries]
     [ChurchId]    UNIQUEIDENTIFIER NOT NULL,
     [Name]        NVARCHAR (200)   NOT NULL,
     [Description] NVARCHAR (1000)  NULL,
-    [CreatedAt]   DATETIME2 (7)    NOT NULL,
-    [UpdatedAt]   DATETIME2 (7)    NOT NULL,
+    [CreatedAt]   DATETIMEOFFSET (7) NOT NULL,
+    [UpdatedAt]   DATETIMEOFFSET (7) NOT NULL,
     CONSTRAINT [PK_Ministries] PRIMARY KEY CLUSTERED ([Id] ASC),
     CONSTRAINT [FK_Ministries_Churches] FOREIGN KEY ([ChurchId]) REFERENCES [dbo].[Churches] ([Id]) ON DELETE CASCADE
 );

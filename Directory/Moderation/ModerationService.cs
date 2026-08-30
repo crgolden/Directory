@@ -6,6 +6,7 @@ using System.Text.Json;
 using Azure.Messaging.ServiceBus;
 using Entities;
 using Enums;
+using Messaging;
 using Microsoft.Extensions.Azure;
 
 public sealed class ModerationService
@@ -20,7 +21,7 @@ public sealed class ModerationService
     public ModerationService(DbConnection dbConnection, IAzureClientFactory<ServiceBusClient> serviceBusClientFactory)
     {
         _dbConnection = dbConnection;
-        _serviceBusClient = serviceBusClientFactory.CreateClient("crgolden");
+        _serviceBusClient = serviceBusClientFactory.CreateClient(ServiceBusNames.Client);
     }
 
     public async Task<(IReadOnlyList<UserCorrection> Items, int TotalCount)> GetCorrectionsAsync(
@@ -82,7 +83,7 @@ public sealed class ModerationService
     {
         var id = Guid.CreateVersion7(DateTimeOffset.UtcNow);
         var payload = JsonSerializer.Serialize(new { ChurchId = churchId, UserId = userId, Field = field, OldValue = oldValue, NewValue = newValue });
-        var serviceBusSender = _serviceBusClient.CreateSender("contributions");
+        var serviceBusSender = _serviceBusClient.CreateSender(ServiceBusNames.Contributions);
         await serviceBusSender.SendMessageAsync(new ServiceBusMessage(payload) { MessageId = id.ToString() }, ct);
         return id;
     }
@@ -103,7 +104,7 @@ public sealed class ModerationService
         AddParam(cmd, "@Id", id);
         AddParam(cmd, "@Status", (int)status);
         AddParam(cmd, "@ReviewedBy", reviewedBy);
-        AddParam(cmd, "@ReviewedAt", DateTimeOffset.UtcNow.UtcDateTime);
+        AddParam(cmd, "@ReviewedAt", DateTimeOffset.UtcNow);
         return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
 
@@ -160,7 +161,7 @@ public sealed class ModerationService
                 WHERE [Id] = @Absorbed
                 """;
             AddParam(softDelete, "@Absorbed", absorbedId);
-            AddParam(softDelete, "@Now", DateTimeOffset.UtcNow.UtcDateTime);
+            AddParam(softDelete, "@Now", DateTimeOffset.UtcNow);
             await softDelete.ExecuteNonQueryAsync(ct);
 
             await using var auditCmd = _dbConnection.CreateCommand();
@@ -174,7 +175,7 @@ public sealed class ModerationService
             AddParam(auditCmd, "@Surviving", survivingId);
             AddParam(auditCmd, "@Absorbed", absorbedId);
             AddParam(auditCmd, "@MergedBy", mergedBy);
-            AddParam(auditCmd, "@MergedAt", DateTimeOffset.UtcNow.UtcDateTime);
+            AddParam(auditCmd, "@MergedAt", DateTimeOffset.UtcNow);
             await auditCmd.ExecuteNonQueryAsync(ct);
 
             await tx.CommitAsync(ct);
@@ -204,13 +205,10 @@ public sealed class ModerationService
         NewValue = (string)r[5],
         Status = (CorrectionStatus)(int)r[6],
         ReviewedBy = r[7] is DBNull ? null : (string)r[7],
-        ReviewedAt = r[8] is DBNull ? null : ToUtc((DateTime)r[8]),
-        CreatedAt = ToUtc((DateTime)r[9]),
+        ReviewedAt = r.IsDBNull(8) ? null : r.GetFieldValue<DateTimeOffset>(8),
+        CreatedAt = r.GetFieldValue<DateTimeOffset>(9),
         ChurchName = r[10] is DBNull ? null : (string)r[10],
     };
-
-    private static DateTimeOffset ToUtc(DateTime dt) =>
-        new DateTimeOffset(DateTime.SpecifyKind(dt, DateTimeKind.Utc));
 
     private async Task<bool> ChurchIsActiveAsync(Guid id, CancellationToken ct)
     {

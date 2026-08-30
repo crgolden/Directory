@@ -128,7 +128,7 @@ public sealed class ChurchEndpointsTests : IClassFixture<DirectoryWebApplication
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
-    private static object NewChurchRequest(string nameSuffix = "")
+    private static object NewChurchRequest(string? nameSuffix = null)
     {
         var suffix = $"{Guid.NewGuid():N}";
         return new

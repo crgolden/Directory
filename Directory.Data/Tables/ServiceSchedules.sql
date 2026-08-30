@@ -6,8 +6,8 @@ CREATE TABLE [dbo].[ServiceSchedules]
     [DayOfWeek]   TINYINT          NOT NULL,
     [StartTime]   TIME (0)         NOT NULL,
     [Description] NVARCHAR (200)   NULL,
-    [CreatedAt]   DATETIME2 (7)    NOT NULL,
-    [UpdatedAt]   DATETIME2 (7)    NOT NULL,
+    [CreatedAt]   DATETIMEOFFSET (7) NOT NULL,
+    [UpdatedAt]   DATETIMEOFFSET (7) NOT NULL,
     CONSTRAINT [PK_ServiceSchedules] PRIMARY KEY CLUSTERED ([Id] ASC),
     CONSTRAINT [FK_ServiceSchedules_Churches] FOREIGN KEY ([ChurchId]) REFERENCES [dbo].[Churches] ([Id]) ON DELETE CASCADE,
     CONSTRAINT [FK_ServiceSchedules_Campuses] FOREIGN KEY ([CampusId]) REFERENCES [dbo].[Campuses] ([Id])
