@@ -26,11 +26,11 @@ tests, etc.) are in the workspace-level [Unit Test Standards](../AGENTS/TESTING.
 
 ## Running Tests Locally
 
-For the `.NET 10 SDK xUnit caveat` (why `dotnet test` doesn't work) and the exe-runner flags, see the
-workspace-level [TESTING.md](../AGENTS/TESTING.md).
+For running tests (`dotnet test` from the repo root — never the workspace root) and the exe-runner flags,
+see the workspace-level [TESTING.md](../AGENTS/TESTING.md).
 
-User Secrets ID: `61549613-3239-4c31-8300-39334a7c2657` (not needed for unit tests — the factory injects
-in-memory configuration).
+User Secrets ID: `61549613-3239-4c31-8300-39334a7c2657` (not needed for unit tests, which never boot
+`Program.cs`).
 
 ```powershell
 dotnet build Directory.Tests.Unit --configuration Debug
@@ -43,16 +43,19 @@ dotnet build Directory.Tests.Unit --configuration Debug
 
 ### `DirectoryWebApplicationFactory`
 
-`WebApplicationFactory<Program>` used by the endpoint tests. It starts the full `Program.cs`, then:
+`WebApplicationFactory<Program>` used by the endpoint tests. It starts the full `Program.cs` (in the
+`Development` environment `WebApplicationFactory` supplies by default), then:
 
-- injects in-memory configuration (`OidcAuthority`, a dummy `SqlConnectionStringBuilder`, a dummy
-  `ServiceBusConnectionString`) so startup succeeds without real infrastructure;
-- replaces the scoped `DbConnection` with a singleton **`FakeDbConnection`** (`FakeDb`), so tests script the
-  reader rows and command results directly;
+- replaces `ILoggerFactory` with console logging;
 - replaces `IAzureClientFactory<ServiceBusClient>` with a Moq-backed `ServiceBusClient` / `ServiceBusSender`
   (loose) so `SubmitCorrectionAsync` can enqueue without a real namespace;
 - registers `IntegrationAuthHandler` as the default authentication scheme and re-declares the `Directory` and
   `ChurchesMod` authorization policies.
+
+The `DbConnection` registered by `Program.cs` is left in place, so the endpoint tests run against the real
+SQL Server database it names; `OpenTestConnectionAsync` opens a second connection to that same database for
+seeding and assertions. (`FakeDbConnection` is used only by the service-level unit tests, never by this
+factory.)
 
 ### `IntegrationAuthHandler`
 
