@@ -9,11 +9,10 @@ public sealed class ChurchServiceTests
 {
     private const string BlankFieldValue = " ";
 
-    private const string SlugSourceCanonicalName = "Grace Church";
-    private const string SlugSourceCity = "Phoenix";
-    private const string SlugSourceState = "AZ";
-    private const string SlugDerivedFromSource = "grace-church-phoenix-az";
-    private const string StateThatIsNotATwoLetterCode = "Arizona";
+    private static readonly string SlugSourceCanonicalName = TestValues.NewName();
+    private static readonly string SlugSourceCity = TestValues.NewCity();
+    private static readonly string SlugSourceState = TestValues.NewStateCode();
+    private static readonly string StateThatIsNotATwoLetterCode = TestValues.LowercaseToken(7);
 
     private static readonly string StoredCanonicalName = TestValues.NewName();
     private static readonly string StoredStreet = TestValues.NewStreet();
@@ -139,7 +138,7 @@ public sealed class ChurchServiceTests
 
         var result = await service.CreateAsync(church, TestContext.Current.CancellationToken);
 
-        Assert.Equal(SlugDerivedFromSource, result.Slug);
+        Assert.Equal(ExpectedSlug(), result.Slug);
         Assert.NotEqual(callerSuppliedSlug, result.Slug);
     }
 
@@ -160,7 +159,7 @@ public sealed class ChurchServiceTests
 
         var result = await service.CreateAsync(church, TestContext.Current.CancellationToken);
 
-        Assert.Equal($"{SlugDerivedFromSource}-2", result.Slug);
+        Assert.Equal($"{ExpectedSlug()}-2", result.Slug);
         Assert.NotEqual(callerSuppliedSlug, result.Slug);
     }
 
@@ -467,10 +466,13 @@ public sealed class ChurchServiceTests
 
     private static FakeDbCommand InsertSucceeds() => FakeDbCommand.WithNonQueryResult(1);
 
+    private static string ExpectedSlug() =>
+        $"{SlugSourceCanonicalName.Replace(' ', '-')}-{SlugSourceCity}-{SlugSourceState.ToLowerInvariant()}";
+
     private static Church BuildChurch() => new Church
     {
-        CanonicalName = SlugSourceCanonicalName,
-        Slug = SlugDerivedFromSource,
+        CanonicalName = SlugSourceCanonicalName.ToUpperInvariant(),
+        Slug = ExpectedSlug(),
         Latitude = TestValues.NewLatitude(),
         Longitude = TestValues.NewLongitude(),
         City = SlugSourceCity,
