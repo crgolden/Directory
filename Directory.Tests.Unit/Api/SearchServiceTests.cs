@@ -250,12 +250,8 @@ public sealed class SearchServiceTests
         // Arrange
         var cmd = new FakeDbCommand();
         var filteredDayOfWeek = TestValues.NewDayOfWeek();
-        var earliestStartHour = Random.Shared.Next(0, 24);
-        var earliestStartMinute = Random.Shared.Next(0, 60);
-        var latestStartHour = Random.Shared.Next(0, 24);
-        var latestStartMinute = Random.Shared.Next(0, 60);
-        var earliestStartTime = new TimeOnly(earliestStartHour, earliestStartMinute);
-        var latestStartTime = new TimeOnly(latestStartHour, latestStartMinute);
+        var earliestStartTime = TestValues.NewTimeOfDay();
+        var latestStartTime = TestValues.NewTimeOfDay();
         var query = QueryWith(
             dayOfWeek: filteredDayOfWeek,
             startTimeBefore: latestStartTime,
@@ -269,8 +265,8 @@ public sealed class SearchServiceTests
         Assert.True(cmd.Parameters.Contains("@StartTimeAfter"));
         Assert.True(cmd.Parameters.Contains("@StartTimeBefore"));
         Assert.Equal(filteredDayOfWeek, cmd.Parameters["@DayOfWeek"].Value);
-        Assert.Equal(new TimeSpan(earliestStartHour, earliestStartMinute, 0), cmd.Parameters["@StartTimeAfter"].Value);
-        Assert.Equal(new TimeSpan(latestStartHour, latestStartMinute, 0), cmd.Parameters["@StartTimeBefore"].Value);
+        Assert.Equal(earliestStartTime.ToTimeSpan(), cmd.Parameters["@StartTimeAfter"].Value);
+        Assert.Equal(latestStartTime.ToTimeSpan(), cmd.Parameters["@StartTimeBefore"].Value);
     }
 
     [Fact]

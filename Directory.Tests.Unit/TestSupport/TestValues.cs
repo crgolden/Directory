@@ -36,6 +36,8 @@ internal static class TestValues
 
     internal static string NewFieldName() => LowercaseToken(9);
 
+    internal static string NewDescription() => $"{LowercaseToken(7)} {LowercaseToken(9)} {LowercaseToken(5)}";
+
     internal static string NewFailureMessage() => $"failure-{LowercaseToken(10)}";
 
     internal static double NewLatitude() => Math.Round((Random.Shared.NextDouble() * 180.0) - 90.0, 6);

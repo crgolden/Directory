@@ -14,11 +14,12 @@ public sealed class CampusServiceTests
     {
         var conn = new FakeDbConnection();
         var service = new CampusService(conn);
-        var campus = new Campus { ChurchId = Guid.NewGuid(), Name = "North", City = "Denver", State = "CO", Zip = "80201", Latitude = 39.7, Longitude = -104.9 };
+        var campusName = TestValues.NewName();
+        var campus = BuildCampus(campusName);
 
         var result = await service.CreateAsync(campus.ChurchId, campus, TestContext.Current.CancellationToken);
 
-        Assert.Equal("North", result.Name);
+        Assert.Equal(campusName, result.Name);
         Assert.Contains(conn.ExecutedCommands, c =>
             c.CommandText.Contains("INSERT INTO [dbo].[Campuses]", StringComparison.Ordinal));
     }
@@ -29,7 +30,7 @@ public sealed class CampusServiceTests
     {
         var conn = new FakeDbConnection();
         var service = new CampusService(conn);
-        var campus = new Campus { ChurchId = Guid.NewGuid(), Name = BlankFieldValue, City = "Denver", State = "CO", Zip = "80201", Latitude = 39.7, Longitude = -104.9 };
+        var campus = BuildCampus(BlankFieldValue);
 
         var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
             service.CreateAsync(campus.ChurchId, campus, TestContext.Current.CancellationToken));
@@ -45,7 +46,7 @@ public sealed class CampusServiceTests
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithNonQueryResult(1));
         var service = new CampusService(conn);
-        var campus = new Campus { ChurchId = Guid.NewGuid(), Name = "North", City = "Denver", State = "CO", Zip = "80201", Latitude = 39.7, Longitude = -104.9 };
+        var campus = BuildCampus(TestValues.NewName());
 
         var updated = await service.UpdateAsync(Guid.NewGuid(), campus, TestContext.Current.CancellationToken);
 
@@ -67,4 +68,15 @@ public sealed class CampusServiceTests
         Assert.Contains(conn.ExecutedCommands, c =>
             c.CommandText.Contains("DELETE FROM [dbo].[Campuses]", StringComparison.Ordinal));
     }
+
+    private static Campus BuildCampus(string name) => new Campus
+    {
+        ChurchId = Guid.NewGuid(),
+        Name = name,
+        City = TestValues.NewCity(),
+        State = TestValues.NewStateCode(),
+        Zip = TestValues.NewZip(),
+        Latitude = TestValues.NewLatitude(),
+        Longitude = TestValues.NewLongitude(),
+    };
 }
