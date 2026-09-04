@@ -42,6 +42,10 @@ CREATE INDEX [IX_Churches_IsActive]
     ON [dbo].[Churches] ([IsActive] ASC);
 
 GO
+CREATE INDEX [IX_Churches_IsActive_CanonicalName]
+    ON [dbo].[Churches] ([IsActive] ASC, [CanonicalName] ASC);
+
+GO
 CREATE FULLTEXT CATALOG [ChurchesFTCatalog] AS DEFAULT;
 
 GO

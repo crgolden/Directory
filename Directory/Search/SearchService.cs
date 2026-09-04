@@ -50,15 +50,16 @@ public sealed class SearchService
         cmd.CommandText = sql;
         BindParams(cmd, query);
         await using var reader = await cmd.ExecuteReaderAsync(ct);
-        var items = new List<SearchResult>();
         var totalCount = 0;
+        if (await reader.ReadAsync(ct))
+        {
+            totalCount = (int)reader[0];
+        }
+
+        await reader.NextResultAsync(ct);
+        var items = new List<SearchResult>();
         while (await reader.ReadAsync(ct))
         {
-            if (items.Count == 0)
-            {
-                totalCount = (int)reader[25];
-            }
-
             var church = Map(reader);
             double? distance = hasDistance && reader[24] is not DBNull ? (double)reader[24] : null;
             items.Add(new SearchResult(church, distance));
@@ -69,58 +70,22 @@ public sealed class SearchService
 
     internal static string BuildQuery(SearchQuery q, out bool hasDistance)
     {
-        var sb = new StringBuilder();
-        sb.Append("SELECT ");
-        sb.Append(BaseColumns);
-
         hasDistance = q is { Lat: not null, Lng: not null };
-        if (hasDistance)
-        {
-            sb.Append(", [dbo].[fn_HaversineDistance](@Lat, @Lng, c.[Latitude], c.[Longitude]) AS [DistanceMiles]");
-        }
-        else
-        {
-            sb.Append(", CAST(NULL AS FLOAT) AS [DistanceMiles]");
-        }
-
-        sb.Append(", COUNT(*) OVER() AS [TotalCount]");
-        sb.Append(" FROM [dbo].[Churches] c");
-
         var containsCondition = BuildContainsCondition(q.Q, out _);
         var hasFullText = containsCondition is not null;
-        if (hasFullText)
-        {
-            sb.Append(" INNER JOIN CONTAINSTABLE([dbo].[Churches], ([CanonicalName], [City]), @Q) AS ft ON ft.[KEY] = c.[Id]");
-        }
+        var scope = BuildFromAndWhere(q, hasFullText, hasDistance);
 
-        sb.Append(" WHERE c.[IsActive] = 1");
+        var sb = new StringBuilder();
+        sb.Append("SELECT COUNT(*) AS [TotalCount]");
+        sb.Append(scope);
+        sb.Append(';');
 
-        if (!string.IsNullOrWhiteSpace(q.State))
-        {
-            sb.Append(" AND c.[State] = @State");
-        }
-
-        if (q.DenominationId.HasValue)
-        {
-            sb.Append(" AND c.[DenominationId] = @DenominationId");
-        }
-
-        if (q.WorshipStyle.HasValue)
-        {
-            sb.Append(" AND c.[WorshipStyle] = @WorshipStyle");
-        }
-
-        if (q.WheelchairAccessible.HasValue)
-        {
-            sb.Append(" AND c.[WheelchairAccessible] = @WheelchairAccessible");
-        }
-
-        if (hasDistance)
-        {
-            sb.Append(" AND [dbo].[fn_HaversineDistance](@Lat, @Lng, c.[Latitude], c.[Longitude]) <= @RadiusMiles");
-        }
-
-        AppendScheduleFilter(sb, q);
+        sb.Append(" SELECT ");
+        sb.Append(BaseColumns);
+        sb.Append(hasDistance
+            ? ", [dbo].[fn_HaversineDistance](@Lat, @Lng, c.[Latitude], c.[Longitude]) AS [DistanceMiles]"
+            : ", CAST(NULL AS FLOAT) AS [DistanceMiles]");
+        sb.Append(scope);
 
         AppendOrderBy(sb, q, hasFullText, hasDistance);
 
@@ -212,6 +177,48 @@ public sealed class SearchService
 
         AddParam(cmd, "@Offset", (q.Page - 1) * q.PageSize);
         AddParam(cmd, "@PageSize", q.PageSize);
+    }
+
+    private static string BuildFromAndWhere(SearchQuery q, bool hasFullText, bool hasDistance)
+    {
+        var sb = new StringBuilder();
+        sb.Append(" FROM [dbo].[Churches] c");
+
+        if (hasFullText)
+        {
+            sb.Append(" INNER JOIN CONTAINSTABLE([dbo].[Churches], ([CanonicalName], [City]), @Q) AS ft ON ft.[KEY] = c.[Id]");
+        }
+
+        sb.Append(" WHERE c.[IsActive] = 1");
+
+        if (!string.IsNullOrWhiteSpace(q.State))
+        {
+            sb.Append(" AND c.[State] = @State");
+        }
+
+        if (q.DenominationId.HasValue)
+        {
+            sb.Append(" AND c.[DenominationId] = @DenominationId");
+        }
+
+        if (q.WorshipStyle.HasValue)
+        {
+            sb.Append(" AND c.[WorshipStyle] = @WorshipStyle");
+        }
+
+        if (q.WheelchairAccessible.HasValue)
+        {
+            sb.Append(" AND c.[WheelchairAccessible] = @WheelchairAccessible");
+        }
+
+        if (hasDistance)
+        {
+            sb.Append(" AND [dbo].[fn_HaversineDistance](@Lat, @Lng, c.[Latitude], c.[Longitude]) <= @RadiusMiles");
+        }
+
+        AppendScheduleFilter(sb, q);
+
+        return sb.ToString();
     }
 
     private static SortMode ResolveSortMode(SearchQuery q, bool hasFullText, bool hasDistance)

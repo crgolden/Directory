@@ -66,7 +66,7 @@ internal sealed class FakeDbCommand : DbCommand
     private readonly FakeDbParameterCollection _parameters = new();
     private int _nonQueryResult;
     private object? _scalarResult;
-    private DataTable? _readerTable;
+    private DataTable[]? _readerTables;
     private Exception? _throwOnExecute;
 
     public string? CapturedCommandText { get; private set; }
@@ -96,7 +96,9 @@ internal sealed class FakeDbCommand : DbCommand
 
     public static FakeDbCommand WithScalarResult(object? value) => new() { _scalarResult = value };
 
-    public static FakeDbCommand WithReader(DataTable table) => new() { _readerTable = table };
+    public static FakeDbCommand WithReader(DataTable table) => new() { _readerTables = [table] };
+
+    public static FakeDbCommand WithReaders(params DataTable[] tables) => new() { _readerTables = tables };
 
     public static FakeDbCommand WithException(Exception toThrow) => new() { _throwOnExecute = toThrow };
 
@@ -125,12 +127,12 @@ internal sealed class FakeDbCommand : DbCommand
     protected override DbParameter CreateDbParameter() => new FakeDbParameter();
 
     protected override DbDataReader ExecuteDbDataReader(CommandBehavior behavior) =>
-        (_readerTable ?? new DataTable()).CreateDataReader();
+        new DataTableReader(_readerTables ?? [new DataTable()]);
 
     protected override Task<DbDataReader> ExecuteDbDataReaderAsync(CommandBehavior behavior, CancellationToken cancellationToken) =>
         _throwOnExecute is not null
             ? Task.FromException<DbDataReader>(_throwOnExecute)
-            : Task.FromResult<DbDataReader>((_readerTable ?? new DataTable()).CreateDataReader());
+            : Task.FromResult<DbDataReader>(new DataTableReader(_readerTables ?? [new DataTable()]));
 }
 
 internal sealed class FakeDbParameter : DbParameter

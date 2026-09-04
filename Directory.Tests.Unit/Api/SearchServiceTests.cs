@@ -310,9 +310,9 @@ public sealed class SearchServiceTests
         var searchLatitude = TestValues.NewLatitude();
         var searchLongitude = TestValues.NewLongitude();
         var table = BuildSearchTable();
-        table.Rows.Add(SearchRowPopulated(expectedStreet, expectedDistanceMiles, expectedTotalCount));
+        table.Rows.Add(SearchRowPopulated(expectedStreet, expectedDistanceMiles));
         var conn = new FakeDbConnection();
-        conn.Enqueue(FakeDbCommand.WithReader(table));
+        conn.Enqueue(FakeDbCommand.WithReaders(BuildCountTable(expectedTotalCount), table));
         var service = new SearchService(conn);
         var query = QueryWith(lat: searchLatitude, lng: searchLongitude);
 
@@ -333,9 +333,9 @@ public sealed class SearchServiceTests
         var searchLatitude = TestValues.NewLatitude();
         var searchLongitude = TestValues.NewLongitude();
         var table = BuildSearchTable();
-        table.Rows.Add(SearchRowPopulated(rowStreet, DBNull.Value, rowTotalCount));
+        table.Rows.Add(SearchRowPopulated(rowStreet, DBNull.Value));
         var conn = new FakeDbConnection();
-        conn.Enqueue(FakeDbCommand.WithReader(table));
+        conn.Enqueue(FakeDbCommand.WithReaders(BuildCountTable(rowTotalCount), table));
         var service = new SearchService(conn);
         var query = QueryWith(lat: searchLatitude, lng: searchLongitude);
 
@@ -350,9 +350,9 @@ public sealed class SearchServiceTests
     {
         var expectedTotalCount = TestValues.NewRowCount();
         var table = BuildSearchTable();
-        table.Rows.Add(SearchRowNullable(expectedTotalCount));
+        table.Rows.Add(SearchRowNullable());
         var conn = new FakeDbConnection();
-        conn.Enqueue(FakeDbCommand.WithReader(table));
+        conn.Enqueue(FakeDbCommand.WithReaders(BuildCountTable(expectedTotalCount), table));
         var service = new SearchService(conn);
         var query = QueryWith();
 
@@ -623,11 +623,18 @@ public sealed class SearchServiceTests
         t.Columns.Add("UpdatedAt", typeof(DateTimeOffset));
         t.Columns.Add("IsActive", typeof(bool));
         t.Columns.Add("DistanceMiles", typeof(double));
-        t.Columns.Add("TotalCount", typeof(int));
         return t;
     }
 
-    private static object[] SearchRowPopulated(string street, object distanceMiles, int totalCount)
+    private static DataTable BuildCountTable(int totalCount)
+    {
+        var t = new DataTable();
+        t.Columns.Add("TotalCount", typeof(int));
+        t.Rows.Add(totalCount);
+        return t;
+    }
+
+    private static object[] SearchRowPopulated(string street, object distanceMiles)
     {
         var churchId = Guid.NewGuid();
         var canonicalName = TestValues.NewName();
@@ -652,11 +659,11 @@ public sealed class SearchServiceTests
             churchId, canonicalName, slug, latitude, longitude, street,
             city, state, zip, phoneNumber, website, emailAddress,
             denominationId, (int)worshipStyle, primaryLanguage, true, true, true, true, confidenceScore,
-            lastVerifiedAt, createdAt, updatedAt, true, distanceMiles, totalCount,
+            lastVerifiedAt, createdAt, updatedAt, true, distanceMiles,
         ];
     }
 
-    private static object[] SearchRowNullable(int totalCount)
+    private static object[] SearchRowNullable()
     {
         var churchId = Guid.NewGuid();
         var canonicalName = TestValues.NewName();
@@ -676,7 +683,7 @@ public sealed class SearchServiceTests
             churchId, canonicalName, slug, latitude, longitude, DBNull.Value,
             city, state, zip, DBNull.Value, DBNull.Value, DBNull.Value,
             DBNull.Value, (int)worshipStyle, primaryLanguage, DBNull.Value, DBNull.Value, DBNull.Value, DBNull.Value, confidenceScore,
-            DBNull.Value, createdAt, updatedAt, true, DBNull.Value, totalCount,
+            DBNull.Value, createdAt, updatedAt, true, DBNull.Value,
         ];
     }
 }
