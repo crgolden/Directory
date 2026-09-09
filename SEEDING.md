@@ -90,7 +90,7 @@ This requires temporary, **uncommitted** changes that MUST be reverted afterward
    scraper/extractor/enrichment/email/timer functions locally.
 
 Service Bus and storage need no temporary change. Both resources refuse shared keys, and the local host
-authenticates to both as the developer's `az login` — see [AGENTS/Functions.md](../AGENTS/Functions.md).
+authenticates to both as the developer's `az login` — see [AGENTS/REPOS/Functions.md](../AGENTS/REPOS/Functions.md).
 Set `AzureFunctionsWebHost__hostid` to something local-only so the host does not take the deployed app's
 blob singleton leases.
 

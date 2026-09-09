@@ -87,7 +87,7 @@ service and endpoint tests assert generated SQL/parameters and feed canned reade
 | User endpoint | `E2E/UserEndpointsTests.cs` | `/me` identity projection |
 | Confidence score | `Domain/ConfidenceScoreCalculatorTests.cs` | Score derivation from populated attributes |
 
-See [COVERAGE-TRUTH-TABLES.md](COVERAGE-TRUTH-TABLES.md) for the demand-driven MC/DC tables behind the service
+See the workspace `COVERAGE/Directory.md` for the demand-driven MC/DC tables behind the service
 test selection.
 
 ---
@@ -149,6 +149,6 @@ Required coverage files: `coverage.opencover.xml` (unit, OpenCover).
 ### When to build a truth table
 
 The coverage **score is read from SonarCloud, never hand-maintained** here. Build a per-method table in
-`COVERAGE-TRUTH-TABLES.md` only when SonarCloud flags a method with **cognitive complexity > 15 AND uncovered
+the workspace `COVERAGE/Directory.md` only when SonarCloud flags a method with **cognitive complexity > 15 AND uncovered
 conditions > 0**: the table is escalation for the gnarly few, not a per-class deliverable. See
-`../AGENTS/DESIGN-LANGUAGE.md` and `../AGENTS/TESTING-COVERAGE.md`.
+the workspace `COVERAGE/METHOD.md`.
