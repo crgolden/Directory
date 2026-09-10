@@ -113,14 +113,25 @@ The deploy job deploys the dacpac (via `SqlPackage`) and then the app to `crgold
 
 ## Local SonarCloud analysis
 
-Generate coverage first, then run from `Directory/`. Unit coverage is OpenCover (branch-bearing, via
-`coverlet.console` pinned in `dotnet-tools.json` — restore with `dotnet tool restore`; see the workspace
-`TESTING.md` for the command rationale). E2E coverage is Visual Studio Coverage XML (via `dotnet-coverage`
-against a real SQL Server), fed to Sonar as a second, separate report.
+Directory is C#, so the analysis runs through `dotnet-sonarscanner` (the MSBuild integration) with the
+build between `begin` and `end`, exactly as the workflow does. The standalone `sonar-scanner` CLI indexes
+the files but analyses no C#; it uploads an empty analysis that still shows a green gate. Pass the same
+`/d:` arguments as the workflow's "Begin Sonar analysis" step, including `sonar.coverage.exclusions`.
+Unit coverage is OpenCover (branch-bearing, via `coverlet.console` pinned in `dotnet-tools.json`); E2E
+coverage is Visual Studio Coverage XML (via `dotnet-coverage` against a real SQL Server), fed to Sonar as
+a second, separate report. Run from `Directory/`.
 
 ```powershell
-dotnet build Directory.Tests.Unit --configuration Release
 dotnet tool restore
+dotnet-sonarscanner begin /k:"<project key>" /o:"<organization>" /d:sonar.token="<token>" `
+  /d:sonar.host.url="https://sonarcloud.io" `
+  /d:sonar.cs.opencover.reportsPaths="coverage.opencover.xml" `
+  /d:sonar.cs.vscoveragexml.reportsPaths="coverage-e2e.xml" `
+  /d:sonar.exclusions="**/bin/**,**/obj/**" `
+  /d:sonar.coverage.exclusions="**/Program.cs"
+
+dotnet build --no-incremental --configuration Release
+
 dotnet coverlet Directory.Tests.Unit\bin\Release\net10.0 `
   --target "dotnet" `
   --targetargs "test --project Directory.Tests.Unit --no-build --configuration Release -- --filter-trait Category=Unit" `
@@ -133,18 +144,11 @@ dotnet-coverage collect `
   "dotnet test --project Directory.Tests.Unit --no-build --configuration Release -- --filter-trait Category=E2E" `
   -f xml -o "coverage-e2e.xml" -s "coverage.settings.xml"
 
-$env:SONAR_TOKEN = "<token>"
-& "$env:SystemDrive\sonar-scanner-8.0.1.6346-windows-x64\bin\sonar-scanner.bat" `
-  "-Dsonar.projectKey=crgolden_Directory" `
-  "-Dsonar.organization=crgolden" `
-  "-Dsonar.sources=Directory" `
-  "-Dsonar.tests=Directory.Tests.Unit" `
-  "-Dsonar.exclusions=**/bin/**,**/obj/**" `
-  "-Dsonar.cs.opencover.reportsPaths=coverage.opencover.xml" `
-  "-Dsonar.cs.vscoveragexml.reportsPaths=coverage-e2e.xml"
+dotnet-sonarscanner end /d:sonar.token="<token>"
 ```
 
-Required coverage files: `coverage.opencover.xml` (unit, OpenCover).
+Required coverage files: `coverage.opencover.xml` (unit, OpenCover). A missing report uploads 0% coverage
+rather than failing, so confirm both files exist before `end`.
 
 ### When to build a truth table
 
