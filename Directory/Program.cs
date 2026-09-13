@@ -3,6 +3,7 @@ using System.Data.Common;
 using System.Diagnostics;
 using System.Security.Claims;
 using Azure.Identity;
+using Directory;
 using Directory.Admin;
 using Directory.Campuses;
 using Directory.Church;
@@ -140,15 +141,15 @@ try
             jwtBearerOptions.MapInboundClaims = false;
         }).Services
         .AddAuthorizationBuilder()
-        .AddPolicy("Directory", policy =>
+        .AddPolicy(AuthorizationPolicies.DirectoryPolicy, policy =>
         {
             policy.RequireAuthenticatedUser();
-            policy.RequireClaim("scope", "directory");
+            policy.RequireClaim(AuthorizationPolicies.ScopeClaimType, AuthorizationPolicies.DirectoryScope);
         })
-        .AddPolicy("ChurchesMod", policy =>
+        .AddPolicy(AuthorizationPolicies.ChurchesModPolicy, policy =>
         {
             policy.RequireAuthenticatedUser();
-            policy.RequireClaim("churches.mod", "true");
+            policy.RequireClaim(AuthorizationPolicies.ChurchesModClaimType, AuthorizationPolicies.ChurchesModClaimValue);
         });
     builder.Services
         .AddScoped<AdminService>()

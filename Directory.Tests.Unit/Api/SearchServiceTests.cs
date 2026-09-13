@@ -1,6 +1,7 @@
 namespace Directory.Tests.Unit.Api;
 
 using System.Data;
+using Entities;
 using Enums;
 using Search;
 using TestSupport;
@@ -65,7 +66,7 @@ public sealed class SearchServiceTests
     [Trait("Category", "Unit")]
     public async Task SearchAsync_OmitsContainsTableJoin_WhenKeywordIsJunkOnly()
     {
-        var punctuationOnlyQuery = "!!! ---";
+        var punctuationOnlyQuery = TestValues.NewPunctuationOnlyQuery();
         var conn = BuildConn(out var cmd);
         var service = new SearchService(conn);
 
@@ -382,7 +383,7 @@ public sealed class SearchServiceTests
     [Trait("Category", "Unit")]
     public void BuildContainsCondition_JunkOnlyInput_ReturnsNullAndNoTerms()
     {
-        var punctuationOnlyQuery = "!!! ---";
+        var punctuationOnlyQuery = TestValues.NewPunctuationOnlyQuery();
 
         var condition = SearchService.BuildContainsCondition(punctuationOnlyQuery, out var terms);
 
@@ -394,7 +395,7 @@ public sealed class SearchServiceTests
     [Trait("Category", "Unit")]
     public void BuildContainsCondition_NullOrWhitespace_ReturnsNullAndNoTerms()
     {
-        var whitespaceOnlyQuery = new string(' ', Random.Shared.Next(1, 4));
+        var whitespaceOnlyQuery = TestValues.NewBlank();
 
         Assert.Null(SearchService.BuildContainsCondition(null, out var terms1));
         Assert.Empty(terms1);
@@ -434,7 +435,7 @@ public sealed class SearchServiceTests
     [Trait("Category", "Unit")]
     public void BuildQuery_RelevanceSortWithoutUsableKeyword_FallsBackToName()
     {
-        var punctuationOnlyQuery = "!!!";
+        var punctuationOnlyQuery = TestValues.NewPunctuationToken();
         var query = QueryWith(q: punctuationOnlyQuery, sort: SearchService.SortByRelevance);
 
         var sql = SearchService.BuildQuery(query, out _);
@@ -598,38 +599,38 @@ public sealed class SearchServiceTests
     private static DataTable BuildSearchTable()
     {
         var t = new DataTable();
-        t.Columns.Add("Id", typeof(Guid));
-        t.Columns.Add("CanonicalName", typeof(string));
-        t.Columns.Add("Slug", typeof(string));
-        t.Columns.Add("Latitude", typeof(double));
-        t.Columns.Add("Longitude", typeof(double));
-        t.Columns.Add("Street", typeof(string));
-        t.Columns.Add("City", typeof(string));
-        t.Columns.Add("State", typeof(string));
-        t.Columns.Add("Zip", typeof(string));
-        t.Columns.Add("PhoneNumber", typeof(string));
-        t.Columns.Add("Website", typeof(string));
-        t.Columns.Add("EmailAddress", typeof(string));
-        t.Columns.Add("DenominationId", typeof(Guid));
-        t.Columns.Add("WorshipStyle", typeof(int));
-        t.Columns.Add("PrimaryLanguage", typeof(string));
-        t.Columns.Add("AcceptsLGBTQ", typeof(bool));
-        t.Columns.Add("WheelchairAccessible", typeof(bool));
-        t.Columns.Add("HasNursery", typeof(bool));
-        t.Columns.Add("HasYouthProgram", typeof(bool));
-        t.Columns.Add("ConfidenceScore", typeof(decimal));
-        t.Columns.Add("LastVerifiedAt", typeof(DateTimeOffset));
-        t.Columns.Add("CreatedAt", typeof(DateTimeOffset));
-        t.Columns.Add("UpdatedAt", typeof(DateTimeOffset));
-        t.Columns.Add("IsActive", typeof(bool));
-        t.Columns.Add("DistanceMiles", typeof(double));
+        t.Columns.Add(nameof(Church.Id), typeof(Guid));
+        t.Columns.Add(nameof(Church.CanonicalName), typeof(string));
+        t.Columns.Add(nameof(Church.Slug), typeof(string));
+        t.Columns.Add(nameof(Church.Latitude), typeof(double));
+        t.Columns.Add(nameof(Church.Longitude), typeof(double));
+        t.Columns.Add(nameof(Church.Street), typeof(string));
+        t.Columns.Add(nameof(Church.City), typeof(string));
+        t.Columns.Add(nameof(Church.State), typeof(string));
+        t.Columns.Add(nameof(Church.Zip), typeof(string));
+        t.Columns.Add(nameof(Church.PhoneNumber), typeof(string));
+        t.Columns.Add(nameof(Church.Website), typeof(string));
+        t.Columns.Add(nameof(Church.EmailAddress), typeof(string));
+        t.Columns.Add(nameof(Church.DenominationId), typeof(Guid));
+        t.Columns.Add(nameof(Church.WorshipStyle), typeof(int));
+        t.Columns.Add(nameof(Church.PrimaryLanguage), typeof(string));
+        t.Columns.Add(nameof(Church.AcceptsLGBTQ), typeof(bool));
+        t.Columns.Add(nameof(Church.WheelchairAccessible), typeof(bool));
+        t.Columns.Add(nameof(Church.HasNursery), typeof(bool));
+        t.Columns.Add(nameof(Church.HasYouthProgram), typeof(bool));
+        t.Columns.Add(nameof(Church.ConfidenceScore), typeof(decimal));
+        t.Columns.Add(nameof(Church.LastVerifiedAt), typeof(DateTimeOffset));
+        t.Columns.Add(nameof(Church.CreatedAt), typeof(DateTimeOffset));
+        t.Columns.Add(nameof(Church.UpdatedAt), typeof(DateTimeOffset));
+        t.Columns.Add(nameof(Church.IsActive), typeof(bool));
+        t.Columns.Add(nameof(SearchResult.DistanceMiles), typeof(double));
         return t;
     }
 
     private static DataTable BuildCountTable(int totalCount)
     {
         var t = new DataTable();
-        t.Columns.Add("TotalCount", typeof(int));
+        t.Columns.Add(nameof(SearchPagedResult.TotalCount), typeof(int));
         t.Rows.Add(totalCount);
         return t;
     }

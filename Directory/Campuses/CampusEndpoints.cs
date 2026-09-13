@@ -21,7 +21,7 @@ public static class CampusEndpoints
 
             var created = await service.CreateAsync(churchId, ToCampus(churchId, req), ct);
             return Results.Created($"/campuses/{created.Id}", created);
-        }).RequireAuthorization("ChurchesMod").WithTags("Campuses");
+        }).RequireAuthorization(AuthorizationPolicies.ChurchesModPolicy).WithTags("Campuses");
 
         app.MapPut("/campuses/{id:guid}", async (
             Guid id,
@@ -37,14 +37,14 @@ public static class CampusEndpoints
             return await service.UpdateAsync(id, ToCampus(Guid.Empty, req), ct)
                 ? Results.NoContent()
                 : Results.NotFound();
-        }).RequireAuthorization("ChurchesMod").WithTags("Campuses");
+        }).RequireAuthorization(AuthorizationPolicies.ChurchesModPolicy).WithTags("Campuses");
 
         app.MapDelete("/campuses/{id:guid}", async (
             Guid id,
             CampusService service,
             CancellationToken ct) =>
             await service.DeleteAsync(id, ct) ? Results.NoContent() : Results.NotFound())
-            .RequireAuthorization("ChurchesMod").WithTags("Campuses");
+            .RequireAuthorization(AuthorizationPolicies.ChurchesModPolicy).WithTags("Campuses");
 
         return app;
     }

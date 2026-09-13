@@ -10,7 +10,7 @@ using Enums;
 [ExcludeFromCodeCoverage]
 public static class ModerationEndpoints
 {
-    private const string ChurchesModPolicy = "ChurchesMod";
+    private const string ChurchesModPolicy = AuthorizationPolicies.ChurchesModPolicy;
     private const string MissingSubClaimMessage = "Missing 'sub' claim.";
 
     public static IEndpointRouteBuilder MapModerationEndpoints(this IEndpointRouteBuilder app)
@@ -57,7 +57,7 @@ public static class ModerationEndpoints
             var id = await service.SubmitCorrectionAsync(
                 req.ChurchId, userId, req.Field, req.OldValue, req.NewValue, ct);
             return Results.Accepted($"/corrections/{id}", new { Id = id });
-        }).RequireAuthorization("Directory");
+        }).RequireAuthorization(AuthorizationPolicies.DirectoryPolicy);
 
         modGroup.MapPatch("/{id:guid}/approve", async (
             Guid id,

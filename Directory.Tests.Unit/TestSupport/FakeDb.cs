@@ -4,11 +4,17 @@ using System.Data;
 using System.Data.Common;
 using System.Diagnostics.CodeAnalysis;
 
+internal static class FakeDbMember
+{
+    internal static InvalidOperationException NotSet(string memberName, string typeName) =>
+        new InvalidOperationException($"{memberName} was never set on this {typeName}.");
+}
+
 internal sealed class FakeDbConnection : DbConnection
 {
     private readonly Queue<FakeDbCommand> _commandQueue = new();
     private ConnectionState _state = ConnectionState.Closed;
-    private string _connectionString = string.Empty;
+    private string? _connectionString;
 
     public List<FakeDbCommand> ExecutedCommands { get; } = [];
 
@@ -17,17 +23,17 @@ internal sealed class FakeDbConnection : DbConnection
     [AllowNull]
     public override string ConnectionString
     {
-        get => _connectionString;
-        set => _connectionString = value ?? string.Empty;
+        get => _connectionString ?? throw FakeDbMember.NotSet(nameof(ConnectionString), nameof(FakeDbConnection));
+        set => _connectionString = value;
     }
 
     public override ConnectionState State => _state;
 
-    public override string Database => string.Empty;
+    public override string Database => nameof(FakeDbConnection);
 
-    public override string DataSource => string.Empty;
+    public override string DataSource => nameof(FakeDbConnection);
 
-    public override string ServerVersion => string.Empty;
+    public override string ServerVersion => nameof(FakeDbConnection);
 
     public void Enqueue(FakeDbCommand cmd) => _commandQueue.Enqueue(cmd);
 
@@ -66,7 +72,7 @@ internal sealed class FakeDbCommand : DbCommand
     private readonly FakeDbParameterCollection _parameters = new();
     private int _nonQueryResult;
     private object? _scalarResult;
-    private DataTable[]? _readerTables;
+    private DataTable[] _readerTables = [];
     private Exception? _throwOnExecute;
 
     public string? CapturedCommandText { get; private set; }
@@ -74,7 +80,7 @@ internal sealed class FakeDbCommand : DbCommand
     [AllowNull]
     public override string CommandText
     {
-        get => CapturedCommandText ?? string.Empty;
+        get => CapturedCommandText ?? throw FakeDbMember.NotSet(nameof(CommandText), nameof(FakeDbCommand));
         set => CapturedCommandText = value;
     }
 
@@ -127,18 +133,20 @@ internal sealed class FakeDbCommand : DbCommand
     protected override DbParameter CreateDbParameter() => new FakeDbParameter();
 
     protected override DbDataReader ExecuteDbDataReader(CommandBehavior behavior) =>
-        new DataTableReader(_readerTables ?? [new DataTable()]);
+        new DataTableReader(ReaderTables());
 
     protected override Task<DbDataReader> ExecuteDbDataReaderAsync(CommandBehavior behavior, CancellationToken cancellationToken) =>
         _throwOnExecute is not null
             ? Task.FromException<DbDataReader>(_throwOnExecute)
-            : Task.FromResult<DbDataReader>(new DataTableReader(_readerTables ?? [new DataTable()]));
+            : Task.FromResult<DbDataReader>(new DataTableReader(ReaderTables()));
+
+    private DataTable[] ReaderTables() => _readerTables.Length > 0 ? _readerTables : [new DataTable()];
 }
 
 internal sealed class FakeDbParameter : DbParameter
 {
-    private string _parameterName = string.Empty;
-    private string _sourceColumn = string.Empty;
+    private string? _parameterName;
+    private string? _sourceColumn;
 
     public override DbType DbType { get; set; }
 
@@ -149,8 +157,8 @@ internal sealed class FakeDbParameter : DbParameter
     [AllowNull]
     public override string ParameterName
     {
-        get => _parameterName;
-        set => _parameterName = value ?? string.Empty;
+        get => _parameterName ?? throw FakeDbMember.NotSet(nameof(ParameterName), nameof(FakeDbParameter));
+        set => _parameterName = value;
     }
 
     public override int Size { get; set; }
@@ -158,8 +166,8 @@ internal sealed class FakeDbParameter : DbParameter
     [AllowNull]
     public override string SourceColumn
     {
-        get => _sourceColumn;
-        set => _sourceColumn = value ?? string.Empty;
+        get => _sourceColumn ?? throw FakeDbMember.NotSet(nameof(SourceColumn), nameof(FakeDbParameter));
+        set => _sourceColumn = value;
     }
 
     public override bool SourceColumnNullMapping { get; set; }

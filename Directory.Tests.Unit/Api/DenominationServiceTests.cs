@@ -28,7 +28,7 @@ public sealed class DenominationServiceTests
 
         // Assert
         Assert.Equal(System.Data.ConnectionState.Open, conn.State);
-        Assert.Equal(2, result.Count);
+        Assert.Equal(table.Rows.Count, result.Count);
         Assert.Equal(firstDenominationName, result[0].Name);
         Assert.Equal(firstDenominationId, result[0].Id);
         Assert.Equal(secondDenominationName, result[1].Name);
@@ -81,8 +81,9 @@ public sealed class DenominationServiceTests
     public async Task GetAllAsync_OrdersByNameAscending()
     {
         // Arrange
+        var denominationId = Guid.NewGuid();
         var table = BuildDenominationTable();
-        table.Rows.Add(Guid.NewGuid(), TestValues.NewName());
+        table.Rows.Add(denominationId, TestValues.NewName());
 
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithReader(table));
@@ -99,8 +100,8 @@ public sealed class DenominationServiceTests
     private static DataTable BuildDenominationTable()
     {
         var table = new DataTable();
-        table.Columns.Add("Id", typeof(Guid));
-        table.Columns.Add("Name", typeof(string));
+        table.Columns.Add(nameof(Entities.Denomination.Id), typeof(Guid));
+        table.Columns.Add(nameof(Entities.Denomination.Name), typeof(string));
         return table;
     }
 }

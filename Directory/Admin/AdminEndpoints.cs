@@ -14,7 +14,7 @@ public static class AdminEndpoints
     {
         var group = app.MapGroup("/admin")
             .WithTags("Admin")
-            .RequireAuthorization("ChurchesMod");
+            .RequireAuthorization(AuthorizationPolicies.ChurchesModPolicy);
 
         group.MapPost("/import", async (
             IFormFile file,

@@ -3,6 +3,7 @@ namespace Directory.Tests.Unit.Api;
 using System.Data;
 using Azure.Messaging.ServiceBus;
 using Crawling;
+using Entities;
 using Enums;
 using Messaging;
 using Microsoft.Extensions.Azure;
@@ -21,7 +22,7 @@ public sealed class CrawlingServiceTests
     {
         var crawlSourceId = Guid.NewGuid();
         var churchId = Guid.NewGuid();
-        var crawlUrl = TestValues.NewWebsite();
+        var crawlUrl = TestValues.NewWebsiteUri();
         var lastCrawledAt = TestValues.NewUtcTimestamp();
         var lastStatus = CrawlStatus.Success;
         var createdAt = TestValues.NewUtcTimestamp();
@@ -30,7 +31,7 @@ public sealed class CrawlingServiceTests
         table.Rows.Add(
             crawlSourceId,
             churchId,
-            crawlUrl,
+            crawlUrl.AbsoluteUri,
             lastCrawledAt,
             (int)lastStatus,
             createdAt,
@@ -53,14 +54,14 @@ public sealed class CrawlingServiceTests
     public async Task GetAllAsync_RowWithNullableNulls_MapsNulls()
     {
         var crawlSourceId = Guid.NewGuid();
-        var crawlUrl = TestValues.NewWebsite();
+        var crawlUrl = TestValues.NewWebsiteUri();
         var createdAt = TestValues.NewUtcTimestamp();
         var updatedAt = TestValues.NewUtcTimestamp();
         var table = BuildCrawlTable();
         table.Rows.Add(
             crawlSourceId,
             DBNull.Value,
-            crawlUrl,
+            crawlUrl.AbsoluteUri,
             DBNull.Value,
             (int)CrawlStatus.Pending,
             createdAt,
@@ -80,7 +81,7 @@ public sealed class CrawlingServiceTests
     [Trait("Category", "Unit")]
     public async Task CreateAsync_WithChurchId_BindsValue()
     {
-        var crawlUrl = TestValues.NewWebsite();
+        var crawlUrl = TestValues.NewWebsiteUri();
         var churchId = Guid.NewGuid();
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithNonQueryResult(OneRowAffected));
@@ -96,7 +97,7 @@ public sealed class CrawlingServiceTests
     [Trait("Category", "Unit")]
     public async Task CreateAsync_NullChurchId_BindsDbNull()
     {
-        var crawlUrl = TestValues.NewWebsite();
+        var crawlUrl = TestValues.NewWebsiteUri();
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithNonQueryResult(OneRowAffected));
         var service = Create(conn);
@@ -157,9 +158,9 @@ public sealed class CrawlingServiceTests
     public async Task TriggerScrapeAsync_UrlFound_SendsMessageUpdatesStatusAndReturnsTrue()
     {
         var crawlSourceId = Guid.NewGuid();
-        var crawlUrl = TestValues.NewWebsite();
+        var crawlUrl = TestValues.NewWebsiteUri();
         var conn = new FakeDbConnection();
-        conn.Enqueue(FakeDbCommand.WithScalarResult(crawlUrl));
+        conn.Enqueue(FakeDbCommand.WithScalarResult(crawlUrl.AbsoluteUri));
         conn.Enqueue(FakeDbCommand.WithNonQueryResult(OneRowAffected));
         var senderMock = new Mock<ServiceBusSender>(MockBehavior.Strict);
         senderMock
@@ -170,8 +171,10 @@ public sealed class CrawlingServiceTests
         var result = await service.TriggerScrapeAsync(crawlSourceId, TestContext.Current.CancellationToken);
 
         Assert.True(result);
-        Assert.Equal(2, conn.ExecutedCommands.Count);
-        Assert.Contains("UPDATE [dbo].[CrawlSources]", conn.ExecutedCommands[1].CommandText, StringComparison.Ordinal);
+        Assert.Collection(
+            conn.ExecutedCommands,
+            lookup => Assert.Contains("SELECT", lookup.CommandText, StringComparison.Ordinal),
+            update => Assert.Contains("UPDATE [dbo].[CrawlSources]", update.CommandText, StringComparison.Ordinal));
         senderMock.Verify(s => s.SendMessageAsync(It.IsAny<ServiceBusMessage>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -189,13 +192,13 @@ public sealed class CrawlingServiceTests
     private static DataTable BuildCrawlTable()
     {
         var t = new DataTable();
-        t.Columns.Add("Id", typeof(Guid));
-        t.Columns.Add("ChurchId", typeof(Guid));
-        t.Columns.Add("Url", typeof(string));
-        t.Columns.Add("LastCrawledAt", typeof(DateTimeOffset));
-        t.Columns.Add("LastStatus", typeof(int));
-        t.Columns.Add("CreatedAt", typeof(DateTimeOffset));
-        t.Columns.Add("UpdatedAt", typeof(DateTimeOffset));
+        t.Columns.Add(nameof(CrawlSource.Id), typeof(Guid));
+        t.Columns.Add(nameof(CrawlSource.ChurchId), typeof(Guid));
+        t.Columns.Add(nameof(CrawlSource.Url), typeof(string));
+        t.Columns.Add(nameof(CrawlSource.LastCrawledAt), typeof(DateTimeOffset));
+        t.Columns.Add(nameof(CrawlSource.LastStatus), typeof(int));
+        t.Columns.Add(nameof(CrawlSource.CreatedAt), typeof(DateTimeOffset));
+        t.Columns.Add(nameof(CrawlSource.UpdatedAt), typeof(DateTimeOffset));
         return t;
     }
 }

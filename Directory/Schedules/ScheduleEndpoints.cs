@@ -21,7 +21,7 @@ public static class ScheduleEndpoints
 
             var created = await service.CreateAsync(churchId, req.DayOfWeek, startTime, req.Description, ct);
             return Results.Created($"/schedules/{created.Id}", created);
-        }).RequireAuthorization("ChurchesMod").WithTags("Schedules");
+        }).RequireAuthorization(AuthorizationPolicies.ChurchesModPolicy).WithTags("Schedules");
 
         app.MapPut("/schedules/{id:guid}", async (
             Guid id,
@@ -37,14 +37,14 @@ public static class ScheduleEndpoints
             return await service.UpdateAsync(id, req.DayOfWeek, startTime, req.Description, ct)
                 ? Results.NoContent()
                 : Results.NotFound();
-        }).RequireAuthorization("ChurchesMod").WithTags("Schedules");
+        }).RequireAuthorization(AuthorizationPolicies.ChurchesModPolicy).WithTags("Schedules");
 
         app.MapDelete("/schedules/{id:guid}", async (
             Guid id,
             ScheduleService service,
             CancellationToken ct) =>
             await service.DeleteAsync(id, ct) ? Results.NoContent() : Results.NotFound())
-            .RequireAuthorization("ChurchesMod").WithTags("Schedules");
+            .RequireAuthorization(AuthorizationPolicies.ChurchesModPolicy).WithTags("Schedules");
 
         return app;
     }

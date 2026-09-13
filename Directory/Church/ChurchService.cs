@@ -8,6 +8,8 @@ using Enums;
 
 public sealed class ChurchService
 {
+    internal const int FirstSlugCollisionSuffix = 2;
+
     private const string SelectColumns =
         "c.[Id], c.[CanonicalName], c.[Slug], c.[Latitude], c.[Longitude], c.[Street], " +
         "c.[City], c.[State], c.[Zip], c.[PhoneNumber], c.[Website], c.[EmailAddress], " +
@@ -98,9 +100,31 @@ public sealed class ChurchService
         return Map(reader);
     }
 
-    public async Task<Church> CreateAsync(Church church, CancellationToken ct = default)
+    public async Task<Church> CreateAsync(ChurchRequest request, CancellationToken ct = default)
     {
-        church.Slug = await GenerateUniqueSlugAsync(church.CanonicalName, church.City, church.State, ct);
+        ArgumentNullException.ThrowIfNull(request);
+        var slug = await GenerateUniqueSlugAsync(request.CanonicalName, request.City, request.State, ct);
+        var church = new Church
+        {
+            CanonicalName = request.CanonicalName,
+            Slug = slug,
+            Latitude = request.Latitude,
+            Longitude = request.Longitude,
+            Street = request.Street,
+            City = request.City,
+            State = request.State,
+            Zip = request.Zip,
+            PhoneNumber = request.PhoneNumber,
+            Website = request.Website,
+            EmailAddress = request.EmailAddress,
+            DenominationId = request.DenominationId,
+            WorshipStyle = request.WorshipStyle,
+            PrimaryLanguage = request.PrimaryLanguage,
+            AcceptsLGBTQ = request.AcceptsLGBTQ,
+            WheelchairAccessible = request.WheelchairAccessible,
+            HasNursery = request.HasNursery,
+            HasYouthProgram = request.HasYouthProgram,
+        };
         var now = DateTimeOffset.UtcNow;
         EnsureValid(church, now, now);
         await EnsureOpenAsync(ct);
@@ -378,7 +402,7 @@ public sealed class ChurchService
     {
         var baseSlug = $"{ToSlug(canonicalName)}-{ToSlug(city)}-{state.ToLowerInvariant().Trim()}";
         var candidate = baseSlug;
-        var suffix = 2;
+        var suffix = FirstSlugCollisionSuffix;
         while (await SlugExistsAsync(candidate, ct))
         {
             candidate = $"{baseSlug}-{suffix}";

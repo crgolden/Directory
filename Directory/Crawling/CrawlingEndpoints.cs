@@ -9,7 +9,7 @@ public static class CrawlingEndpoints
     {
         var group = app.MapGroup("/crawl-sources")
             .WithTags("Crawling")
-            .RequireAuthorization("ChurchesMod");
+            .RequireAuthorization(AuthorizationPolicies.ChurchesModPolicy);
 
         group.MapGet("/", async (CrawlingService service, CancellationToken ct) =>
             Results.Ok(await service.GetAllAsync(ct)));
@@ -45,4 +45,4 @@ public static class CrawlingEndpoints
     }
 }
 
-public record CreateCrawlSourceRequest(string Url, Guid? ChurchId);
+public record CreateCrawlSourceRequest(Uri Url, Guid? ChurchId);

@@ -6,8 +6,6 @@ using TestSupport;
 
 public sealed class CampusServiceTests
 {
-    private const string BlankFieldValue = " ";
-
     [Fact]
     [Trait("Category", "Unit")]
     public async Task CreateAsync_InsertsCampus()
@@ -30,12 +28,13 @@ public sealed class CampusServiceTests
     {
         var conn = new FakeDbConnection();
         var service = new CampusService(conn);
-        var campus = BuildCampus(BlankFieldValue);
+        var name = TestValues.NewBlank();
+        var campus = BuildCampus(name);
 
         var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
             service.CreateAsync(campus.ChurchId, campus, TestContext.Current.CancellationToken));
 
-        Assert.Equal("name", ex.ParamName);
+        Assert.Equal(nameof(name), ex.ParamName);
         Assert.Empty(conn.ExecutedCommands);
     }
 
@@ -47,8 +46,9 @@ public sealed class CampusServiceTests
         conn.Enqueue(FakeDbCommand.WithNonQueryResult(1));
         var service = new CampusService(conn);
         var campus = BuildCampus(TestValues.NewName());
+        var campusId = Guid.NewGuid();
 
-        var updated = await service.UpdateAsync(Guid.NewGuid(), campus, TestContext.Current.CancellationToken);
+        var updated = await service.UpdateAsync(campusId, campus, TestContext.Current.CancellationToken);
 
         Assert.True(updated);
         Assert.Contains(conn.ExecutedCommands, c =>
@@ -61,22 +61,27 @@ public sealed class CampusServiceTests
     {
         var conn = new FakeDbConnection();
         var service = new CampusService(conn);
+        var campusId = Guid.NewGuid();
 
-        var deleted = await service.DeleteAsync(Guid.NewGuid(), TestContext.Current.CancellationToken);
+        var deleted = await service.DeleteAsync(campusId, TestContext.Current.CancellationToken);
 
         Assert.False(deleted);
         Assert.Contains(conn.ExecutedCommands, c =>
             c.CommandText.Contains("DELETE FROM [dbo].[Campuses]", StringComparison.Ordinal));
     }
 
-    private static Campus BuildCampus(string name) => new Campus
+    private static Campus BuildCampus(string name)
     {
-        ChurchId = Guid.NewGuid(),
-        Name = name,
-        City = TestValues.NewCity(),
-        State = TestValues.NewStateCode(),
-        Zip = TestValues.NewZip(),
-        Latitude = TestValues.NewLatitude(),
-        Longitude = TestValues.NewLongitude(),
-    };
+        var churchId = Guid.NewGuid();
+        return new Campus
+        {
+            ChurchId = churchId,
+            Name = name,
+            City = TestValues.NewCity(),
+            State = TestValues.NewStateCode(),
+            Zip = TestValues.NewZip(),
+            Latitude = TestValues.NewLatitude(),
+            Longitude = TestValues.NewLongitude(),
+        };
+    }
 }

@@ -6,6 +6,8 @@ using Entities;
 
 public sealed class ScheduleService
 {
+    internal const byte MaxDayOfWeek = 6;
+
     private readonly DbConnection _dbConnection;
 
     public ScheduleService(DbConnection dbConnection) => _dbConnection = dbConnection;
@@ -39,7 +41,7 @@ public sealed class ScheduleService
 
     public async Task<bool> UpdateAsync(Guid id, byte dayOfWeek, TimeOnly startTime, string? description, CancellationToken ct = default)
     {
-        if (dayOfWeek > 6)
+        if (dayOfWeek > MaxDayOfWeek)
         {
             throw new ArgumentOutOfRangeException(nameof(dayOfWeek), dayOfWeek, "DayOfWeek must be 0 (Sunday) through 6 (Saturday).");
         }

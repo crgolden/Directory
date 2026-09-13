@@ -22,7 +22,7 @@ public static class UserEndpoints
                 Sub = user.FindFirstValue("sub"),
                 Email = user.FindFirstValue("email"),
                 Name = user.FindFirstValue("name"),
-                HasModerationScope = user.HasClaim("scope", "churches.mod"),
+                HasModerationScope = user.HasClaim(AuthorizationPolicies.ScopeClaimType, AuthorizationPolicies.ChurchesModScope),
             });
         }).WithTags("User").AllowAnonymous();
 

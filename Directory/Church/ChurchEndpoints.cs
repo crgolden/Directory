@@ -8,7 +8,7 @@ using Enums;
 [ExcludeFromCodeCoverage]
 public static class ChurchEndpoints
 {
-    private const string ChurchesModPolicy = "ChurchesMod";
+    private const string ChurchesModPolicy = AuthorizationPolicies.ChurchesModPolicy;
 
     public static IEndpointRouteBuilder MapChurchEndpoints(this IEndpointRouteBuilder app)
     {
@@ -40,28 +40,7 @@ public static class ChurchEndpoints
 
     private static async Task<IResult> CreateAsync(ChurchRequest req, ChurchService service, CancellationToken ct)
     {
-        var church = new Church
-        {
-            CanonicalName = req.CanonicalName,
-            Slug = string.Empty,
-            Latitude = req.Latitude,
-            Longitude = req.Longitude,
-            Street = req.Street,
-            City = req.City,
-            State = req.State,
-            Zip = req.Zip,
-            PhoneNumber = req.PhoneNumber,
-            Website = req.Website,
-            EmailAddress = req.EmailAddress,
-            DenominationId = req.DenominationId,
-            WorshipStyle = req.WorshipStyle,
-            PrimaryLanguage = req.PrimaryLanguage,
-            AcceptsLGBTQ = req.AcceptsLGBTQ,
-            WheelchairAccessible = req.WheelchairAccessible,
-            HasNursery = req.HasNursery,
-            HasYouthProgram = req.HasYouthProgram,
-        };
-        var created = await service.CreateAsync(church, ct);
+        var created = await service.CreateAsync(req, ct);
         return Results.Created($"/churches/{created.Slug}", created);
     }
 

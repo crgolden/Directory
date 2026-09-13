@@ -5,7 +5,9 @@ using TestSupport;
 
 public sealed class ScheduleServiceTests
 {
-    private const byte FirstDayOfWeekAboveRange = 7;
+    private const byte DayOfWeekOutOfRangeOffset = 1;
+
+    private const byte FirstDayOfWeekAboveRange = ScheduleService.MaxDayOfWeek + DayOfWeekOutOfRangeOffset;
 
     private const int OneRowAffected = 1;
 
@@ -35,6 +37,7 @@ public sealed class ScheduleServiceTests
     public async Task CreateAsync_DayOfWeekAboveSix_ThrowsWithoutTouchingDb()
     {
         var churchId = Guid.NewGuid();
+        const byte dayOfWeek = FirstDayOfWeekAboveRange;
         var scheduledStartTime = TestValues.NewTimeOfDay();
         var scheduleDescription = TestValues.NewName();
         var conn = new FakeDbConnection();
@@ -43,12 +46,12 @@ public sealed class ScheduleServiceTests
         var ex = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
             service.CreateAsync(
                 churchId,
-                FirstDayOfWeekAboveRange,
+                dayOfWeek,
                 scheduledStartTime,
                 scheduleDescription,
                 TestContext.Current.CancellationToken));
 
-        Assert.Equal("dayOfWeek", ex.ParamName);
+        Assert.Equal(nameof(dayOfWeek), ex.ParamName);
         Assert.Empty(conn.ExecutedCommands);
     }
 
@@ -76,6 +79,7 @@ public sealed class ScheduleServiceTests
     public async Task UpdateAsync_DayOfWeekAboveSix_ThrowsWithoutTouchingDb()
     {
         var scheduleId = Guid.NewGuid();
+        const byte dayOfWeek = FirstDayOfWeekAboveRange;
         var scheduledStartTime = TestValues.NewTimeOfDay();
         var conn = new FakeDbConnection();
         var service = new ScheduleService(conn);
@@ -83,12 +87,12 @@ public sealed class ScheduleServiceTests
         var ex = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
             service.UpdateAsync(
                 scheduleId,
-                FirstDayOfWeekAboveRange,
+                dayOfWeek,
                 scheduledStartTime,
                 null,
                 TestContext.Current.CancellationToken));
 
-        Assert.Equal("dayOfWeek", ex.ParamName);
+        Assert.Equal(nameof(dayOfWeek), ex.ParamName);
         Assert.Empty(conn.ExecutedCommands);
     }
 

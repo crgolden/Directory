@@ -9,7 +9,8 @@ using Microsoft.Extensions.Options;
 internal sealed class IntegrationAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions>
 {
     internal const string SchemeName = "Integration";
-    internal const string TestSub = "test-user-id";
+
+    internal static readonly string TestSub = TestValues.NewUserId();
 
     public IntegrationAuthHandler(
         IOptionsMonitor<AuthenticationSchemeOptions> options,
@@ -23,10 +24,10 @@ internal sealed class IntegrationAuthHandler : AuthenticationHandler<Authenticat
     {
         var claims = new[]
         {
-            new Claim("sub", TestSub),
-            new Claim("scope", "directory"),
-            new Claim("scope", "churches.mod"),
-            new Claim("churches.mod", "true"),
+            new Claim(AuthorizationPolicies.SubjectClaimType, TestSub),
+            new Claim(AuthorizationPolicies.ScopeClaimType, AuthorizationPolicies.DirectoryScope),
+            new Claim(AuthorizationPolicies.ScopeClaimType, AuthorizationPolicies.ChurchesModScope),
+            new Claim(AuthorizationPolicies.ChurchesModClaimType, AuthorizationPolicies.ChurchesModClaimValue),
         };
         var identity = new ClaimsIdentity(claims, SchemeName);
         var ticket = new AuthenticationTicket(new ClaimsPrincipal(identity), SchemeName);

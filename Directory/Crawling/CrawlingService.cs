@@ -37,8 +37,9 @@ public sealed class CrawlingService
         return items;
     }
 
-    public async Task<CrawlSource> CreateAsync(string url, Guid? churchId, CancellationToken ct = default)
+    public async Task<CrawlSource> CreateAsync(Uri url, Guid? churchId, CancellationToken ct = default)
     {
+        ArgumentNullException.ThrowIfNull(url);
         var source = new CrawlSource
         {
             Url = url,
@@ -54,7 +55,7 @@ public sealed class CrawlingService
             """;
         AddParam(cmd, "@Id", source.Id);
         AddParam(cmd, "@ChurchId", churchId.HasValue ? churchId.Value : DBNull.Value);
-        AddParam(cmd, "@Url", url);
+        AddParam(cmd, "@Url", url.AbsoluteUri);
         AddParam(cmd, "@LastStatus", (int)CrawlStatus.Pending);
         AddParam(cmd, "@CreatedAt", now);
         AddParam(cmd, "@UpdatedAt", now);
@@ -112,7 +113,7 @@ public sealed class CrawlingService
     {
         Id = (Guid)r[0],
         ChurchId = r[1] is DBNull ? null : (Guid)r[1],
-        Url = (string)r[2],
+        Url = new Uri((string)r[2]),
         LastCrawledAt = r.IsDBNull(3) ? null : r.GetFieldValue<DateTimeOffset>(3),
         LastStatus = (CrawlStatus)(int)r[4],
         CreatedAt = r.GetFieldValue<DateTimeOffset>(5),

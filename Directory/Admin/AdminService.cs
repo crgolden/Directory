@@ -10,6 +10,12 @@ using Microsoft.Extensions.Azure;
 
 public sealed class AdminService
 {
+    internal const string ExportHeader =
+        "Id,CanonicalName,Slug,Street,City,State,Zip,PhoneNumber,Website,EmailAddress,WorshipStyle," +
+        "PrimaryLanguage,AcceptsLGBTQ,WheelchairAccessible,HasNursery,HasYouthProgram,ConfidenceScore,CreatedAt,UpdatedAt";
+
+    private const int ExportColumnCount = 19;
+
     private readonly DbConnection _dbConnection;
     private readonly ServiceBusClient _serviceBusClient;
 
@@ -55,7 +61,7 @@ public sealed class AdminService
 
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         var sb = new StringBuilder();
-        sb.AppendLine("Id,CanonicalName,Slug,Street,City,State,Zip,PhoneNumber,Website,EmailAddress,WorshipStyle,PrimaryLanguage,AcceptsLGBTQ,WheelchairAccessible,HasNursery,HasYouthProgram,ConfidenceScore,CreatedAt,UpdatedAt");
+        sb.AppendLine(ExportHeader);
         while (await reader.ReadAsync(ct))
         {
             sb.AppendLine(FormatRow(reader));
@@ -74,14 +80,14 @@ public sealed class AdminService
         }
 
         var columns = header.Split(',');
-        var nameIdx = IndexOf(columns, "CanonicalName");
-        var streetIdx = IndexOf(columns, "Street");
-        var cityIdx = IndexOf(columns, "City");
-        var stateIdx = IndexOf(columns, "State");
-        var zipIdx = IndexOf(columns, "Zip");
-        var phoneIdx = IndexOf(columns, "PhoneNumber");
-        var websiteIdx = IndexOf(columns, "Website");
-        var emailIdx = IndexOf(columns, "EmailAddress");
+        var nameIdx = IndexOf(columns, nameof(ImportRow.CanonicalName));
+        var streetIdx = IndexOf(columns, nameof(ImportRow.Street));
+        var cityIdx = IndexOf(columns, nameof(ImportRow.City));
+        var stateIdx = IndexOf(columns, nameof(ImportRow.State));
+        var zipIdx = IndexOf(columns, nameof(ImportRow.Zip));
+        var phoneIdx = IndexOf(columns, nameof(ImportRow.PhoneNumber));
+        var websiteIdx = IndexOf(columns, nameof(ImportRow.Website));
+        var emailIdx = IndexOf(columns, nameof(ImportRow.EmailAddress));
 
         string? line;
         while ((line = reader.ReadLine()) is not null)
@@ -106,22 +112,29 @@ public sealed class AdminService
         }
     }
 
-    private static string FormatCsvField(object? value)
+    private static string? FormatCsvField(object? value)
     {
         if (value is null or DBNull)
         {
-            return string.Empty;
+            return null;
         }
 
-        var s = value is IFormattable formattable
+        var formatted = value is IFormattable formattable
             ? formattable.ToString(null, CultureInfo.InvariantCulture)
-            : value.ToString() ?? string.Empty;
-        return s.Contains(',', StringComparison.Ordinal) || s.Contains('"', StringComparison.Ordinal) ? $"\"{s.Replace("\"", "\"\"", StringComparison.Ordinal)}\"" : s;
+            : value.ToString();
+        if (formatted is null)
+        {
+            return null;
+        }
+
+        return formatted.Contains(',', StringComparison.Ordinal) || formatted.Contains('"', StringComparison.Ordinal)
+            ? $"\"{formatted.Replace("\"", "\"\"", StringComparison.Ordinal)}\""
+            : formatted;
     }
 
     private static string FormatRow(DbDataReader r)
     {
-        var fields = new object[19];
+        var fields = new object[ExportColumnCount];
         r.GetValues(fields);
         return string.Join(",", fields.Select(FormatCsvField));
     }

@@ -50,8 +50,14 @@ public sealed class DirectoryWebApplicationFactory : WebApplicationFactory<Progr
                 .AddScheme<AuthenticationSchemeOptions, IntegrationAuthHandler>(IntegrationAuthHandler.SchemeName, _ => { });
 
             services.AddAuthorizationBuilder()
-                .AddPolicy("Directory", p => p.RequireAuthenticatedUser().RequireClaim("scope", "directory"))
-                .AddPolicy("ChurchesMod", p => p.RequireAuthenticatedUser().RequireClaim("churches.mod", "true"));
+                .AddPolicy(
+                    AuthorizationPolicies.DirectoryPolicy,
+                    p => p.RequireAuthenticatedUser().RequireClaim(
+                        AuthorizationPolicies.ScopeClaimType, AuthorizationPolicies.DirectoryScope))
+                .AddPolicy(
+                    AuthorizationPolicies.ChurchesModPolicy,
+                    p => p.RequireAuthenticatedUser().RequireClaim(
+                        AuthorizationPolicies.ChurchesModClaimType, AuthorizationPolicies.ChurchesModClaimValue));
         });
     }
 }

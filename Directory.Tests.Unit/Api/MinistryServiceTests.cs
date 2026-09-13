@@ -31,14 +31,15 @@ public sealed class MinistryServiceTests
     public async Task CreateAsync_BlankName_ThrowsWithoutTouchingDb()
     {
         var churchId = Guid.NewGuid();
+        var name = TestValues.NewBlank();
         var ministryDescription = TestValues.NewName();
         var conn = new FakeDbConnection();
         var service = new MinistryService(conn);
 
         var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
-            service.CreateAsync(churchId, string.Empty, ministryDescription, TestContext.Current.CancellationToken));
+            service.CreateAsync(churchId, name, ministryDescription, TestContext.Current.CancellationToken));
 
-        Assert.Equal("name", ex.ParamName);
+        Assert.Equal(nameof(name), ex.ParamName);
         Assert.Empty(conn.ExecutedCommands);
     }
 
@@ -65,14 +66,15 @@ public sealed class MinistryServiceTests
     public async Task UpdateAsync_BlankName_ThrowsWithoutTouchingDb()
     {
         var ministryId = Guid.NewGuid();
+        var name = TestValues.NewBlank();
         var ministryDescription = TestValues.NewName();
         var conn = new FakeDbConnection();
         var service = new MinistryService(conn);
 
         var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
-            service.UpdateAsync(ministryId, string.Empty, ministryDescription, TestContext.Current.CancellationToken));
+            service.UpdateAsync(ministryId, name, ministryDescription, TestContext.Current.CancellationToken));
 
-        Assert.Equal("name", ex.ParamName);
+        Assert.Equal(nameof(name), ex.ParamName);
         Assert.Empty(conn.ExecutedCommands);
     }
 

@@ -20,7 +20,7 @@ public static class MinistryEndpoints
 
             var created = await service.CreateAsync(churchId, req.Name, req.Description, ct);
             return Results.Created($"/ministries/{created.Id}", created);
-        }).RequireAuthorization("ChurchesMod").WithTags("Ministries");
+        }).RequireAuthorization(AuthorizationPolicies.ChurchesModPolicy).WithTags("Ministries");
 
         app.MapPut("/ministries/{id:guid}", async (
             Guid id,
@@ -36,14 +36,14 @@ public static class MinistryEndpoints
             return await service.UpdateAsync(id, req.Name, req.Description, ct)
                 ? Results.NoContent()
                 : Results.NotFound();
-        }).RequireAuthorization("ChurchesMod").WithTags("Ministries");
+        }).RequireAuthorization(AuthorizationPolicies.ChurchesModPolicy).WithTags("Ministries");
 
         app.MapDelete("/ministries/{id:guid}", async (
             Guid id,
             MinistryService service,
             CancellationToken ct) =>
             await service.DeleteAsync(id, ct) ? Results.NoContent() : Results.NotFound())
-            .RequireAuthorization("ChurchesMod").WithTags("Ministries");
+            .RequireAuthorization(AuthorizationPolicies.ChurchesModPolicy).WithTags("Ministries");
 
         return app;
     }

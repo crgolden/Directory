@@ -5,10 +5,26 @@ using Enums;
 
 internal static class TestValues
 {
+    private const string Punctuation = "!@#$%^&*()-_=+[]{};:,.<>/?|~";
+
     internal static string LowercaseToken(int length) =>
         string.Concat(Enumerable.Range(0, length).Select(_ => (char)Random.Shared.Next('a', 'z' + 1)));
 
+    internal static string PunctuationToken(int length) =>
+        string.Concat(Enumerable.Range(0, length).Select(_ => Punctuation[Random.Shared.Next(Punctuation.Length)]));
+
     internal static string NewKeyword() => LowercaseToken(Random.Shared.Next(4, 12));
+
+    internal static string NewBlank() => new string(' ', Random.Shared.Next(1, 4));
+
+    internal static string NewPunctuationToken() => PunctuationToken(Random.Shared.Next(1, 4));
+
+    internal static string NewPunctuationOnlyQuery() =>
+        $"{NewPunctuationToken()} {NewPunctuationToken()}";
+
+    internal static string NewWrongLengthStateCode() => LowercaseToken(Random.Shared.Next(3, 10));
+
+    internal static Uri NewWebsiteUri() => new Uri(NewWebsite());
 
     internal static string NewName() => $"{LowercaseToken(6)} {LowercaseToken(8)}";
 

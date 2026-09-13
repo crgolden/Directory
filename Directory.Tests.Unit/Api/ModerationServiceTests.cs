@@ -2,6 +2,8 @@ namespace Directory.Tests.Unit.Api;
 
 using System.Data;
 using Azure.Messaging.ServiceBus;
+using Church;
+using Entities;
 using Enums;
 using Messaging;
 using Microsoft.Extensions.Azure;
@@ -14,6 +16,8 @@ public sealed class ModerationServiceTests
     private const int NoRowsUpdated = 0;
 
     private const int OneRowUpdated = 1;
+
+    private const int MergeWriteCommandCount = 8;
 
     [Fact]
     [Trait("Category", "Unit")]
@@ -146,13 +150,14 @@ public sealed class ModerationServiceTests
     {
         var conn = new FakeDbConnection();
         var survivingChurchId = Guid.NewGuid();
+        var absorbedId = survivingChurchId;
         var mergedBy = TestValues.NewUserId();
         var service = Create(conn);
 
         var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
-            service.MergeAsync(survivingChurchId, survivingChurchId, mergedBy, TestContext.Current.CancellationToken));
+            service.MergeAsync(survivingChurchId, absorbedId, mergedBy, TestContext.Current.CancellationToken));
 
-        Assert.Equal("absorbedId", ex.ParamName);
+        Assert.Equal(nameof(absorbedId), ex.ParamName);
         Assert.Empty(conn.ExecutedCommands);
     }
 
@@ -289,7 +294,7 @@ public sealed class ModerationServiceTests
 
     private static void EnqueueSuccessfulMergeWrites(FakeDbConnection conn)
     {
-        for (var i = 0; i < 8; i++)
+        for (var i = 0; i < MergeWriteCommandCount; i++)
         {
             conn.Enqueue(FakeDbCommand.WithNonQueryResult(OneRowUpdated));
         }
@@ -309,20 +314,20 @@ public sealed class ModerationServiceTests
     private static DataTable BuildCorrectionTable(bool includeTotalCount)
     {
         var t = new DataTable();
-        t.Columns.Add("Id", typeof(Guid));
-        t.Columns.Add("ChurchId", typeof(Guid));
-        t.Columns.Add("UserId", typeof(string));
-        t.Columns.Add("Field", typeof(string));
-        t.Columns.Add("OldValue", typeof(string));
-        t.Columns.Add("NewValue", typeof(string));
-        t.Columns.Add("Status", typeof(int));
-        t.Columns.Add("ReviewedBy", typeof(string));
-        t.Columns.Add("ReviewedAt", typeof(DateTimeOffset));
-        t.Columns.Add("CreatedAt", typeof(DateTimeOffset));
-        t.Columns.Add("ChurchName", typeof(string));
+        t.Columns.Add(nameof(UserCorrection.Id), typeof(Guid));
+        t.Columns.Add(nameof(UserCorrection.ChurchId), typeof(Guid));
+        t.Columns.Add(nameof(UserCorrection.UserId), typeof(string));
+        t.Columns.Add(nameof(UserCorrection.Field), typeof(string));
+        t.Columns.Add(nameof(UserCorrection.OldValue), typeof(string));
+        t.Columns.Add(nameof(UserCorrection.NewValue), typeof(string));
+        t.Columns.Add(nameof(UserCorrection.Status), typeof(int));
+        t.Columns.Add(nameof(UserCorrection.ReviewedBy), typeof(string));
+        t.Columns.Add(nameof(UserCorrection.ReviewedAt), typeof(DateTimeOffset));
+        t.Columns.Add(nameof(UserCorrection.CreatedAt), typeof(DateTimeOffset));
+        t.Columns.Add(nameof(UserCorrection.ChurchName), typeof(string));
         if (includeTotalCount)
         {
-            t.Columns.Add("TotalCount", typeof(int));
+            t.Columns.Add(nameof(PagedResult<UserCorrection>.TotalCount), typeof(int));
         }
 
         return t;
@@ -335,10 +340,12 @@ public sealed class ModerationServiceTests
         string? reviewedBy = null,
         string? churchName = null)
     {
+        var correctionId = Guid.NewGuid();
+        var churchId = Guid.NewGuid();
         var values = new List<object>
         {
-            Guid.NewGuid(),
-            Guid.NewGuid(),
+            correctionId,
+            churchId,
             TestValues.NewUserId(),
             TestValues.NewFieldName(),
             oldValue ?? TestValues.NewStreet(),
@@ -357,18 +364,23 @@ public sealed class ModerationServiceTests
         return [.. values];
     }
 
-    private static object[] CorrectionRowNullable() =>
-    [
-        Guid.NewGuid(),
-        Guid.NewGuid(),
-        TestValues.NewUserId(),
-        TestValues.NewFieldName(),
-        DBNull.Value,
-        TestValues.NewStreet(),
-        (int)CorrectionStatus.Pending,
-        DBNull.Value,
-        DBNull.Value,
-        TestValues.NewUtcTimestamp(),
-        DBNull.Value,
-    ];
+    private static object[] CorrectionRowNullable()
+    {
+        var correctionId = Guid.NewGuid();
+        var churchId = Guid.NewGuid();
+        return
+        [
+            correctionId,
+            churchId,
+            TestValues.NewUserId(),
+            TestValues.NewFieldName(),
+            DBNull.Value,
+            TestValues.NewStreet(),
+            (int)CorrectionStatus.Pending,
+            DBNull.Value,
+            DBNull.Value,
+            TestValues.NewUtcTimestamp(),
+            DBNull.Value,
+        ];
+    }
 }
