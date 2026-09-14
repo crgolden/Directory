@@ -208,8 +208,8 @@
       },
       "Microsoft.AspNetCore.Authentication.JwtBearer": {
         "type": "Transitive",
-        "resolved": "10.0.11",
-        "contentHash": "Dy9yElSej0rVQL8LBpCLatWTKXNH6h6VBVFmGndTCf1Wge0jSvH9U8mml6ddVDAQ089q1/fDYlhyukHSgx8unQ==",
+        "resolved": "10.0.12",
+        "contentHash": "DeE+Bq2OqB3FikFkZk+7gFBeLOQhkSolejLrbi+a9zpfvXtW1Ff6Nd6DIvHXIm+pc4aM4+52vDy3jnuau0qoUQ==",
         "dependencies": {
           "Microsoft.IdentityModel.Protocols.OpenIdConnect": "8.19.2"
         }
@@ -702,7 +702,7 @@
           "Azure.Identity": "[1.21.0, )",
           "Azure.Messaging.ServiceBus": "[7.20.2, )",
           "Elastic.Serilog.Sinks": "[9.0.0, )",
-          "Microsoft.AspNetCore.Authentication.JwtBearer": "[10.0.11, )",
+          "Microsoft.AspNetCore.Authentication.JwtBearer": "[10.0.12, )",
           "Microsoft.AspNetCore.OpenApi": "[10.0.12, )",
           "Microsoft.Data.SqlClient": "[7.0.2, )",
           "Microsoft.Extensions.Azure": "[1.14.1, )",
