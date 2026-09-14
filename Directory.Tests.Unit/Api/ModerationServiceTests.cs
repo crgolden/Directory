@@ -17,8 +17,6 @@ public sealed class ModerationServiceTests
 
     private const int OneRowUpdated = 1;
 
-    private const int MergeWriteCommandCount = 8;
-
     [Fact]
     [Trait("Category", "Unit")]
     public async Task ReviewCorrectionAsync_ReturnsFalse_WhenNoRowsUpdated()
@@ -294,7 +292,7 @@ public sealed class ModerationServiceTests
 
     private static void EnqueueSuccessfulMergeWrites(FakeDbConnection conn)
     {
-        for (var i = 0; i < MergeWriteCommandCount; i++)
+        for (var i = 0; i < ModerationService.MergeWriteCount; i++)
         {
             conn.Enqueue(FakeDbCommand.WithNonQueryResult(OneRowUpdated));
         }

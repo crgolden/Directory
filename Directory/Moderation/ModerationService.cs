@@ -15,6 +15,18 @@ public sealed class ModerationService
         "c.[Id], c.[ChurchId], c.[UserId], c.[Field], c.[OldValue], c.[NewValue], " +
         "c.[Status], c.[ReviewedBy], c.[ReviewedAt], c.[CreatedAt], ch.[CanonicalName]";
 
+    private const int SoftDeleteAndAuditWrites = 2;
+
+    private static readonly string[] MergeRepointStatements =
+    [
+        "UPDATE [dbo].[CrawlSources] SET [ChurchId] = @Surviving WHERE [ChurchId] = @Absorbed",
+        "UPDATE [dbo].[ChurchAttributes] SET [ChurchId] = @Surviving WHERE [ChurchId] = @Absorbed",
+        "UPDATE [dbo].[ServiceSchedules] SET [ChurchId] = @Surviving WHERE [ChurchId] = @Absorbed",
+        "UPDATE [dbo].[Ministries] SET [ChurchId] = @Surviving WHERE [ChurchId] = @Absorbed",
+        "UPDATE [dbo].[Campuses] SET [ChurchId] = @Surviving WHERE [ChurchId] = @Absorbed",
+        "UPDATE [dbo].[UserCorrections] SET [ChurchId] = @Surviving WHERE [ChurchId] = @Absorbed",
+    ];
+
     private readonly DbConnection _dbConnection;
     private readonly ServiceBusClient _serviceBusClient;
 
@@ -23,6 +35,8 @@ public sealed class ModerationService
         _dbConnection = dbConnection;
         _serviceBusClient = serviceBusClientFactory.CreateClient(ServiceBusNames.Client);
     }
+
+    internal static int MergeWriteCount => MergeRepointStatements.Length + SoftDeleteAndAuditWrites;
 
     public async Task<(IReadOnlyList<UserCorrection> Items, int TotalCount)> GetCorrectionsAsync(
         CorrectionStatus? status,
@@ -134,16 +148,7 @@ public sealed class ModerationService
         await using var tx = await _dbConnection.BeginTransactionAsync(ct);
         try
         {
-            var repoint = new[]
-            {
-                "UPDATE [dbo].[CrawlSources] SET [ChurchId] = @Surviving WHERE [ChurchId] = @Absorbed",
-                "UPDATE [dbo].[ChurchAttributes] SET [ChurchId] = @Surviving WHERE [ChurchId] = @Absorbed",
-                "UPDATE [dbo].[ServiceSchedules] SET [ChurchId] = @Surviving WHERE [ChurchId] = @Absorbed",
-                "UPDATE [dbo].[Ministries] SET [ChurchId] = @Surviving WHERE [ChurchId] = @Absorbed",
-                "UPDATE [dbo].[Campuses] SET [ChurchId] = @Surviving WHERE [ChurchId] = @Absorbed",
-                "UPDATE [dbo].[UserCorrections] SET [ChurchId] = @Surviving WHERE [ChurchId] = @Absorbed",
-            };
-            foreach (var sql in repoint)
+            foreach (var sql in MergeRepointStatements)
             {
                 await using var cmd = _dbConnection.CreateCommand();
                 cmd.Transaction = tx;
