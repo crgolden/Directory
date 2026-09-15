@@ -34,8 +34,9 @@ CREATE INDEX [IX_Churches_Location]
     ON [dbo].[Churches] ([Latitude] ASC, [Longitude] ASC);
 
 GO
-CREATE INDEX [IX_Churches_State_City]
-    ON [dbo].[Churches] ([State] ASC, [City] ASC);
+CREATE INDEX [IX_Churches_State_City_CanonicalName]
+    ON [dbo].[Churches] ([State] ASC, [City] ASC, [CanonicalName] ASC)
+    INCLUDE ([Latitude], [Longitude]);
 
 GO
 CREATE INDEX [IX_Churches_IsActive]
@@ -44,6 +45,19 @@ CREATE INDEX [IX_Churches_IsActive]
 GO
 CREATE INDEX [IX_Churches_IsActive_CanonicalName]
     ON [dbo].[Churches] ([IsActive] ASC, [CanonicalName] ASC);
+
+GO
+CREATE INDEX [IX_Churches_IsActive_State_CanonicalName]
+    ON [dbo].[Churches] ([IsActive] ASC, [State] ASC, [CanonicalName] ASC);
+
+GO
+CREATE INDEX [IX_Churches_IsActive_WorshipStyle_CanonicalName]
+    ON [dbo].[Churches] ([IsActive] ASC, [WorshipStyle] ASC, [CanonicalName] ASC);
+
+GO
+CREATE INDEX [IX_Churches_IsActive_Slug]
+    ON [dbo].[Churches] ([IsActive] ASC, [Slug] ASC)
+    INCLUDE ([UpdatedAt]);
 
 GO
 CREATE FULLTEXT CATALOG [ChurchesFTCatalog] AS DEFAULT;

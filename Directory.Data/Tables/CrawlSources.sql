@@ -7,6 +7,7 @@ CREATE TABLE [dbo].[CrawlSources]
     [LastStatus]    INT              NOT NULL DEFAULT (0),
     [CreatedAt]     DATETIMEOFFSET (7) NOT NULL,
     [UpdatedAt]     DATETIMEOFFSET (7) NOT NULL,
+    [UrlHash]       AS CAST(HASHBYTES('SHA2_256', [Url]) AS BINARY (32)) PERSISTED,
     CONSTRAINT [PK_CrawlSources] PRIMARY KEY CLUSTERED ([Id] ASC),
     CONSTRAINT [FK_CrawlSources_Churches] FOREIGN KEY ([ChurchId]) REFERENCES [dbo].[Churches] ([Id])
 );
@@ -14,3 +15,12 @@ CREATE TABLE [dbo].[CrawlSources]
 GO
 CREATE INDEX [IX_CrawlSources_ChurchId]
     ON [dbo].[CrawlSources] ([ChurchId] ASC);
+
+GO
+CREATE INDEX [IX_CrawlSources_UrlHash]
+    ON [dbo].[CrawlSources] ([UrlHash] ASC);
+
+GO
+CREATE INDEX [IX_CrawlSources_LastCrawledAt]
+    ON [dbo].[CrawlSources] ([LastCrawledAt] ASC)
+    INCLUDE ([Url]);
