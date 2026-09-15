@@ -373,9 +373,9 @@ public sealed class SearchServiceTests
         var firstWord = TestValues.NewKeyword();
         var secondWord = TestValues.NewKeyword();
 
-        var condition = SearchService.BuildContainsCondition($"{firstWord} {secondWord}", out var terms);
+        var containsSql = SearchService.BuildContainsCondition($"{firstWord} {secondWord}", out var terms);
 
-        Assert.Equal($"\"{firstWord}*\" AND \"{secondWord}*\"", condition);
+        Assert.Equal($"\"{firstWord}*\" AND \"{secondWord}*\"", containsSql);
         Assert.Equal([firstWord, secondWord], terms);
     }
 
@@ -385,9 +385,9 @@ public sealed class SearchServiceTests
     {
         var punctuationOnlyQuery = TestValues.NewPunctuationOnlyQuery();
 
-        var condition = SearchService.BuildContainsCondition(punctuationOnlyQuery, out var terms);
+        var containsSql = SearchService.BuildContainsCondition(punctuationOnlyQuery, out var terms);
 
-        Assert.Null(condition);
+        Assert.Null(containsSql);
         Assert.Empty(terms);
     }
 
@@ -412,9 +412,9 @@ public sealed class SearchServiceTests
         var afterApostrophe = TestValues.NewKeyword();
         var apostrophedName = $"{beforeApostrophe}'{afterApostrophe}";
 
-        var condition = SearchService.BuildContainsCondition($"{apostrophedName}!", out var terms);
+        var containsSql = SearchService.BuildContainsCondition($"{apostrophedName}!", out var terms);
 
-        Assert.Equal($"\"{apostrophedName}*\"", condition);
+        Assert.Equal($"\"{apostrophedName}*\"", containsSql);
         Assert.Equal([apostrophedName], terms);
     }
 

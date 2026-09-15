@@ -8,7 +8,7 @@ using Microsoft.Extensions.Options;
 
 internal sealed class IntegrationAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions>
 {
-    internal const string SchemeName = "Integration";
+    internal static readonly string SchemeName = Guid.NewGuid().ToString();
 
     internal static readonly string TestSub = TestValues.NewUserId();
 
