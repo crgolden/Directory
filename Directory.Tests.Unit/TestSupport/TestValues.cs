@@ -2,6 +2,7 @@ namespace Directory.Tests.Unit.TestSupport;
 
 using System.Globalization;
 using Enums;
+using Shared.Domain;
 
 internal static class TestValues
 {
@@ -22,7 +23,7 @@ internal static class TestValues
     internal static string NewPunctuationOnlyQuery() =>
         $"{NewPunctuationToken()} {NewPunctuationToken()}";
 
-    internal static string NewWrongLengthStateCode() => LowercaseToken(Random.Shared.Next(3, 10));
+    internal static string NewUnparseableStateCode() => LowercaseToken(Random.Shared.Next(3, 10));
 
     internal static Uri NewWebsiteUri() => new Uri(NewWebsite());
 
@@ -32,8 +33,16 @@ internal static class TestValues
 
     internal static string NewCity() => LowercaseToken(9);
 
-    internal static string NewStateCode() =>
-        $"{(char)Random.Shared.Next('A', 'Z' + 1)}{(char)Random.Shared.Next('A', 'Z' + 1)}";
+    internal static StateCode NewStateCode()
+    {
+        var defined = Enum.GetValues<StateCode>();
+        return defined[Random.Shared.Next(defined.Length)];
+    }
+
+    internal static string NewStateCodeText() => NewStateCode().ToString();
+
+    internal static StateCode NewUndefinedStateCode() =>
+        (StateCode)(Enum.GetValues<StateCode>().Max(code => (int)code) + Random.Shared.Next(1, 100));
 
     internal static string NewZip() => Random.Shared.Next(10000, 100000).ToString(CultureInfo.InvariantCulture);
 

@@ -1,6 +1,7 @@
 namespace Directory.Entities;
 
 using Enums;
+using Shared.Domain;
 
 public sealed class Church
 {
@@ -18,7 +19,7 @@ public sealed class Church
 
     required public string City { get; set; }
 
-    required public string State { get; set; }
+    required public StateCode State { get; set; }
 
     required public string Zip { get; set; }
 

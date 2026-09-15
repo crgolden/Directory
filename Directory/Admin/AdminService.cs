@@ -94,8 +94,7 @@ public sealed class AdminService
         {
             var fields = line.Split(',');
             var name = SafeGet(fields, nameIdx);
-            var state = SafeGet(fields, stateIdx);
-            if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(state))
+            if (string.IsNullOrWhiteSpace(name) || !IsImportableStateCode(SafeGet(fields, stateIdx)))
             {
                 continue;
             }
@@ -151,6 +150,9 @@ public sealed class AdminService
 
         return -1;
     }
+
+    private static bool IsImportableStateCode(string? state) =>
+        Shared.Domain.StateCodes.TryParse(state, out _);
 
     private static string? SafeGet(string[] fields, int index) =>
         index >= 0 && index < fields.Length && !string.IsNullOrWhiteSpace(fields[index])

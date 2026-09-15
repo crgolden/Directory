@@ -21,7 +21,7 @@ public sealed class AdminServiceTests
         var canonicalName = TestValues.NewName();
         var street = TestValues.NewStreet();
         var city = TestValues.NewCity();
-        var state = TestValues.NewStateCode();
+        var state = TestValues.NewStateCodeText();
         var zip = TestValues.NewZip();
         var phoneNumber = TestValues.NewPhoneNumber();
         var website = TestValues.NewWebsite();
@@ -52,7 +52,7 @@ public sealed class AdminServiceTests
     public void ParseCsv_MissingNameColumn_SkipsRow()
     {
         // Arrange
-        var state = TestValues.NewStateCode();
+        var state = TestValues.NewStateCodeText();
         var csv = string.Join(
             CsvLineSeparator,
             MinimalCsvHeader(),
@@ -63,6 +63,46 @@ public sealed class AdminServiceTests
 
         // Assert
         Assert.Empty(rows);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void ParseCsv_StateIsNotAUspsCode_SkipsRow()
+    {
+        // Arrange
+        var canonicalName = TestValues.NewName();
+        var unparseableState = TestValues.NewUnparseableStateCode();
+        var csv = string.Join(
+            CsvLineSeparator,
+            MinimalCsvHeader(),
+            string.Join(CsvFieldSeparator, canonicalName, unparseableState));
+
+        // Act
+        var rows = AdminService.ParseCsv(csv).ToList();
+
+        // Assert
+        Assert.Empty(rows);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void ParseCsv_StateIsAUspsCode_KeepsRow()
+    {
+        // Arrange
+        var canonicalName = TestValues.NewName();
+        var state = TestValues.NewStateCodeText();
+        var csv = string.Join(
+            CsvLineSeparator,
+            MinimalCsvHeader(),
+            string.Join(CsvFieldSeparator, canonicalName, state));
+
+        // Act
+        var rows = AdminService.ParseCsv(csv).ToList();
+
+        // Assert
+        var row = Assert.Single(rows);
+        Assert.Equal(canonicalName, row.CanonicalName);
+        Assert.Equal(state, row.State);
     }
 
     [Fact]
@@ -280,7 +320,7 @@ public sealed class AdminServiceTests
         var lines = new List<string> { MinimalCsvHeader() };
         foreach (var churchName in churchNames)
         {
-            lines.Add(string.Join(CsvFieldSeparator, churchName, TestValues.NewStateCode()));
+            lines.Add(string.Join(CsvFieldSeparator, churchName, TestValues.NewStateCodeText()));
         }
 
         return string.Join(CsvLineSeparator, lines);
@@ -343,7 +383,7 @@ public sealed class AdminServiceTests
         var slug = TestValues.NewSlug();
         var street = TestValues.NewStreet();
         var city = TestValues.NewCity();
-        var state = TestValues.NewStateCode();
+        var state = TestValues.NewStateCodeText();
         var zip = TestValues.NewZip();
         var worshipStyle = TestValues.NewWorshipStyle();
         var primaryLanguage = TestValues.NewLanguage();

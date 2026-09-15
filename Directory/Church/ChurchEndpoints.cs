@@ -52,12 +52,17 @@ public static class ChurchEndpoints
             return Results.NotFound();
         }
 
+        if (!Shared.Domain.StateCodes.TryParse(req.State, out var state))
+        {
+            return Results.BadRequest($"Unknown state code '{req.State}'.");
+        }
+
         existing.CanonicalName = req.CanonicalName;
         existing.Latitude = req.Latitude;
         existing.Longitude = req.Longitude;
         existing.Street = req.Street;
         existing.City = req.City;
-        existing.State = req.State;
+        existing.State = state;
         existing.Zip = req.Zip;
         existing.PhoneNumber = req.PhoneNumber;
         existing.Website = req.Website;
@@ -81,19 +86,30 @@ public static class ChurchEndpoints
             return Results.NotFound();
         }
 
-        ApplyPatch(existing, req);
+        Shared.Domain.StateCode? state = null;
+        if (req.State is not null)
+        {
+            if (!Shared.Domain.StateCodes.TryParse(req.State, out var parsed))
+            {
+                return Results.BadRequest($"Unknown state code '{req.State}'.");
+            }
+
+            state = parsed;
+        }
+
+        ApplyPatch(existing, req, state);
         await service.UpdateAsync(existing, ct);
         return Results.Ok(existing);
     }
 
-    private static void ApplyPatch(Church existing, PatchChurchRequest req)
+    private static void ApplyPatch(Church existing, PatchChurchRequest req, Shared.Domain.StateCode? state)
     {
         existing.CanonicalName = req.CanonicalName ?? existing.CanonicalName;
         existing.Latitude = req.Latitude ?? existing.Latitude;
         existing.Longitude = req.Longitude ?? existing.Longitude;
         existing.Street = req.Street ?? existing.Street;
         existing.City = req.City ?? existing.City;
-        existing.State = req.State ?? existing.State;
+        existing.State = state ?? existing.State;
         existing.Zip = req.Zip ?? existing.Zip;
         existing.PhoneNumber = req.PhoneNumber ?? existing.PhoneNumber;
         existing.Website = req.Website ?? existing.Website;

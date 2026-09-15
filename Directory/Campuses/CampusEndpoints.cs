@@ -14,12 +14,12 @@ public static class CampusEndpoints
             CampusService service,
             CancellationToken ct) =>
         {
-            if (!IsValid(req))
+            if (!IsValid(req) || !Shared.Domain.StateCodes.TryParse(req.State, out var state))
             {
-                return Results.BadRequest("Name, City, State, and Zip are required.");
+                return Results.BadRequest("Name, City, State, and Zip are required, and State must be a USPS code.");
             }
 
-            var created = await service.CreateAsync(churchId, ToCampus(churchId, req), ct);
+            var created = await service.CreateAsync(churchId, ToCampus(churchId, req, state), ct);
             return Results.Created($"/campuses/{created.Id}", created);
         }).RequireAuthorization(AuthorizationPolicies.ChurchesModPolicy).WithTags("Campuses");
 
@@ -29,12 +29,12 @@ public static class CampusEndpoints
             CampusService service,
             CancellationToken ct) =>
         {
-            if (!IsValid(req))
+            if (!IsValid(req) || !Shared.Domain.StateCodes.TryParse(req.State, out var state))
             {
-                return Results.BadRequest("Name, City, State, and Zip are required.");
+                return Results.BadRequest("Name, City, State, and Zip are required, and State must be a USPS code.");
             }
 
-            return await service.UpdateAsync(id, ToCampus(Guid.Empty, req), ct)
+            return await service.UpdateAsync(id, ToCampus(Guid.Empty, req, state), ct)
                 ? Results.NoContent()
                 : Results.NotFound();
         }).RequireAuthorization(AuthorizationPolicies.ChurchesModPolicy).WithTags("Campuses");
@@ -53,13 +53,13 @@ public static class CampusEndpoints
         !string.IsNullOrWhiteSpace(req.Name) && !string.IsNullOrWhiteSpace(req.City)
         && !string.IsNullOrWhiteSpace(req.State) && !string.IsNullOrWhiteSpace(req.Zip);
 
-    private static Campus ToCampus(Guid churchId, CampusRequest req) => new Campus
+    private static Campus ToCampus(Guid churchId, CampusRequest req, Shared.Domain.StateCode state) => new Campus
     {
         ChurchId = churchId,
         Name = req.Name,
         Street = req.Street,
         City = req.City,
-        State = req.State,
+        State = state,
         Zip = req.Zip,
         Latitude = req.Latitude,
         Longitude = req.Longitude,

@@ -48,7 +48,10 @@ public sealed class ChurchService
                 totalCount = (int)reader[24];
             }
 
-            items.Add(Map(reader));
+            if (Map(reader) is Church church)
+            {
+                items.Add(church);
+            }
         }
 
         return (items, totalCount);
@@ -57,7 +60,7 @@ public sealed class ChurchService
     public async Task<Church?> GetBySlugAsync(string slug, CancellationToken ct = default)
     {
         await EnsureOpenAsync(ct);
-        Church church;
+        Church? church;
         await using (var cmd = _dbConnection.CreateCommand())
         {
             cmd.CommandText = $"""
@@ -73,6 +76,11 @@ public sealed class ChurchService
             }
 
             church = Map(reader);
+        }
+
+        if (church is null)
+        {
+            return null;
         }
 
         church.Schedules = await LoadSchedulesAsync(church.Id, ct);
@@ -103,7 +111,12 @@ public sealed class ChurchService
     public async Task<Church> CreateAsync(ChurchRequest request, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var slug = await GenerateUniqueSlugAsync(request.CanonicalName, request.City, request.State, ct);
+        if (!Shared.Domain.StateCodes.TryParse(request.State, out var state))
+        {
+            throw new ArgumentException($"Unknown state code '{request.State}'.", nameof(request));
+        }
+
+        var slug = await GenerateUniqueSlugAsync(request.CanonicalName, request.City, state, ct);
         var church = new Church
         {
             CanonicalName = request.CanonicalName,
@@ -112,7 +125,7 @@ public sealed class ChurchService
             Longitude = request.Longitude,
             Street = request.Street,
             City = request.City,
-            State = request.State,
+            State = state,
             Zip = request.Zip,
             PhoneNumber = request.PhoneNumber,
             Website = request.Website,
@@ -233,7 +246,7 @@ public sealed class ChurchService
         AddParam(cmd, "@Longitude", church.Longitude);
         AddParam(cmd, "@Street", (object?)church.Street ?? DBNull.Value);
         AddParam(cmd, "@City", church.City);
-        AddParam(cmd, "@State", church.State);
+        AddParam(cmd, "@State", church.State.ToString());
         AddParam(cmd, "@Zip", church.Zip);
         AddParam(cmd, "@PhoneNumber", (object?)church.PhoneNumber ?? DBNull.Value);
         AddParam(cmd, "@Website", (object?)church.Website ?? DBNull.Value);
@@ -278,33 +291,41 @@ public sealed class ChurchService
         return sb.ToString().TrimEnd('-');
     }
 
-    private static Church Map(DbDataReader r) => new Church
+    private static Church? Map(DbDataReader r)
     {
-        Id = (Guid)r[0],
-        CanonicalName = (string)r[1],
-        Slug = (string)r[2],
-        Latitude = (double)r[3],
-        Longitude = (double)r[4],
-        Street = r[5] is DBNull ? null : (string)r[5],
-        City = (string)r[6],
-        State = (string)r[7],
-        Zip = (string)r[8],
-        PhoneNumber = r[9] is DBNull ? null : (string)r[9],
-        Website = r[10] is DBNull ? null : (string)r[10],
-        EmailAddress = r[11] is DBNull ? null : (string)r[11],
-        DenominationId = r[12] is DBNull ? null : (Guid)r[12],
-        WorshipStyle = (WorshipStyle)(int)r[13],
-        PrimaryLanguage = (string)r[14],
-        AcceptsLGBTQ = r[15] is DBNull ? null : (bool)r[15],
-        WheelchairAccessible = r[16] is DBNull ? null : (bool)r[16],
-        HasNursery = r[17] is DBNull ? null : (bool)r[17],
-        HasYouthProgram = r[18] is DBNull ? null : (bool)r[18],
-        ConfidenceScore = (decimal)r[19],
-        LastVerifiedAt = r.IsDBNull(20) ? null : r.GetFieldValue<DateTimeOffset>(20),
-        CreatedAt = r.GetFieldValue<DateTimeOffset>(21),
-        UpdatedAt = r.GetFieldValue<DateTimeOffset>(22),
-        IsActive = (bool)r[23],
-    };
+        if (!Shared.Domain.StateCodes.TryParse((string)r[7], out var state))
+        {
+            return null;
+        }
+
+        return new Church
+        {
+            Id = (Guid)r[0],
+            CanonicalName = (string)r[1],
+            Slug = (string)r[2],
+            Latitude = (double)r[3],
+            Longitude = (double)r[4],
+            Street = r[5] is DBNull ? null : (string)r[5],
+            City = (string)r[6],
+            State = state,
+            Zip = (string)r[8],
+            PhoneNumber = r[9] is DBNull ? null : (string)r[9],
+            Website = r[10] is DBNull ? null : (string)r[10],
+            EmailAddress = r[11] is DBNull ? null : (string)r[11],
+            DenominationId = r[12] is DBNull ? null : (Guid)r[12],
+            WorshipStyle = (WorshipStyle)(int)r[13],
+            PrimaryLanguage = (string)r[14],
+            AcceptsLGBTQ = r[15] is DBNull ? null : (bool)r[15],
+            WheelchairAccessible = r[16] is DBNull ? null : (bool)r[16],
+            HasNursery = r[17] is DBNull ? null : (bool)r[17],
+            HasYouthProgram = r[18] is DBNull ? null : (bool)r[18],
+            ConfidenceScore = (decimal)r[19],
+            LastVerifiedAt = r.IsDBNull(20) ? null : r.GetFieldValue<DateTimeOffset>(20),
+            CreatedAt = r.GetFieldValue<DateTimeOffset>(21),
+            UpdatedAt = r.GetFieldValue<DateTimeOffset>(22),
+            IsActive = (bool)r[23],
+        };
+    }
 
     private async Task<IReadOnlyList<ServiceSchedule>> LoadSchedulesAsync(Guid churchId, CancellationToken ct)
     {
@@ -378,6 +399,11 @@ public sealed class ChurchService
         var campuses = new List<Campus>();
         while (await reader.ReadAsync(ct))
         {
+            if (!Shared.Domain.StateCodes.TryParse((string)reader[5], out var state))
+            {
+                continue;
+            }
+
             campuses.Add(new Campus
             {
                 Id = (Guid)reader[0],
@@ -385,7 +411,7 @@ public sealed class ChurchService
                 Name = (string)reader[2],
                 Street = reader[3] is DBNull ? null : (string)reader[3],
                 City = (string)reader[4],
-                State = (string)reader[5],
+                State = state,
                 Zip = (string)reader[6],
                 Latitude = (double)reader[7],
                 Longitude = (double)reader[8],
@@ -398,9 +424,9 @@ public sealed class ChurchService
     }
 
     private async Task<string> GenerateUniqueSlugAsync(
-        string canonicalName, string city, string state, CancellationToken ct)
+        string canonicalName, string city, Shared.Domain.StateCode state, CancellationToken ct)
     {
-        var baseSlug = $"{ToSlug(canonicalName)}-{ToSlug(city)}-{state.ToLowerInvariant().Trim()}";
+        var baseSlug = $"{ToSlug(canonicalName)}-{ToSlug(city)}-{state.ToString().ToLowerInvariant()}";
         var candidate = baseSlug;
         var suffix = FirstSlugCollisionSuffix;
         while (await SlugExistsAsync(candidate, ct))

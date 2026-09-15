@@ -580,10 +580,10 @@
       },
       "Shared": {
         "type": "Transitive",
-        "resolved": "1.2.0",
-        "contentHash": "PfdHnH5PZxOFpGD+ajlU4n+LAqEb2602d3EkTGeNPiR876103qz6p8PpWV5bpkakfEscX/aNKmwfauTaqFc7IQ==",
+        "resolved": "1.3.0",
+        "contentHash": "6ZL91PwQDIQvOlbLQ6e0wBM7fbbVNZPUsquAqAhxYrW7vb9of9xqDjo/fFs3mu3tvkZPk3DZ0VJrY3Jll+MpUQ==",
         "dependencies": {
-          "OpenTelemetry.Instrumentation.AspNetCore": "1.17.0"
+          "OpenTelemetry.Instrumentation.AspNetCore": "1.18.0"
         }
       },
       "System.ClientModel": {
@@ -717,7 +717,7 @@
           "Serilog.AspNetCore": "[10.0.0, )",
           "Serilog.Enrichers.Environment": "[3.0.1, )",
           "Serilog.Sinks.Console": "[6.1.1, )",
-          "Shared": "[1.2.0, )"
+          "Shared": "[1.3.0, )"
         }
       }
     }

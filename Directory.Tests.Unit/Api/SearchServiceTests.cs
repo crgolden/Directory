@@ -79,7 +79,7 @@ public sealed class SearchServiceTests
     [Trait("Category", "Unit")]
     public async Task SearchAsync_IncludesStateFilter_WhenStateProvided()
     {
-        var stateFilter = TestValues.NewStateCode();
+        var stateFilter = TestValues.NewStateCodeText();
         var conn = BuildConn(out var cmd);
         var service = new SearchService(conn);
 
@@ -234,7 +234,7 @@ public sealed class SearchServiceTests
     public void BuildQuery_NoScheduleFilters_OmitsScheduleJoin()
     {
         // Arrange
-        var stateFilter = TestValues.NewStateCode();
+        var stateFilter = TestValues.NewStateCodeText();
         var query = QueryWith(state: stateFilter);
 
         // Act
@@ -279,7 +279,7 @@ public sealed class SearchServiceTests
         var searchLatitude = TestValues.NewLatitude();
         var searchLongitude = TestValues.NewLongitude();
         var searchRadiusMiles = TestValues.NewRadiusMiles();
-        var stateFilter = TestValues.NewStateCode();
+        var stateFilter = TestValues.NewStateCodeText();
         var filteredDenominationId = Guid.NewGuid();
         var filteredWorshipStyle = TestValues.NewWorshipStyle();
         var query = QueryWith(
@@ -643,7 +643,7 @@ public sealed class SearchServiceTests
         var latitude = TestValues.NewLatitude();
         var longitude = TestValues.NewLongitude();
         var city = TestValues.NewCity();
-        var state = TestValues.NewStateCode();
+        var state = TestValues.NewStateCodeText();
         var zip = TestValues.NewZip();
         var phoneNumber = TestValues.NewPhoneNumber();
         var website = TestValues.NewWebsite();
@@ -672,7 +672,7 @@ public sealed class SearchServiceTests
         var latitude = TestValues.NewLatitude();
         var longitude = TestValues.NewLongitude();
         var city = TestValues.NewCity();
-        var state = TestValues.NewStateCode();
+        var state = TestValues.NewStateCodeText();
         var zip = TestValues.NewZip();
         var worshipStyle = TestValues.NewWorshipStyle();
         var primaryLanguage = TestValues.NewLanguage();

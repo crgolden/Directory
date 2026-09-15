@@ -25,7 +25,7 @@ public sealed class CampusService
         AddParam(cmd, "@Name", campus.Name);
         AddParam(cmd, "@Street", (object?)campus.Street ?? DBNull.Value);
         AddParam(cmd, "@City", campus.City);
-        AddParam(cmd, "@State", campus.State);
+        AddParam(cmd, "@State", campus.State.ToString());
         AddParam(cmd, "@Zip", campus.Zip);
         AddParam(cmd, "@Lat", campus.Latitude);
         AddParam(cmd, "@Lng", campus.Longitude);
@@ -49,7 +49,7 @@ public sealed class CampusService
         AddParam(cmd, "@Name", campus.Name);
         AddParam(cmd, "@Street", (object?)campus.Street ?? DBNull.Value);
         AddParam(cmd, "@City", campus.City);
-        AddParam(cmd, "@State", campus.State);
+        AddParam(cmd, "@State", campus.State.ToString());
         AddParam(cmd, "@Zip", campus.Zip);
         AddParam(cmd, "@Lat", campus.Latitude);
         AddParam(cmd, "@Lng", campus.Longitude);

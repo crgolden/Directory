@@ -9,7 +9,8 @@ public sealed class ChurchServiceTests
 {
     private static readonly string SlugSourceCanonicalName = TestValues.NewName();
     private static readonly string SlugSourceCity = TestValues.NewCity();
-    private static readonly string SlugSourceState = TestValues.NewStateCode();
+    private static readonly Shared.Domain.StateCode SlugSourceState = TestValues.NewStateCode();
+    private static readonly string SlugSourceStateText = SlugSourceState.ToString();
 
     private static readonly string StoredCanonicalName = TestValues.NewName();
     private static readonly string StoredStreet = TestValues.NewStreet();
@@ -94,15 +95,15 @@ public sealed class ChurchServiceTests
 
     [Fact]
     [Trait("Category", "Unit")]
-    public async Task UpdateAsync_StateIsNotATwoLetterCode_ThrowsWithoutTouchingDb()
+    public async Task UpdateAsync_StateIsNotAUspsCode_ThrowsWithoutTouchingDb()
     {
         var conn = new FakeDbConnection();
         var service = new ChurchService(conn);
-        var state = TestValues.NewWrongLengthStateCode();
+        var state = TestValues.NewUndefinedStateCode();
         var church = BuildChurch();
         church.State = state;
 
-        var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
+        var ex = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
             service.UpdateAsync(church, TestContext.Current.CancellationToken));
 
         Assert.Equal(nameof(state), ex.ParamName);
@@ -467,7 +468,7 @@ public sealed class ChurchServiceTests
     private static FakeDbCommand InsertSucceeds() => FakeDbCommand.WithNonQueryResult(1);
 
     private static string ExpectedSlug() =>
-        $"{SlugSourceCanonicalName.Replace(' ', '-')}-{SlugSourceCity}-{SlugSourceState.ToLowerInvariant()}";
+        $"{SlugSourceCanonicalName.Replace(' ', '-')}-{SlugSourceCity}-{SlugSourceStateText.ToLowerInvariant()}";
 
     private static string ExpectedSlugWithFirstCollisionSuffix() =>
         $"{ExpectedSlug()}-{ChurchService.FirstSlugCollisionSuffix}";
@@ -478,7 +479,7 @@ public sealed class ChurchServiceTests
         Longitude: TestValues.NewLongitude(),
         Street: null,
         City: SlugSourceCity,
-        State: SlugSourceState,
+        State: SlugSourceStateText,
         Zip: TestValues.NewZip(),
         PhoneNumber: null,
         Website: null,
@@ -592,7 +593,7 @@ public sealed class ChurchServiceTests
         t.Columns.Add(nameof(Campus.UpdatedAt), typeof(DateTimeOffset));
         var campusId = Guid.NewGuid();
         var campusChurchId = Guid.NewGuid();
-        t.Rows.Add(campusId, campusChurchId, CampusName, TestValues.NewStreet(), TestValues.NewCity(), TestValues.NewStateCode(), TestValues.NewZip(), CampusLatitude, TestValues.NewLongitude(), DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+        t.Rows.Add(campusId, campusChurchId, CampusName, TestValues.NewStreet(), TestValues.NewCity(), TestValues.NewStateCodeText(), TestValues.NewZip(), CampusLatitude, TestValues.NewLongitude(), DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
         return t;
     }
 
@@ -603,7 +604,7 @@ public sealed class ChurchServiceTests
         var values = new List<object>
         {
             churchId, StoredCanonicalName, TestValues.NewSlug(), TestValues.NewLatitude(), TestValues.NewLongitude(), StoredStreet,
-            TestValues.NewCity(), TestValues.NewStateCode(), TestValues.NewZip(), StoredPhoneNumber, TestValues.NewWebsite(), TestValues.NewEmailAddress(),
+            TestValues.NewCity(), TestValues.NewStateCodeText(), TestValues.NewZip(), StoredPhoneNumber, TestValues.NewWebsite(), TestValues.NewEmailAddress(),
             denominationId, (int)TestValues.NewWorshipStyle(), TestValues.NewLanguage(), true, true, true, true, TestValues.NewConfidenceScore(),
             TestValues.NewUtcTimestamp(), DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, true,
         };
@@ -621,7 +622,7 @@ public sealed class ChurchServiceTests
         return
         [
             churchId, TestValues.NewName(), TestValues.NewSlug(), TestValues.NewLatitude(), TestValues.NewLongitude(), DBNull.Value,
-            TestValues.NewCity(), TestValues.NewStateCode(), TestValues.NewZip(), DBNull.Value, DBNull.Value, DBNull.Value,
+            TestValues.NewCity(), TestValues.NewStateCodeText(), TestValues.NewZip(), DBNull.Value, DBNull.Value, DBNull.Value,
             DBNull.Value, (int)TestValues.NewWorshipStyle(), TestValues.NewLanguage(), DBNull.Value, DBNull.Value, DBNull.Value, DBNull.Value, TestValues.NewConfidenceScore(),
             DBNull.Value, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, true,
         ];

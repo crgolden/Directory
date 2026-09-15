@@ -200,11 +200,11 @@
       },
       "Shared": {
         "type": "Direct",
-        "requested": "[1.2.0, )",
-        "resolved": "1.2.0",
-        "contentHash": "PfdHnH5PZxOFpGD+ajlU4n+LAqEb2602d3EkTGeNPiR876103qz6p8PpWV5bpkakfEscX/aNKmwfauTaqFc7IQ==",
+        "requested": "[1.3.0, )",
+        "resolved": "1.3.0",
+        "contentHash": "6ZL91PwQDIQvOlbLQ6e0wBM7fbbVNZPUsquAqAhxYrW7vb9of9xqDjo/fFs3mu3tvkZPk3DZ0VJrY3Jll+MpUQ==",
         "dependencies": {
-          "OpenTelemetry.Instrumentation.AspNetCore": "1.17.0"
+          "OpenTelemetry.Instrumentation.AspNetCore": "1.18.0"
         }
       },
       "SonarAnalyzer.CSharp": {

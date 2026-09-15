@@ -60,7 +60,11 @@ public sealed class SearchService
         var items = new List<SearchResult>();
         while (await reader.ReadAsync(ct))
         {
-            var church = Map(reader);
+            if (Map(reader) is not Church church)
+            {
+                continue;
+            }
+
             double? distance = hasDistance && reader[24] is not DBNull ? (double)reader[24] : null;
             items.Add(new SearchResult(church, distance));
         }
@@ -310,31 +314,39 @@ public sealed class SearchService
         cmd.Parameters.Add(p);
     }
 
-    private static Church Map(DbDataReader r) => new Church
+    private static Church? Map(DbDataReader r)
     {
-        Id = (Guid)r[0],
-        CanonicalName = (string)r[1],
-        Slug = (string)r[2],
-        Latitude = (double)r[3],
-        Longitude = (double)r[4],
-        Street = r[5] is DBNull ? null : (string)r[5],
-        City = (string)r[6],
-        State = (string)r[7],
-        Zip = (string)r[8],
-        PhoneNumber = r[9] is DBNull ? null : (string)r[9],
-        Website = r[10] is DBNull ? null : (string)r[10],
-        EmailAddress = r[11] is DBNull ? null : (string)r[11],
-        DenominationId = r[12] is DBNull ? null : (Guid)r[12],
-        WorshipStyle = (WorshipStyle)(int)r[13],
-        PrimaryLanguage = (string)r[14],
-        AcceptsLGBTQ = r[15] is DBNull ? null : (bool)r[15],
-        WheelchairAccessible = r[16] is DBNull ? null : (bool)r[16],
-        HasNursery = r[17] is DBNull ? null : (bool)r[17],
-        HasYouthProgram = r[18] is DBNull ? null : (bool)r[18],
-        ConfidenceScore = (decimal)r[19],
-        LastVerifiedAt = r.IsDBNull(20) ? null : r.GetFieldValue<DateTimeOffset>(20),
-        CreatedAt = r.GetFieldValue<DateTimeOffset>(21),
-        UpdatedAt = r.GetFieldValue<DateTimeOffset>(22),
-        IsActive = (bool)r[23],
-    };
+        if (!Shared.Domain.StateCodes.TryParse((string)r[7], out var state))
+        {
+            return null;
+        }
+
+        return new Church
+        {
+            Id = (Guid)r[0],
+            CanonicalName = (string)r[1],
+            Slug = (string)r[2],
+            Latitude = (double)r[3],
+            Longitude = (double)r[4],
+            Street = r[5] is DBNull ? null : (string)r[5],
+            City = (string)r[6],
+            State = state,
+            Zip = (string)r[8],
+            PhoneNumber = r[9] is DBNull ? null : (string)r[9],
+            Website = r[10] is DBNull ? null : (string)r[10],
+            EmailAddress = r[11] is DBNull ? null : (string)r[11],
+            DenominationId = r[12] is DBNull ? null : (Guid)r[12],
+            WorshipStyle = (WorshipStyle)(int)r[13],
+            PrimaryLanguage = (string)r[14],
+            AcceptsLGBTQ = r[15] is DBNull ? null : (bool)r[15],
+            WheelchairAccessible = r[16] is DBNull ? null : (bool)r[16],
+            HasNursery = r[17] is DBNull ? null : (bool)r[17],
+            HasYouthProgram = r[18] is DBNull ? null : (bool)r[18],
+            ConfidenceScore = (decimal)r[19],
+            LastVerifiedAt = r.IsDBNull(20) ? null : r.GetFieldValue<DateTimeOffset>(20),
+            CreatedAt = r.GetFieldValue<DateTimeOffset>(21),
+            UpdatedAt = r.GetFieldValue<DateTimeOffset>(22),
+            IsActive = (bool)r[23],
+        };
+    }
 }

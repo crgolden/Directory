@@ -1,5 +1,7 @@
 namespace Directory.Entities;
 
+using Shared.Domain;
+
 public sealed class Campus
 {
     public Guid Id { get; init; } = Guid.CreateVersion7(DateTimeOffset.UtcNow);
@@ -12,7 +14,7 @@ public sealed class Campus
 
     required public string City { get; set; }
 
-    required public string State { get; set; }
+    required public StateCode State { get; set; }
 
     required public string Zip { get; set; }
 
