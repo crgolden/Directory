@@ -18,8 +18,10 @@ public sealed class CrawlingEndpointsTests : IClassFixture<DirectoryWebApplicati
     [Trait("Category", "E2E")]
     public async Task GetCrawlSources_ReturnsOk()
     {
+        // Act
         var response = await _client.GetAsync("/crawl-sources", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
@@ -27,10 +29,13 @@ public sealed class CrawlingEndpointsTests : IClassFixture<DirectoryWebApplicati
     [Trait("Category", "E2E")]
     public async Task CreateCrawlSource_ReturnsCreated()
     {
+        // Arrange
         var body = new { Url = $"https://test-{Guid.NewGuid():N}.example/sitemap.xml", ChurchId = (Guid?)null };
 
+        // Act
         var response = await _client.PostAsJsonAsync("/crawl-sources", body, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         Assert.NotNull(response.Headers.Location);
     }
@@ -39,10 +44,13 @@ public sealed class CrawlingEndpointsTests : IClassFixture<DirectoryWebApplicati
     [Trait("Category", "E2E")]
     public async Task DeleteCrawlSource_ReturnsNoContent_WhenFound()
     {
+        // Arrange
         var id = await CreateCrawlSourceAndGetIdAsync();
 
+        // Act
         var response = await _client.DeleteAsync($"/crawl-sources/{id}", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }
 
@@ -50,8 +58,10 @@ public sealed class CrawlingEndpointsTests : IClassFixture<DirectoryWebApplicati
     [Trait("Category", "E2E")]
     public async Task DeleteCrawlSource_ReturnsNotFound_WhenMissing()
     {
+        // Act
         var response = await _client.DeleteAsync($"/crawl-sources/{Guid.NewGuid()}", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
@@ -59,10 +69,13 @@ public sealed class CrawlingEndpointsTests : IClassFixture<DirectoryWebApplicati
     [Trait("Category", "E2E")]
     public async Task TriggerScrape_ReturnsAccepted_WhenFound()
     {
+        // Arrange
         var id = await CreateCrawlSourceAndGetIdAsync();
 
+        // Act
         var response = await _client.PostAsync($"/crawl-sources/{id}/trigger", null, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
     }
 
@@ -70,8 +83,10 @@ public sealed class CrawlingEndpointsTests : IClassFixture<DirectoryWebApplicati
     [Trait("Category", "E2E")]
     public async Task TriggerScrape_ReturnsNotFound_WhenMissing()
     {
+        // Act
         var response = await _client.PostAsync($"/crawl-sources/{Guid.NewGuid()}/trigger", null, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 

@@ -16,8 +16,10 @@ public sealed class SearchEndpointsTests : IClassFixture<DirectoryWebApplication
     [Trait("Category", "E2E")]
     public async Task Search_ReturnsOk()
     {
+        // Act
         var response = await _client.GetAsync("/search?page=1&pageSize=10", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
@@ -25,8 +27,10 @@ public sealed class SearchEndpointsTests : IClassFixture<DirectoryWebApplication
     [Trait("Category", "E2E")]
     public async Task Search_ClampsPagination_WhenOutOfRange()
     {
+        // Act
         var response = await _client.GetAsync("/search?page=0&pageSize=200", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
@@ -37,8 +41,10 @@ public sealed class SearchEndpointsTests : IClassFixture<DirectoryWebApplication
     [InlineData("distance")]
     public async Task Search_AcceptsSortParam(string sort)
     {
+        // Act
         var response = await _client.GetAsync($"/search?q=grace&sort={sort}", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
@@ -46,8 +52,10 @@ public sealed class SearchEndpointsTests : IClassFixture<DirectoryWebApplication
     [Trait("Category", "E2E")]
     public async Task Search_UnrecognizedSort_StillReturnsOk()
     {
+        // Act
         var response = await _client.GetAsync("/search?sort=bogus", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 }

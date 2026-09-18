@@ -11,7 +11,6 @@ using Enums;
 public static class ModerationEndpoints
 {
     private const string ChurchesModPolicy = AuthorizationPolicies.ChurchesModPolicy;
-    private const string MissingSubClaimMessage = "Missing 'sub' claim.";
 
     public static IEndpointRouteBuilder MapModerationEndpoints(this IEndpointRouteBuilder app)
     {
@@ -52,8 +51,11 @@ public static class ModerationEndpoints
                 return Results.NotFound();
             }
 
-            var userId = user.FindFirstValue("sub")
-                ?? throw new InvalidOperationException(MissingSubClaimMessage);
+            if (!SubjectClaims.TryRead(user, out var userId))
+            {
+                return Results.Unauthorized();
+            }
+
             var id = await service.SubmitCorrectionAsync(
                 req.ChurchId, userId, req.Field, req.OldValue, req.NewValue, ct);
             return Results.Accepted($"/corrections/{id}", new { Id = id });
@@ -65,8 +67,11 @@ public static class ModerationEndpoints
             ModerationService service,
             CancellationToken ct) =>
         {
-            var reviewedBy = user.FindFirstValue("sub")
-                ?? throw new InvalidOperationException(MissingSubClaimMessage);
+            if (!SubjectClaims.TryRead(user, out var reviewedBy))
+            {
+                return Results.Unauthorized();
+            }
+
             var updated = await service.ReviewCorrectionAsync(id, CorrectionStatus.Approved, reviewedBy, ct);
             return updated ? Results.NoContent() : Results.NotFound();
         }).RequireAuthorization(ChurchesModPolicy);
@@ -77,8 +82,11 @@ public static class ModerationEndpoints
             ModerationService service,
             CancellationToken ct) =>
         {
-            var reviewedBy = user.FindFirstValue("sub")
-                ?? throw new InvalidOperationException(MissingSubClaimMessage);
+            if (!SubjectClaims.TryRead(user, out var reviewedBy))
+            {
+                return Results.Unauthorized();
+            }
+
             var updated = await service.ReviewCorrectionAsync(id, CorrectionStatus.Rejected, reviewedBy, ct);
             return updated ? Results.NoContent() : Results.NotFound();
         }).RequireAuthorization(ChurchesModPolicy);
@@ -90,8 +98,11 @@ public static class ModerationEndpoints
             ModerationService service,
             CancellationToken ct) =>
         {
-            var mergedBy = user.FindFirstValue("sub")
-                ?? throw new InvalidOperationException(MissingSubClaimMessage);
+            if (!SubjectClaims.TryRead(user, out var mergedBy))
+            {
+                return Results.Unauthorized();
+            }
+
             await service.MergeAsync(survivingId, absorbedId, mergedBy, ct);
             return Results.NoContent();
         }).WithTags("Moderation").RequireAuthorization(ChurchesModPolicy);

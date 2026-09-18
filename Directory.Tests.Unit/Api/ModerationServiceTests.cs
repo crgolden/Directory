@@ -1,6 +1,7 @@
 namespace Directory.Tests.Unit.Api;
 
 using System.Data;
+using System.Text.Json;
 using Azure.Messaging.ServiceBus;
 using Church;
 using Entities;
@@ -21,18 +22,21 @@ public sealed class ModerationServiceTests
     [Trait("Category", "Unit")]
     public async Task ReviewCorrectionAsync_ReturnsFalse_WhenNoRowsUpdated()
     {
+        // Arrange
         var correctionId = Guid.NewGuid();
         var reviewedBy = TestValues.NewUserId();
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithNonQueryResult(NoRowsUpdated));
         var service = Create(conn);
 
+        // Act
         var result = await service.ReviewCorrectionAsync(
             correctionId,
             CorrectionStatus.Approved,
             reviewedBy,
             TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.False(result);
     }
 
@@ -40,25 +44,80 @@ public sealed class ModerationServiceTests
     [Trait("Category", "Unit")]
     public async Task ReviewCorrectionAsync_ReturnsTrue_WhenRowUpdated()
     {
+        // Arrange
         var correctionId = Guid.NewGuid();
         var reviewedBy = TestValues.NewUserId();
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithNonQueryResult(OneRowUpdated));
         var service = Create(conn);
 
+        // Act
         var result = await service.ReviewCorrectionAsync(
             correctionId,
             CorrectionStatus.Approved,
             reviewedBy,
             TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.True(result);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public async Task ReviewCorrectionAsync_StoresTheReviewersSubjectAsAGuid()
+    {
+        // Arrange
+        var correctionId = Guid.NewGuid();
+        var reviewedBy = TestValues.NewUserId();
+        var conn = new FakeDbConnection();
+        var update = FakeDbCommand.WithNonQueryResult(OneRowUpdated);
+        conn.Enqueue(update);
+        var service = Create(conn);
+
+        // Act
+        await service.ReviewCorrectionAsync(
+            correctionId,
+            CorrectionStatus.Rejected,
+            reviewedBy,
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(reviewedBy, update.Parameters["@ReviewedBy"].Value);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public async Task SubmitCorrectionAsync_SendsTheSubmittersSubjectAsAGuid()
+    {
+        // Arrange
+        var submittingUserId = TestValues.NewUserId();
+        var sent = new List<ServiceBusMessage>();
+        var senderMock = new Mock<ServiceBusSender>(MockBehavior.Strict);
+        senderMock
+            .Setup(s => s.SendMessageAsync(It.IsAny<ServiceBusMessage>(), It.IsAny<CancellationToken>()))
+            .Callback<ServiceBusMessage, CancellationToken>((message, _) => sent.Add(message))
+            .Returns(Task.CompletedTask);
+        var service = Create(new FakeDbConnection(), senderMock);
+
+        // Act
+        await service.SubmitCorrectionAsync(
+            Guid.NewGuid(),
+            submittingUserId,
+            TestValues.NewFieldName(),
+            null,
+            TestValues.NewPhoneNumber(),
+            TestContext.Current.CancellationToken);
+
+        // Assert
+        var body = Assert.Single(sent).Body.ToObjectFromJson<JsonElement>();
+        Assert.Equal(submittingUserId, body.GetProperty(nameof(UserCorrection.UserId)).GetGuid());
     }
 
     [Fact]
     [Trait("Category", "Unit")]
     public async Task SubmitCorrectionAsync_EnqueuesMessageAndReturnsId()
     {
+        // Arrange
         var churchId = Guid.NewGuid();
         var submittingUserId = TestValues.NewUserId();
         var correctedField = TestValues.NewFieldName();
@@ -69,6 +128,7 @@ public sealed class ModerationServiceTests
             .Returns(Task.CompletedTask);
         var service = Create(new FakeDbConnection(), senderMock);
 
+        // Act
         var id = await service.SubmitCorrectionAsync(
             churchId,
             submittingUserId,
@@ -77,6 +137,7 @@ public sealed class ModerationServiceTests
             proposedPhoneNumber,
             TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.NotEqual(Guid.Empty, id);
         senderMock.Verify(
             s => s.SendMessageAsync(It.Is<ServiceBusMessage>(m => m.MessageId == id.ToString()), It.IsAny<CancellationToken>()),
@@ -87,14 +148,17 @@ public sealed class ModerationServiceTests
     [Trait("Category", "Unit")]
     public async Task GetCorrectionByIdAsync_ReturnsNull_WhenNoRows()
     {
+        // Arrange
         var correctionId = Guid.NewGuid();
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithReader(new DataTable()));
         var service = Create(conn);
 
+        // Act
         var result = await service.GetCorrectionByIdAsync(
             correctionId, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Null(result);
     }
 
@@ -102,6 +166,7 @@ public sealed class ModerationServiceTests
     [Trait("Category", "Unit")]
     public async Task MergeAsync_CommitsTransaction()
     {
+        // Arrange
         var survivingChurchId = Guid.NewGuid();
         var absorbedChurchId = Guid.NewGuid();
         var mergedBy = TestValues.NewUserId();
@@ -112,12 +177,14 @@ public sealed class ModerationServiceTests
 
         var service = Create(conn);
 
+        // Act
         await service.MergeAsync(
             survivingChurchId,
             absorbedChurchId,
             mergedBy,
             TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.True(conn.LastTransaction?.Committed);
     }
 
@@ -125,6 +192,7 @@ public sealed class ModerationServiceTests
     [Trait("Category", "Unit")]
     public async Task MergeAsync_WhenCommandThrows_RollsBackAndRethrows()
     {
+        // Arrange
         var survivingChurchId = Guid.NewGuid();
         var absorbedChurchId = Guid.NewGuid();
         var mergedBy = TestValues.NewUserId();
@@ -135,9 +203,12 @@ public sealed class ModerationServiceTests
         conn.Enqueue(FakeDbCommand.WithException(new InvalidOperationException(repointFailureMessage)));
         var service = Create(conn);
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        // Act
+        var exception = await Record.ExceptionAsync(() =>
             service.MergeAsync(survivingChurchId, absorbedChurchId, mergedBy, TestContext.Current.CancellationToken));
 
+        // Assert
+        var ex = Assert.IsType<InvalidOperationException>(exception);
         Assert.Equal(repointFailureMessage, ex.Message);
         Assert.True(conn.LastTransaction?.RolledBack);
     }
@@ -146,15 +217,19 @@ public sealed class ModerationServiceTests
     [Trait("Category", "Unit")]
     public async Task MergeAsync_SameSurvivingAndAbsorbedId_ThrowsWithoutTouchingDb()
     {
+        // Arrange
         var conn = new FakeDbConnection();
         var survivingChurchId = Guid.NewGuid();
         var absorbedId = survivingChurchId;
         var mergedBy = TestValues.NewUserId();
         var service = Create(conn);
 
-        var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
+        // Act
+        var exception = await Record.ExceptionAsync(() =>
             service.MergeAsync(survivingChurchId, absorbedId, mergedBy, TestContext.Current.CancellationToken));
 
+        // Assert
+        var ex = Assert.IsType<ArgumentException>(exception);
         Assert.Equal(nameof(absorbedId), ex.ParamName);
         Assert.Empty(conn.ExecutedCommands);
     }
@@ -163,6 +238,7 @@ public sealed class ModerationServiceTests
     [Trait("Category", "Unit")]
     public async Task MergeAsync_SurvivingChurchNotActive_ThrowsAndNeverStartsTransaction()
     {
+        // Arrange
         var survivingChurchId = Guid.NewGuid();
         var absorbedChurchId = Guid.NewGuid();
         var mergedBy = TestValues.NewUserId();
@@ -170,9 +246,12 @@ public sealed class ModerationServiceTests
         conn.Enqueue(ChurchDoesNotExist());
         var service = Create(conn);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        // Act
+        var exception = await Record.ExceptionAsync(() =>
             service.MergeAsync(survivingChurchId, absorbedChurchId, mergedBy, TestContext.Current.CancellationToken));
 
+        // Assert
+        Assert.IsType<InvalidOperationException>(exception);
         Assert.Null(conn.LastTransaction);
     }
 
@@ -180,6 +259,7 @@ public sealed class ModerationServiceTests
     [Trait("Category", "Unit")]
     public async Task MergeAsync_AbsorbedChurchNotActive_ThrowsAndNeverStartsTransaction()
     {
+        // Arrange
         var survivingChurchId = Guid.NewGuid();
         var absorbedChurchId = Guid.NewGuid();
         var mergedBy = TestValues.NewUserId();
@@ -188,9 +268,12 @@ public sealed class ModerationServiceTests
         conn.Enqueue(ChurchDoesNotExist());
         var service = Create(conn);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        // Act
+        var exception = await Record.ExceptionAsync(() =>
             service.MergeAsync(survivingChurchId, absorbedChurchId, mergedBy, TestContext.Current.CancellationToken));
 
+        // Assert
+        Assert.IsType<InvalidOperationException>(exception);
         Assert.Null(conn.LastTransaction);
     }
 
@@ -198,6 +281,7 @@ public sealed class ModerationServiceTests
     [Trait("Category", "Unit")]
     public async Task GetCorrectionsAsync_WithStatusFilter_AddsWhereClauseAndMapsRow()
     {
+        // Arrange
         var expectedNewValue = TestValues.NewStreet();
         var expectedTotalCount = TestValues.NewRowCount();
         var requestedPage = TestValues.NewPage();
@@ -209,9 +293,11 @@ public sealed class ModerationServiceTests
         conn.Enqueue(cmd);
         var service = Create(conn);
 
+        // Act
         var (items, totalCount) = await service.GetCorrectionsAsync(
             CorrectionStatus.Pending, requestedPage, requestedPageSize, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Contains("WHERE (@Status IS NULL OR c.[Status] = @Status)", cmd.CapturedCommandText, StringComparison.Ordinal);
         Assert.Equal((int)CorrectionStatus.Pending, cmd.Parameters["@Status"].Value);
         Assert.Equal(expectedTotalCount, totalCount);
@@ -222,6 +308,7 @@ public sealed class ModerationServiceTests
     [Trait("Category", "Unit")]
     public async Task GetCorrectionsAsync_WithoutStatusFilter_PassesDbNullStatus()
     {
+        // Arrange
         var requestedPage = TestValues.NewPage();
         var requestedPageSize = TestValues.NewPageSize();
         var conn = new FakeDbConnection();
@@ -229,9 +316,11 @@ public sealed class ModerationServiceTests
         conn.Enqueue(cmd);
         var service = Create(conn);
 
+        // Act
         var (items, totalCount) = await service.GetCorrectionsAsync(
             null, requestedPage, requestedPageSize, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(DBNull.Value, cmd.Parameters["@Status"].Value);
         Assert.Empty(items);
         Assert.Equal(0, totalCount);
@@ -239,8 +328,9 @@ public sealed class ModerationServiceTests
 
     [Fact]
     [Trait("Category", "Unit")]
-    public async Task GetCorrectionByIdAsync_RowWithNullableNulls_MapsNulls()
+    public async Task GetCorrectionByIdAsync_SystemAuthoredRowWithNullableNulls_MapsNulls()
     {
+        // Arrange
         var correctionId = Guid.NewGuid();
         var table = BuildCorrectionTable(includeTotalCount: false);
         table.Rows.Add(CorrectionRowNullable());
@@ -248,9 +338,12 @@ public sealed class ModerationServiceTests
         conn.Enqueue(FakeDbCommand.WithReader(table));
         var service = Create(conn);
 
+        // Act
         var result = await service.GetCorrectionByIdAsync(correctionId, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.NotNull(result);
+        Assert.Null(result.UserId);
         Assert.Null(result.OldValue);
         Assert.Null(result.ReviewedBy);
         Assert.Null(result.ReviewedAt);
@@ -261,13 +354,16 @@ public sealed class ModerationServiceTests
     [Trait("Category", "Unit")]
     public async Task GetCorrectionByIdAsync_RowPopulated_MapsAllColumns()
     {
+        // Arrange
         var correctionId = Guid.NewGuid();
         var expectedOldValue = TestValues.NewStreet();
+        var expectedUserId = TestValues.NewUserId();
         var expectedReviewedBy = TestValues.NewUserId();
         var expectedChurchName = TestValues.NewName();
         var table = BuildCorrectionTable(includeTotalCount: false);
         table.Rows.Add(CorrectionRowPopulated(
             oldValue: expectedOldValue,
+            userId: expectedUserId,
             reviewedBy: expectedReviewedBy,
             churchName: expectedChurchName,
             totalCount: null));
@@ -275,10 +371,13 @@ public sealed class ModerationServiceTests
         conn.Enqueue(FakeDbCommand.WithReader(table));
         var service = Create(conn);
 
+        // Act
         var result = await service.GetCorrectionByIdAsync(correctionId, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.NotNull(result);
         Assert.Equal(expectedOldValue, result.OldValue);
+        Assert.Equal(expectedUserId, result.UserId);
         Assert.Equal(expectedReviewedBy, result.ReviewedBy);
         Assert.NotNull(result.ReviewedAt);
         Assert.Equal(expectedChurchName, result.ChurchName);
@@ -314,12 +413,12 @@ public sealed class ModerationServiceTests
         var t = new DataTable();
         t.Columns.Add(nameof(UserCorrection.Id), typeof(Guid));
         t.Columns.Add(nameof(UserCorrection.ChurchId), typeof(Guid));
-        t.Columns.Add(nameof(UserCorrection.UserId), typeof(string));
+        t.Columns.Add(nameof(UserCorrection.UserId), typeof(Guid));
         t.Columns.Add(nameof(UserCorrection.Field), typeof(string));
         t.Columns.Add(nameof(UserCorrection.OldValue), typeof(string));
         t.Columns.Add(nameof(UserCorrection.NewValue), typeof(string));
         t.Columns.Add(nameof(UserCorrection.Status), typeof(int));
-        t.Columns.Add(nameof(UserCorrection.ReviewedBy), typeof(string));
+        t.Columns.Add(nameof(UserCorrection.ReviewedBy), typeof(Guid));
         t.Columns.Add(nameof(UserCorrection.ReviewedAt), typeof(DateTimeOffset));
         t.Columns.Add(nameof(UserCorrection.CreatedAt), typeof(DateTimeOffset));
         t.Columns.Add(nameof(UserCorrection.ChurchName), typeof(string));
@@ -335,16 +434,18 @@ public sealed class ModerationServiceTests
         int? totalCount,
         string? oldValue = null,
         string? newValue = null,
-        string? reviewedBy = null,
+        Guid? userId = null,
+        Guid? reviewedBy = null,
         string? churchName = null)
     {
+        // Arrange
         var correctionId = Guid.NewGuid();
         var churchId = Guid.NewGuid();
         var values = new List<object>
         {
             correctionId,
             churchId,
-            TestValues.NewUserId(),
+            userId ?? TestValues.NewUserId(),
             TestValues.NewFieldName(),
             oldValue ?? TestValues.NewStreet(),
             newValue ?? TestValues.NewStreet(),
@@ -364,13 +465,14 @@ public sealed class ModerationServiceTests
 
     private static object[] CorrectionRowNullable()
     {
+        // Arrange
         var correctionId = Guid.NewGuid();
         var churchId = Guid.NewGuid();
         return
         [
             correctionId,
             churchId,
-            TestValues.NewUserId(),
+            DBNull.Value,
             TestValues.NewFieldName(),
             DBNull.Value,
             TestValues.NewStreet(),

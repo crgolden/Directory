@@ -22,8 +22,10 @@ public sealed class ModerationEndpointsTests : IClassFixture<DirectoryWebApplica
     [Trait("Category", "E2E")]
     public async Task GetCorrections_ReturnsOk()
     {
+        // Act
         var response = await _client.GetAsync("/corrections?page=1&pageSize=10", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
@@ -31,8 +33,10 @@ public sealed class ModerationEndpointsTests : IClassFixture<DirectoryWebApplica
     [Trait("Category", "E2E")]
     public async Task GetCorrections_ClampsPagination_WhenOutOfRange()
     {
+        // Act
         var response = await _client.GetAsync("/corrections?page=0&pageSize=200", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
@@ -40,11 +44,14 @@ public sealed class ModerationEndpointsTests : IClassFixture<DirectoryWebApplica
     [Trait("Category", "E2E")]
     public async Task GetCorrectionById_ReturnsOk_WhenFound()
     {
+        // Arrange
         var churchId = await CreateChurchAndGetIdAsync();
         var correctionId = await SeedCorrectionAsync(churchId);
 
+        // Act
         var response = await _client.GetAsync($"/corrections/{correctionId}", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
@@ -52,8 +59,10 @@ public sealed class ModerationEndpointsTests : IClassFixture<DirectoryWebApplica
     [Trait("Category", "E2E")]
     public async Task GetCorrectionById_ReturnsNotFound_WhenMissing()
     {
+        // Act
         var response = await _client.GetAsync($"/corrections/{Guid.NewGuid()}", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
@@ -61,11 +70,14 @@ public sealed class ModerationEndpointsTests : IClassFixture<DirectoryWebApplica
     [Trait("Category", "E2E")]
     public async Task SubmitCorrection_ReturnsAccepted_WhenChurchExists()
     {
+        // Arrange
         var churchId = await CreateChurchAndGetIdAsync();
         var body = new { ChurchId = churchId, Field = "PhoneNumber", OldValue = (string?)null, NewValue = "602-555-1212" };
 
+        // Act
         var response = await _client.PostAsJsonAsync("/corrections", body, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
     }
 
@@ -73,10 +85,13 @@ public sealed class ModerationEndpointsTests : IClassFixture<DirectoryWebApplica
     [Trait("Category", "E2E")]
     public async Task SubmitCorrection_ReturnsNotFound_WhenChurchMissing()
     {
+        // Arrange
         var body = new { ChurchId = Guid.NewGuid(), Field = "PhoneNumber", OldValue = (string?)null, NewValue = "602-555-1212" };
 
+        // Act
         var response = await _client.PostAsJsonAsync("/corrections", body, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
@@ -84,11 +99,14 @@ public sealed class ModerationEndpointsTests : IClassFixture<DirectoryWebApplica
     [Trait("Category", "E2E")]
     public async Task ApproveCorrection_ReturnsNoContent_WhenFound()
     {
+        // Arrange
         var churchId = await CreateChurchAndGetIdAsync();
         var correctionId = await SeedCorrectionAsync(churchId);
 
+        // Act
         var response = await _client.PatchAsync($"/corrections/{correctionId}/approve", null, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }
 
@@ -96,8 +114,10 @@ public sealed class ModerationEndpointsTests : IClassFixture<DirectoryWebApplica
     [Trait("Category", "E2E")]
     public async Task ApproveCorrection_ReturnsNotFound_WhenMissing()
     {
+        // Act
         var response = await _client.PatchAsync($"/corrections/{Guid.NewGuid()}/approve", null, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
@@ -105,11 +125,14 @@ public sealed class ModerationEndpointsTests : IClassFixture<DirectoryWebApplica
     [Trait("Category", "E2E")]
     public async Task RejectCorrection_ReturnsNoContent_WhenFound()
     {
+        // Arrange
         var churchId = await CreateChurchAndGetIdAsync();
         var correctionId = await SeedCorrectionAsync(churchId);
 
+        // Act
         var response = await _client.PatchAsync($"/corrections/{correctionId}/reject", null, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }
 
@@ -117,8 +140,10 @@ public sealed class ModerationEndpointsTests : IClassFixture<DirectoryWebApplica
     [Trait("Category", "E2E")]
     public async Task RejectCorrection_ReturnsNotFound_WhenMissing()
     {
+        // Act
         var response = await _client.PatchAsync($"/corrections/{Guid.NewGuid()}/reject", null, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
@@ -126,12 +151,15 @@ public sealed class ModerationEndpointsTests : IClassFixture<DirectoryWebApplica
     [Trait("Category", "E2E")]
     public async Task MergeChurches_ReturnsNoContent()
     {
+        // Arrange
         var survivingId = await CreateChurchAndGetIdAsync();
         var absorbedId = await CreateChurchAndGetIdAsync();
 
+        // Act
         var response = await _client.PostAsync(
             $"/churches/{survivingId}/merge/{absorbedId}", null, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }
 

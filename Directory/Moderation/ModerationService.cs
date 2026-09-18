@@ -89,7 +89,7 @@ public sealed class ModerationService
 
     public async Task<Guid> SubmitCorrectionAsync(
         Guid churchId,
-        string userId,
+        Guid userId,
         string field,
         string? oldValue,
         string newValue,
@@ -105,7 +105,7 @@ public sealed class ModerationService
     public async Task<bool> ReviewCorrectionAsync(
         Guid id,
         CorrectionStatus status,
-        string reviewedBy,
+        Guid reviewedBy,
         CancellationToken ct = default)
     {
         await EnsureOpenAsync(ct);
@@ -125,7 +125,7 @@ public sealed class ModerationService
     public async Task MergeAsync(
         Guid survivingId,
         Guid absorbedId,
-        string mergedBy,
+        Guid mergedBy,
         CancellationToken ct = default)
     {
         if (survivingId == absorbedId)
@@ -204,12 +204,12 @@ public sealed class ModerationService
     {
         Id = (Guid)r[0],
         ChurchId = (Guid)r[1],
-        UserId = (string)r[2],
+        UserId = r.IsDBNull(2) ? null : r.GetGuid(2),
         Field = (string)r[3],
         OldValue = r[4] is DBNull ? null : (string)r[4],
         NewValue = (string)r[5],
         Status = (CorrectionStatus)(int)r[6],
-        ReviewedBy = r[7] is DBNull ? null : (string)r[7],
+        ReviewedBy = r.IsDBNull(7) ? null : r.GetGuid(7),
         ReviewedAt = r.IsDBNull(8) ? null : r.GetFieldValue<DateTimeOffset>(8),
         CreatedAt = r.GetFieldValue<DateTimeOffset>(9),
         ChurchName = r[10] is DBNull ? null : (string)r[10],

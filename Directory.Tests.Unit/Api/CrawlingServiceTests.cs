@@ -20,6 +20,7 @@ public sealed class CrawlingServiceTests
     [Trait("Category", "Unit")]
     public async Task GetAllAsync_RowPopulated_MapsAllColumns()
     {
+        // Arrange
         var crawlSourceId = Guid.NewGuid();
         var churchId = Guid.NewGuid();
         var crawlUrl = TestValues.NewWebsiteUri();
@@ -40,8 +41,10 @@ public sealed class CrawlingServiceTests
         conn.Enqueue(FakeDbCommand.WithReader(table));
         var service = Create(conn);
 
+        // Act
         var items = await service.GetAllAsync(TestContext.Current.CancellationToken);
 
+        // Assert
         var item = Assert.Single(items);
         Assert.Equal(crawlUrl, item.Url);
         Assert.Equal(churchId, item.ChurchId);
@@ -53,6 +56,7 @@ public sealed class CrawlingServiceTests
     [Trait("Category", "Unit")]
     public async Task GetAllAsync_RowWithNullableNulls_MapsNulls()
     {
+        // Arrange
         var crawlSourceId = Guid.NewGuid();
         var crawlUrl = TestValues.NewWebsiteUri();
         var createdAt = TestValues.NewUtcTimestamp();
@@ -70,8 +74,10 @@ public sealed class CrawlingServiceTests
         conn.Enqueue(FakeDbCommand.WithReader(table));
         var service = Create(conn);
 
+        // Act
         var items = await service.GetAllAsync(TestContext.Current.CancellationToken);
 
+        // Assert
         var item = Assert.Single(items);
         Assert.Null(item.ChurchId);
         Assert.Null(item.LastCrawledAt);
@@ -81,14 +87,17 @@ public sealed class CrawlingServiceTests
     [Trait("Category", "Unit")]
     public async Task CreateAsync_WithChurchId_BindsValue()
     {
+        // Arrange
         var crawlUrl = TestValues.NewWebsiteUri();
         var churchId = Guid.NewGuid();
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithNonQueryResult(OneRowAffected));
         var service = Create(conn);
 
+        // Act
         await service.CreateAsync(crawlUrl, churchId, TestContext.Current.CancellationToken);
 
+        // Assert
         var insert = Assert.Single(conn.ExecutedCommands);
         Assert.Equal(churchId, insert.Parameters["@ChurchId"].Value);
     }
@@ -97,13 +106,16 @@ public sealed class CrawlingServiceTests
     [Trait("Category", "Unit")]
     public async Task CreateAsync_NullChurchId_BindsDbNull()
     {
+        // Arrange
         var crawlUrl = TestValues.NewWebsiteUri();
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithNonQueryResult(OneRowAffected));
         var service = Create(conn);
 
+        // Act
         await service.CreateAsync(crawlUrl, null, TestContext.Current.CancellationToken);
 
+        // Assert
         var insert = Assert.Single(conn.ExecutedCommands);
         Assert.Equal(DBNull.Value, insert.Parameters["@ChurchId"].Value);
     }
@@ -112,13 +124,16 @@ public sealed class CrawlingServiceTests
     [Trait("Category", "Unit")]
     public async Task DeleteAsync_RowDeleted_ReturnsTrue()
     {
+        // Arrange
         var crawlSourceId = Guid.NewGuid();
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithNonQueryResult(OneRowAffected));
         var service = Create(conn);
 
+        // Act
         var result = await service.DeleteAsync(crawlSourceId, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.True(result);
     }
 
@@ -126,13 +141,16 @@ public sealed class CrawlingServiceTests
     [Trait("Category", "Unit")]
     public async Task DeleteAsync_NoRows_ReturnsFalse()
     {
+        // Arrange
         var crawlSourceId = Guid.NewGuid();
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithNonQueryResult(NoRowsAffected));
         var service = Create(conn);
 
+        // Act
         var result = await service.DeleteAsync(crawlSourceId, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.False(result);
     }
 
@@ -140,14 +158,17 @@ public sealed class CrawlingServiceTests
     [Trait("Category", "Unit")]
     public async Task TriggerScrapeAsync_UrlNotFound_ReturnsFalseWithoutSending()
     {
+        // Arrange
         var crawlSourceId = Guid.NewGuid();
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithScalarResult(null));
         var senderMock = new Mock<ServiceBusSender>(MockBehavior.Strict);
         var service = Create(conn, senderMock);
 
+        // Act
         var result = await service.TriggerScrapeAsync(crawlSourceId, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.False(result);
         Assert.Single(conn.ExecutedCommands);
         senderMock.Verify(s => s.SendMessageAsync(It.IsAny<ServiceBusMessage>(), It.IsAny<CancellationToken>()), Times.Never);
@@ -157,6 +178,7 @@ public sealed class CrawlingServiceTests
     [Trait("Category", "Unit")]
     public async Task TriggerScrapeAsync_UrlFound_SendsMessageUpdatesStatusAndReturnsTrue()
     {
+        // Arrange
         var crawlSourceId = Guid.NewGuid();
         var crawlUrl = TestValues.NewWebsiteUri();
         var conn = new FakeDbConnection();
@@ -168,8 +190,10 @@ public sealed class CrawlingServiceTests
             .Returns(Task.CompletedTask);
         var service = Create(conn, senderMock);
 
+        // Act
         var result = await service.TriggerScrapeAsync(crawlSourceId, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.True(result);
         Assert.Collection(
             conn.ExecutedCommands,

@@ -24,13 +24,16 @@ public sealed class ChurchServiceTests
     [Trait("Category", "Unit")]
     public async Task DeleteAsync_ReturnsFalse_WhenNoRowsAffected()
     {
+        // Arrange
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithNonQueryResult(0));
         var service = new ChurchService(conn);
         var churchId = Guid.NewGuid();
 
+        // Act
         var result = await service.DeleteAsync(churchId, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.False(result);
     }
 
@@ -38,13 +41,16 @@ public sealed class ChurchServiceTests
     [Trait("Category", "Unit")]
     public async Task DeleteAsync_ReturnsTrue_WhenRowDeleted()
     {
+        // Arrange
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithNonQueryResult(1));
         var service = new ChurchService(conn);
         var churchId = Guid.NewGuid();
 
+        // Act
         var result = await service.DeleteAsync(churchId, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.True(result);
     }
 
@@ -52,12 +58,15 @@ public sealed class ChurchServiceTests
     [Trait("Category", "Unit")]
     public async Task UpdateAsync_ReturnsFalse_WhenNoRowsAffected()
     {
+        // Arrange
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithNonQueryResult(0));
         var service = new ChurchService(conn);
 
+        // Act
         var result = await service.UpdateAsync(BuildChurch(), TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.False(result);
     }
 
@@ -65,12 +74,15 @@ public sealed class ChurchServiceTests
     [Trait("Category", "Unit")]
     public async Task UpdateAsync_ReturnsTrue_WhenRowUpdated()
     {
+        // Arrange
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithNonQueryResult(1));
         var service = new ChurchService(conn);
 
+        // Act
         var result = await service.UpdateAsync(BuildChurch(), TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.True(result);
     }
 
@@ -78,6 +90,7 @@ public sealed class ChurchServiceTests
     [Trait("Category", "Unit")]
     public async Task CreateAsync_BlankCity_ThrowsBeforeInsert()
     {
+        // Arrange
         var conn = new FakeDbConnection();
 
         conn.Enqueue(SlugFree());
@@ -85,9 +98,12 @@ public sealed class ChurchServiceTests
         var city = TestValues.NewBlank();
         var request = BuildRequest() with { City = city };
 
-        var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
+        // Act
+        var exception = await Record.ExceptionAsync(() =>
             service.CreateAsync(request, TestContext.Current.CancellationToken));
 
+        // Assert
+        var ex = Assert.IsType<ArgumentException>(exception);
         Assert.Equal(nameof(city), ex.ParamName);
         Assert.DoesNotContain(conn.ExecutedCommands, c =>
             c.CommandText.Contains("INSERT INTO [dbo].[Churches]", StringComparison.Ordinal));
@@ -97,15 +113,19 @@ public sealed class ChurchServiceTests
     [Trait("Category", "Unit")]
     public async Task UpdateAsync_StateIsNotAUspsCode_ThrowsWithoutTouchingDb()
     {
+        // Arrange
         var conn = new FakeDbConnection();
         var service = new ChurchService(conn);
         var state = TestValues.NewUndefinedStateCode();
         var church = BuildChurch();
         church.State = state;
 
-        var ex = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+        // Act
+        var exception = await Record.ExceptionAsync(() =>
             service.UpdateAsync(church, TestContext.Current.CancellationToken));
 
+        // Assert
+        var ex = Assert.IsType<ArgumentOutOfRangeException>(exception);
         Assert.Equal(nameof(state), ex.ParamName);
         Assert.Empty(conn.ExecutedCommands);
     }
@@ -114,12 +134,15 @@ public sealed class ChurchServiceTests
     [Trait("Category", "Unit")]
     public async Task GetBySlugAsync_ReturnsNull_WhenNoRows()
     {
+        // Arrange
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithReader(new DataTable()));
         var service = new ChurchService(conn);
 
+        // Act
         var result = await service.GetBySlugAsync(TestValues.NewSlug(), TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Null(result);
     }
 
@@ -127,6 +150,7 @@ public sealed class ChurchServiceTests
     [Trait("Category", "Unit")]
     public async Task CreateAsync_GeneratesKebabCaseSlug()
     {
+        // Arrange
         var conn = new FakeDbConnection();
 
         conn.Enqueue(SlugFree());
@@ -134,8 +158,10 @@ public sealed class ChurchServiceTests
 
         var service = new ChurchService(conn);
 
+        // Act
         var result = await service.CreateAsync(BuildRequest(), TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(ExpectedSlug(), result.Slug);
     }
 
@@ -143,6 +169,7 @@ public sealed class ChurchServiceTests
     [Trait("Category", "Unit")]
     public async Task CreateAsync_AppendsSuffix_WhenSlugCollides()
     {
+        // Arrange
         var conn = new FakeDbConnection();
 
         conn.Enqueue(SlugExists());
@@ -151,8 +178,10 @@ public sealed class ChurchServiceTests
 
         var service = new ChurchService(conn);
 
+        // Act
         var result = await service.CreateAsync(BuildRequest(), TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(ExpectedSlugWithFirstCollisionSuffix(), result.Slug);
     }
 
@@ -160,13 +189,16 @@ public sealed class ChurchServiceTests
     [Trait("Category", "Unit")]
     public async Task GetPageAsync_NoRows_ReturnsEmptyAndOpensConnection()
     {
+        // Arrange
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithReader(BuildChurchTable(includeTotalCount: true)));
         var service = new ChurchService(conn);
 
+        // Act
         var (items, totalCount) = await service.GetPageAsync(
             TestValues.NewPage(), TestValues.NewPageSize(), TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Empty(items);
         Assert.Equal(0, totalCount);
         Assert.Equal(ConnectionState.Open, conn.State);
@@ -176,6 +208,7 @@ public sealed class ChurchServiceTests
     [Trait("Category", "Unit")]
     public async Task GetPageAsync_WithRows_MapsItemsAndReadsTotalCount()
     {
+        // Arrange
         var expectedTotalCount = TestValues.NewRowCount();
         var table = BuildChurchTable(includeTotalCount: true);
         table.Rows.Add(PopulatedRow(expectedTotalCount));
@@ -183,9 +216,11 @@ public sealed class ChurchServiceTests
         conn.Enqueue(FakeDbCommand.WithReader(table));
         var service = new ChurchService(conn);
 
+        // Act
         var (items, totalCount) = await service.GetPageAsync(
             TestValues.NewPage(), TestValues.NewPageSize(), TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Single(items);
         Assert.Equal(expectedTotalCount, totalCount);
         Assert.Equal(StoredCanonicalName, items[0].CanonicalName);
@@ -201,8 +236,10 @@ public sealed class ChurchServiceTests
         conn.Enqueue(FakeDbCommand.WithReader(table));
         var service = new ChurchService(conn);
 
+        // Act
         var result = await service.GetBySlugAsync(TestValues.NewSlug(), TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.NotNull(result);
         Assert.Null(result.Street);
         Assert.Null(result.PhoneNumber);
@@ -223,8 +260,10 @@ public sealed class ChurchServiceTests
         conn.Enqueue(FakeDbCommand.WithReader(schedulesTable));
         var service = new ChurchService(conn);
 
+        // Act
         var result = await service.GetBySlugAsync(TestValues.NewSlug(), TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.NotNull(result);
         Assert.NotNull(result.Schedules);
         Assert.Equal(schedulesTable.Rows.Count, result.Schedules.Count);
@@ -246,8 +285,10 @@ public sealed class ChurchServiceTests
 
         var service = new ChurchService(conn);
 
+        // Act
         var result = await service.GetBySlugAsync(TestValues.NewSlug(), TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.NotNull(result);
         Assert.NotNull(result.Ministries);
         Assert.Equal(ministriesTable.Rows.Count, result.Ministries.Count);
@@ -268,8 +309,10 @@ public sealed class ChurchServiceTests
 
         var service = new ChurchService(conn);
 
+        // Act
         var result = await service.GetBySlugAsync(TestValues.NewSlug(), TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.NotNull(result);
         Assert.NotNull(result.Campuses);
         Assert.Single(result.Campuses);
@@ -281,13 +324,16 @@ public sealed class ChurchServiceTests
     [Trait("Category", "Unit")]
     public async Task GetByIdAsync_NoRow_ReturnsNull()
     {
+        // Arrange
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithReader(BuildChurchTable(includeTotalCount: false)));
         var service = new ChurchService(conn);
         var churchId = Guid.NewGuid();
 
+        // Act
         var result = await service.GetByIdAsync(churchId, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Null(result);
     }
 
@@ -303,8 +349,10 @@ public sealed class ChurchServiceTests
         var service = new ChurchService(conn);
         var churchId = Guid.NewGuid();
 
+        // Act
         var result = await service.GetByIdAsync(churchId, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.NotNull(result);
         Assert.Equal(StoredStreet, result.Street);
         Assert.Equal(StoredPhoneNumber, result.PhoneNumber);
@@ -317,13 +365,16 @@ public sealed class ChurchServiceTests
     [Trait("Category", "Unit")]
     public async Task ExistsAsync_ScalarPositive_ReturnsTrue()
     {
+        // Arrange
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithScalarResult(1));
         var service = new ChurchService(conn);
         var churchId = Guid.NewGuid();
 
+        // Act
         var result = await service.ExistsAsync(churchId, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.True(result);
     }
 
@@ -331,13 +382,16 @@ public sealed class ChurchServiceTests
     [Trait("Category", "Unit")]
     public async Task ExistsAsync_ScalarZero_ReturnsFalse()
     {
+        // Arrange
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithScalarResult(0));
         var service = new ChurchService(conn);
         var churchId = Guid.NewGuid();
 
+        // Act
         var result = await service.ExistsAsync(churchId, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.False(result);
     }
 
@@ -345,6 +399,7 @@ public sealed class ChurchServiceTests
     [Trait("Category", "Unit")]
     public async Task CreateAsync_FullyPopulatedChurch_BindsOptionalValues()
     {
+        // Arrange
         var street = TestValues.NewStreet();
         var denominationId = Guid.NewGuid();
         var conn = new FakeDbConnection();
@@ -364,8 +419,10 @@ public sealed class ChurchServiceTests
             HasYouthProgram = true,
         };
 
+        // Act
         await service.CreateAsync(request, TestContext.Current.CancellationToken);
 
+        // Assert
         var insert = conn.ExecutedCommands[1];
         Assert.Equal(street, insert.Parameters["@Street"].Value);
         Assert.True(insert.Parameters["@AcceptsLGBTQ"].Value is true);
@@ -376,13 +433,16 @@ public sealed class ChurchServiceTests
     [Trait("Category", "Unit")]
     public async Task CreateAsync_NewChurch_BindsCreatedAtAsDateTimeOffset()
     {
+        // Arrange
         var conn = new FakeDbConnection();
         conn.Enqueue(SlugFree());
         conn.Enqueue(InsertSucceeds());
         var service = new ChurchService(conn);
 
+        // Act
         await service.CreateAsync(BuildRequest(), TestContext.Current.CancellationToken);
 
+        // Assert
         var insert = conn.ExecutedCommands[1];
         Assert.IsType<DateTimeOffset>(insert.Parameters["@CreatedAt"].Value);
     }
@@ -391,13 +451,16 @@ public sealed class ChurchServiceTests
     [Trait("Category", "Unit")]
     public async Task CreateAsync_NewChurch_BindsCreatedAtInUtc()
     {
+        // Arrange
         var conn = new FakeDbConnection();
         conn.Enqueue(SlugFree());
         conn.Enqueue(InsertSucceeds());
         var service = new ChurchService(conn);
 
+        // Act
         await service.CreateAsync(BuildRequest(), TestContext.Current.CancellationToken);
 
+        // Assert
         var insert = conn.ExecutedCommands[1];
         Assert.Equal(TimeSpan.Zero, Assert.IsType<DateTimeOffset>(insert.Parameters["@CreatedAt"].Value).Offset);
     }
@@ -406,6 +469,7 @@ public sealed class ChurchServiceTests
     [Trait("Category", "Unit")]
     public async Task UpdateAsync_LastVerifiedAtCarriesNonZeroOffset_BindsTheSameInstant()
     {
+        // Arrange
         var lastVerifiedAtInSourceOffset = TestValues.NewTimestampWithNonZeroOffset();
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithNonQueryResult(1));
@@ -413,8 +477,10 @@ public sealed class ChurchServiceTests
         var church = BuildChurch();
         church.LastVerifiedAt = lastVerifiedAtInSourceOffset;
 
+        // Act
         await service.UpdateAsync(church, TestContext.Current.CancellationToken);
 
+        // Assert
         var update = conn.ExecutedCommands[0];
         Assert.Equal(
             lastVerifiedAtInSourceOffset.UtcDateTime,
@@ -431,8 +497,10 @@ public sealed class ChurchServiceTests
         var service = new ChurchService(conn);
         var churchId = Guid.NewGuid();
 
+        // Act
         var result = await service.GetByIdAsync(churchId, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.NotNull(result);
         Assert.Equal(storedCreatedAt.UtcDateTime, result.CreatedAt.UtcDateTime);
     }
@@ -447,8 +515,10 @@ public sealed class ChurchServiceTests
         var service = new ChurchService(conn);
         var churchId = Guid.NewGuid();
 
+        // Act
         var result = await service.GetByIdAsync(churchId, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.NotNull(result);
         Assert.Equal(storedCreatedAt.Offset, result.CreatedAt.Offset);
     }

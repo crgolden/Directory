@@ -57,7 +57,9 @@ internal static class TestValues
 
     internal static string NewEmailAddress() => $"{LowercaseToken(8)}@{LowercaseToken(12)}.example";
 
-    internal static string NewUserId() => $"user-{LowercaseToken(12)}";
+    internal static Guid NewUserId() => Guid.NewGuid();
+
+    internal static string NewNonGuidSubject() => $"user-{LowercaseToken(12)}";
 
     internal static string NewFieldName() => LowercaseToken(9);
 

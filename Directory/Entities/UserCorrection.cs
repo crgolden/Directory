@@ -8,7 +8,7 @@ public sealed class UserCorrection
 
     required public Guid ChurchId { get; init; }
 
-    required public string UserId { get; init; }
+    public Guid? UserId { get; init; }
 
     required public string Field { get; set; }
 
@@ -18,7 +18,7 @@ public sealed class UserCorrection
 
     public CorrectionStatus Status { get; set; }
 
-    public string? ReviewedBy { get; set; }
+    public Guid? ReviewedBy { get; set; }
 
     public DateTimeOffset? ReviewedAt { get; set; }
 

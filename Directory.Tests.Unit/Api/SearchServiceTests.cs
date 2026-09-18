@@ -8,18 +8,23 @@ using TestSupport;
 
 public sealed class SearchServiceTests
 {
+    public static TheoryData<string?> NullAndWhitespaceQueries() => [null, TestValues.NewBlank()];
+
     [Fact]
     [Trait("Category", "Unit")]
     public async Task SearchAsync_IncludesDistanceColumn_WhenGeoFilterProvided()
     {
+        // Arrange
         var searchLatitude = TestValues.NewLatitude();
         var searchLongitude = TestValues.NewLongitude();
         var conn = BuildConn(out var cmd);
         var service = new SearchService(conn);
 
+        // Act
         await service.SearchAsync(
             QueryWith(lat: searchLatitude, lng: searchLongitude), TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Contains("fn_HaversineDistance", cmd.CapturedCommandText, StringComparison.Ordinal);
     }
 
@@ -27,11 +32,14 @@ public sealed class SearchServiceTests
     [Trait("Category", "Unit")]
     public async Task SearchAsync_ExcludesDistanceColumn_WhenNoGeoFilter()
     {
+        // Arrange
         var conn = BuildConn(out var cmd);
         var service = new SearchService(conn);
 
+        // Act
         await service.SearchAsync(QueryWith(), TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Contains("CAST(NULL AS FLOAT)", cmd.CapturedCommandText, StringComparison.Ordinal);
         Assert.DoesNotContain("fn_HaversineDistance", cmd.CapturedCommandText, StringComparison.Ordinal);
     }
@@ -40,12 +48,15 @@ public sealed class SearchServiceTests
     [Trait("Category", "Unit")]
     public async Task SearchAsync_IncludesContainsTableJoin_WhenKeywordProvided()
     {
+        // Arrange
         var searchKeyword = TestValues.NewKeyword();
         var conn = BuildConn(out var cmd);
         var service = new SearchService(conn);
 
+        // Act
         await service.SearchAsync(QueryWith(q: searchKeyword), TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Contains("CONTAINSTABLE", cmd.CapturedCommandText, StringComparison.Ordinal);
         Assert.Contains("ft.[KEY] = c.[Id]", cmd.CapturedCommandText, StringComparison.Ordinal);
     }
@@ -54,11 +65,14 @@ public sealed class SearchServiceTests
     [Trait("Category", "Unit")]
     public async Task SearchAsync_OmitsContainsTableJoin_WhenNoKeyword()
     {
+        // Arrange
         var conn = BuildConn(out var cmd);
         var service = new SearchService(conn);
 
+        // Act
         await service.SearchAsync(QueryWith(), TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.DoesNotContain("CONTAINSTABLE", cmd.CapturedCommandText, StringComparison.Ordinal);
     }
 
@@ -66,12 +80,15 @@ public sealed class SearchServiceTests
     [Trait("Category", "Unit")]
     public async Task SearchAsync_OmitsContainsTableJoin_WhenKeywordIsJunkOnly()
     {
+        // Arrange
         var punctuationOnlyQuery = TestValues.NewPunctuationOnlyQuery();
         var conn = BuildConn(out var cmd);
         var service = new SearchService(conn);
 
+        // Act
         await service.SearchAsync(QueryWith(q: punctuationOnlyQuery), TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.DoesNotContain("CONTAINSTABLE", cmd.CapturedCommandText, StringComparison.Ordinal);
     }
 
@@ -79,12 +96,15 @@ public sealed class SearchServiceTests
     [Trait("Category", "Unit")]
     public async Task SearchAsync_IncludesStateFilter_WhenStateProvided()
     {
+        // Arrange
         var stateFilter = TestValues.NewStateCodeText();
         var conn = BuildConn(out var cmd);
         var service = new SearchService(conn);
 
+        // Act
         await service.SearchAsync(QueryWith(state: stateFilter), TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Contains("@State", cmd.CapturedCommandText, StringComparison.Ordinal);
     }
 
@@ -92,12 +112,15 @@ public sealed class SearchServiceTests
     [Trait("Category", "Unit")]
     public async Task SearchAsync_IncludesWheelchairFilter_WhenFilterProvided()
     {
+        // Arrange
         var conn = BuildConn(out var cmd);
         var service = new SearchService(conn);
 
+        // Act
         await service.SearchAsync(
             QueryWith(wheelchairAccessible: true), TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Contains("@WheelchairAccessible", cmd.CapturedCommandText, StringComparison.Ordinal);
     }
 
@@ -105,14 +128,17 @@ public sealed class SearchServiceTests
     [Trait("Category", "Unit")]
     public async Task SearchAsync_OrdersByDistance_WhenGeoFilterProvided()
     {
+        // Arrange
         var searchLatitude = TestValues.NewLatitude();
         var searchLongitude = TestValues.NewLongitude();
         var conn = BuildConn(out var cmd);
         var service = new SearchService(conn);
 
+        // Act
         await service.SearchAsync(
             QueryWith(lat: searchLatitude, lng: searchLongitude), TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Contains("ORDER BY", cmd.CapturedCommandText, StringComparison.Ordinal);
         Assert.Contains("fn_HaversineDistance", cmd.CapturedCommandText, StringComparison.Ordinal);
     }
@@ -121,12 +147,15 @@ public sealed class SearchServiceTests
     [Trait("Category", "Unit")]
     public async Task SearchAsync_ReturnsEmptyResult_WhenNoRows()
     {
+        // Arrange
         var conn = BuildConn(out _);
         var service = new SearchService(conn);
 
+        // Act
         var (items, totalCount) = await service.SearchAsync(
             QueryWith(), TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Empty(items);
         Assert.Equal(0, totalCount);
     }
@@ -138,8 +167,10 @@ public sealed class SearchServiceTests
         var filteredDenominationId = Guid.NewGuid();
         var query = QueryWith(denominationId: filteredDenominationId);
 
+        // Act
         var sql = SearchService.BuildQuery(query, out _);
 
+        // Assert
         Assert.Contains("c.[DenominationId] = @DenominationId", sql, StringComparison.Ordinal);
     }
 
@@ -150,8 +181,10 @@ public sealed class SearchServiceTests
         var filteredWorshipStyle = TestValues.NewWorshipStyle();
         var query = QueryWith(worshipStyle: filteredWorshipStyle);
 
+        // Act
         var sql = SearchService.BuildQuery(query, out _);
 
+        // Assert
         Assert.Contains("c.[WorshipStyle] = @WorshipStyle", sql, StringComparison.Ordinal);
     }
 
@@ -292,8 +325,10 @@ public sealed class SearchServiceTests
             worshipStyle: filteredWorshipStyle,
             wheelchairAccessible: true);
 
+        // Act
         SearchService.BindParams(cmd, query);
 
+        // Assert
         Assert.Equal(searchRadiusMiles, cmd.Parameters["@RadiusMiles"].Value);
         Assert.Equal(filteredDenominationId, cmd.Parameters["@DenominationId"].Value);
         Assert.Equal((int)filteredWorshipStyle, cmd.Parameters["@WorshipStyle"].Value);
@@ -317,8 +352,10 @@ public sealed class SearchServiceTests
         var service = new SearchService(conn);
         var query = QueryWith(lat: searchLatitude, lng: searchLongitude);
 
+        // Act
         var (items, totalCount) = await service.SearchAsync(query, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(expectedTotalCount, totalCount);
         var result = Assert.Single(items);
         Assert.Equal(expectedDistanceMiles, result.DistanceMiles);
@@ -340,8 +377,10 @@ public sealed class SearchServiceTests
         var service = new SearchService(conn);
         var query = QueryWith(lat: searchLatitude, lng: searchLongitude);
 
+        // Act
         var (items, _) = await service.SearchAsync(query, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Null(Assert.Single(items).DistanceMiles);
     }
 
@@ -357,8 +396,10 @@ public sealed class SearchServiceTests
         var service = new SearchService(conn);
         var query = QueryWith();
 
+        // Act
         var (items, totalCount) = await service.SearchAsync(query, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(expectedTotalCount, totalCount);
         var result = Assert.Single(items);
         Assert.Null(result.DistanceMiles);
@@ -373,8 +414,10 @@ public sealed class SearchServiceTests
         var firstWord = TestValues.NewKeyword();
         var secondWord = TestValues.NewKeyword();
 
+        // Act
         var containsSql = SearchService.BuildContainsCondition($"{firstWord} {secondWord}", out var terms);
 
+        // Assert
         Assert.Equal($"\"{firstWord}*\" AND \"{secondWord}*\"", containsSql);
         Assert.Equal([firstWord, secondWord], terms);
     }
@@ -383,25 +426,28 @@ public sealed class SearchServiceTests
     [Trait("Category", "Unit")]
     public void BuildContainsCondition_JunkOnlyInput_ReturnsNullAndNoTerms()
     {
+        // Arrange
         var punctuationOnlyQuery = TestValues.NewPunctuationOnlyQuery();
 
+        // Act
         var containsSql = SearchService.BuildContainsCondition(punctuationOnlyQuery, out var terms);
 
+        // Assert
         Assert.Null(containsSql);
         Assert.Empty(terms);
     }
 
-    [Fact]
+    [Theory]
     [Trait("Category", "Unit")]
-    public void BuildContainsCondition_NullOrWhitespace_ReturnsNullAndNoTerms()
+    [MemberData(nameof(NullAndWhitespaceQueries))]
+    public void BuildContainsCondition_NullOrWhitespace_ReturnsNullAndNoTerms(string? query)
     {
-        var whitespaceOnlyQuery = TestValues.NewBlank();
+        // Act
+        var containsSql = SearchService.BuildContainsCondition(query, out var terms);
 
-        Assert.Null(SearchService.BuildContainsCondition(null, out var terms1));
-        Assert.Empty(terms1);
-
-        Assert.Null(SearchService.BuildContainsCondition(whitespaceOnlyQuery, out var terms2));
-        Assert.Empty(terms2);
+        // Assert
+        Assert.Null(containsSql);
+        Assert.Empty(terms);
     }
 
     [Fact]
@@ -412,8 +458,10 @@ public sealed class SearchServiceTests
         var afterApostrophe = TestValues.NewKeyword();
         var apostrophedName = $"{beforeApostrophe}'{afterApostrophe}";
 
+        // Act
         var containsSql = SearchService.BuildContainsCondition($"{apostrophedName}!", out var terms);
 
+        // Assert
         Assert.Equal($"\"{apostrophedName}*\"", containsSql);
         Assert.Equal([apostrophedName], terms);
     }
@@ -422,11 +470,14 @@ public sealed class SearchServiceTests
     [Trait("Category", "Unit")]
     public void BuildQuery_RelevanceSortWithKeyword_UsesRankOrdering()
     {
+        // Arrange
         var searchKeyword = TestValues.NewKeyword();
         var query = QueryWith(q: searchKeyword, sort: SearchService.SortByRelevance);
 
+        // Act
         var sql = SearchService.BuildQuery(query, out _);
 
+        // Assert
         Assert.Contains("CASE WHEN c.[CanonicalName] = @ExactQ THEN 0", sql, StringComparison.Ordinal);
         Assert.Contains("ft.[RANK] DESC", sql, StringComparison.Ordinal);
     }
@@ -438,8 +489,10 @@ public sealed class SearchServiceTests
         var punctuationOnlyQuery = TestValues.NewPunctuationToken();
         var query = QueryWith(q: punctuationOnlyQuery, sort: SearchService.SortByRelevance);
 
+        // Act
         var sql = SearchService.BuildQuery(query, out _);
 
+        // Assert
         Assert.DoesNotContain("ft.[RANK]", sql, StringComparison.Ordinal);
         Assert.Contains("ORDER BY c.[CanonicalName] ASC", sql, StringComparison.Ordinal);
     }
@@ -448,14 +501,17 @@ public sealed class SearchServiceTests
     [Trait("Category", "Unit")]
     public void BuildQuery_NameSort_AlwaysAlphabetical_EvenWithKeywordAndGeo()
     {
+        // Arrange
         var searchKeyword = TestValues.NewKeyword();
         var searchLatitude = TestValues.NewLatitude();
         var searchLongitude = TestValues.NewLongitude();
         var query = QueryWith(
             q: searchKeyword, lat: searchLatitude, lng: searchLongitude, sort: SearchService.SortByName);
 
+        // Act
         var sql = SearchService.BuildQuery(query, out _);
 
+        // Assert
         Assert.Contains("ORDER BY c.[CanonicalName] ASC", sql, StringComparison.Ordinal);
         Assert.DoesNotContain("fn_HaversineDistance) ASC", sql, StringComparison.Ordinal);
         Assert.DoesNotContain("ft.[RANK]", sql, StringComparison.Ordinal);
@@ -465,13 +521,16 @@ public sealed class SearchServiceTests
     [Trait("Category", "Unit")]
     public void BuildQuery_DistanceSort_UsesHaversineWhenGeoPresent()
     {
+        // Arrange
         var searchLatitude = TestValues.NewLatitude();
         var searchLongitude = TestValues.NewLongitude();
         var query = QueryWith(
             lat: searchLatitude, lng: searchLongitude, sort: SearchService.SortByDistance);
 
+        // Act
         var sql = SearchService.BuildQuery(query, out _);
 
+        // Assert
         Assert.Contains("ORDER BY [dbo].[fn_HaversineDistance]", sql, StringComparison.Ordinal);
     }
 
@@ -481,8 +540,10 @@ public sealed class SearchServiceTests
     {
         var query = QueryWith(sort: SearchService.SortByDistance);
 
+        // Act
         var sql = SearchService.BuildQuery(query, out _);
 
+        // Assert
         Assert.Contains("ORDER BY c.[CanonicalName] ASC", sql, StringComparison.Ordinal);
     }
 
@@ -490,13 +551,16 @@ public sealed class SearchServiceTests
     [Trait("Category", "Unit")]
     public void BuildQuery_DefaultSort_NoSortParam_PrefersRelevanceWhenKeywordPresent()
     {
+        // Arrange
         var searchKeyword = TestValues.NewKeyword();
         var searchLatitude = TestValues.NewLatitude();
         var searchLongitude = TestValues.NewLongitude();
         var query = QueryWith(q: searchKeyword, lat: searchLatitude, lng: searchLongitude);
 
+        // Act
         var sql = SearchService.BuildQuery(query, out _);
 
+        // Assert
         Assert.Contains("ft.[RANK] DESC", sql, StringComparison.Ordinal);
     }
 
@@ -504,12 +568,15 @@ public sealed class SearchServiceTests
     [Trait("Category", "Unit")]
     public void BuildQuery_DefaultSort_NoKeywordButGeo_UsesDistance()
     {
+        // Arrange
         var searchLatitude = TestValues.NewLatitude();
         var searchLongitude = TestValues.NewLongitude();
         var query = QueryWith(lat: searchLatitude, lng: searchLongitude);
 
+        // Act
         var sql = SearchService.BuildQuery(query, out _);
 
+        // Assert
         Assert.Contains("ORDER BY [dbo].[fn_HaversineDistance]", sql, StringComparison.Ordinal);
     }
 
@@ -519,8 +586,10 @@ public sealed class SearchServiceTests
     {
         var query = QueryWith();
 
+        // Act
         var sql = SearchService.BuildQuery(query, out _);
 
+        // Assert
         Assert.Contains("ORDER BY c.[CanonicalName] ASC", sql, StringComparison.Ordinal);
     }
 
@@ -532,8 +601,10 @@ public sealed class SearchServiceTests
         var searchKeyword = TestValues.NewKeyword();
         var query = QueryWith(q: searchKeyword, sort: SearchService.SortByRelevance);
 
+        // Act
         SearchService.BindParams(cmd, query);
 
+        // Assert
         Assert.True(cmd.Parameters.Contains("@ExactQ"));
         Assert.True(cmd.Parameters.Contains("@PrefixQ"));
         Assert.Equal(searchKeyword, cmd.Parameters["@ExactQ"].Value);
@@ -549,8 +620,10 @@ public sealed class SearchServiceTests
         var searchKeyword = TestValues.NewKeyword();
         var query = QueryWith(q: searchKeyword, sort: SearchService.SortByName);
 
+        // Act
         SearchService.BindParams(cmd, query);
 
+        // Assert
         Assert.False(cmd.Parameters.Contains("@ExactQ"));
         Assert.False(cmd.Parameters.Contains("@PrefixQ"));
     }

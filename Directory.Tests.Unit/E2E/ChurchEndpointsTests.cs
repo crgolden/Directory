@@ -19,8 +19,10 @@ public sealed class ChurchEndpointsTests : IClassFixture<DirectoryWebApplication
     [Trait("Category", "E2E")]
     public async Task GetChurches_ReturnsOk()
     {
+        // Act
         var response = await _client.GetAsync("/churches?page=1&pageSize=10", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
@@ -28,8 +30,10 @@ public sealed class ChurchEndpointsTests : IClassFixture<DirectoryWebApplication
     [Trait("Category", "E2E")]
     public async Task GetChurches_ClampsPagination_WhenOutOfRange()
     {
+        // Act
         var response = await _client.GetAsync("/churches?page=0&pageSize=200", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
@@ -37,8 +41,10 @@ public sealed class ChurchEndpointsTests : IClassFixture<DirectoryWebApplication
     [Trait("Category", "E2E")]
     public async Task CreateChurch_ReturnsCreated()
     {
+        // Act
         var response = await _client.PostAsJsonAsync("/churches", NewChurchRequest(), TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         Assert.NotNull(response.Headers.Location);
     }
@@ -47,10 +53,13 @@ public sealed class ChurchEndpointsTests : IClassFixture<DirectoryWebApplication
     [Trait("Category", "E2E")]
     public async Task GetChurchBySlug_ReturnsOk_WhenFound()
     {
+        // Arrange
         var slug = await CreateChurchAndGetSlugAsync();
 
+        // Act
         var response = await _client.GetAsync($"/churches/{slug}", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
@@ -58,8 +67,10 @@ public sealed class ChurchEndpointsTests : IClassFixture<DirectoryWebApplication
     [Trait("Category", "E2E")]
     public async Task GetChurchBySlug_ReturnsNotFound_WhenMissing()
     {
+        // Act
         var response = await _client.GetAsync($"/churches/no-such-slug-{Guid.NewGuid():N}", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
@@ -67,10 +78,13 @@ public sealed class ChurchEndpointsTests : IClassFixture<DirectoryWebApplication
     [Trait("Category", "E2E")]
     public async Task UpdateChurch_ReturnsOk_WhenFound()
     {
+        // Arrange
         var id = await CreateChurchAndGetIdAsync();
 
+        // Act
         var response = await _client.PutAsJsonAsync($"/churches/{id}", NewChurchRequest("Updated"), TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
@@ -78,8 +92,10 @@ public sealed class ChurchEndpointsTests : IClassFixture<DirectoryWebApplication
     [Trait("Category", "E2E")]
     public async Task UpdateChurch_ReturnsNotFound_WhenMissing()
     {
+        // Act
         var response = await _client.PutAsJsonAsync($"/churches/{Guid.NewGuid()}", NewChurchRequest(), TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
@@ -87,12 +103,15 @@ public sealed class ChurchEndpointsTests : IClassFixture<DirectoryWebApplication
     [Trait("Category", "E2E")]
     public async Task PatchChurch_ReturnsOk_WhenFound()
     {
+        // Arrange
         var id = await CreateChurchAndGetIdAsync();
         var patch = new { CanonicalName = $"Patched Church {Guid.NewGuid():N}" };
-
         using var content = JsonContent.Create(patch);
+
+        // Act
         var response = await _client.PatchAsync($"/churches/{id}", content, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
@@ -100,11 +119,14 @@ public sealed class ChurchEndpointsTests : IClassFixture<DirectoryWebApplication
     [Trait("Category", "E2E")]
     public async Task PatchChurch_ReturnsNotFound_WhenMissing()
     {
+        // Arrange
         var patch = new { CanonicalName = "Patched Name" };
-
         using var content = JsonContent.Create(patch);
+
+        // Act
         var response = await _client.PatchAsync($"/churches/{Guid.NewGuid()}", content, TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
@@ -112,10 +134,13 @@ public sealed class ChurchEndpointsTests : IClassFixture<DirectoryWebApplication
     [Trait("Category", "E2E")]
     public async Task DeleteChurch_ReturnsNoContent_WhenFound()
     {
+        // Arrange
         var id = await CreateChurchAndGetIdAsync();
 
+        // Act
         var response = await _client.DeleteAsync($"/churches/{id}", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }
 
@@ -123,8 +148,10 @@ public sealed class ChurchEndpointsTests : IClassFixture<DirectoryWebApplication
     [Trait("Category", "E2E")]
     public async Task DeleteChurch_ReturnsNotFound_WhenMissing()
     {
+        // Act
         var response = await _client.DeleteAsync($"/churches/{Guid.NewGuid()}", TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
