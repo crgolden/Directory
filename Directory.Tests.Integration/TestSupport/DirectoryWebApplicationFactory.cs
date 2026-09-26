@@ -13,7 +13,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Moq;
 
-public sealed class DirectoryWebApplicationFactory : WebApplicationFactory<Program>
+public sealed class DirectoryWebApplicationFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
     private const string SweepSql = """
         DELETE FROM [dbo].[UserCorrections];
@@ -42,6 +42,11 @@ public sealed class DirectoryWebApplicationFactory : WebApplicationFactory<Progr
         var conn = new SqlConnection(connectionString);
         await conn.OpenAsync(ct);
         return conn;
+    }
+
+    public async ValueTask InitializeAsync()
+    {
+        await DeleteEveryRowInTheTestCatalogAsync();
     }
 
     public override async ValueTask DisposeAsync()
