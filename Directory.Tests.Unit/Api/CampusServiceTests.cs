@@ -1,19 +1,19 @@
 namespace Directory.Tests.Unit.Api;
 
-using Campuses;
-using Entities;
-using TestSupport;
+using Directory.Campuses;
+using Directory.Entities;
+using Directory.Tests.Unit.TestSupport;
 
+[Trait("Category", "Unit")]
 public sealed class CampusServiceTests
 {
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task CreateAsync_InsertsCampus()
     {
         // Arrange
         var conn = new FakeDbConnection();
         var service = new CampusService(conn);
-        var campusName = TestValues.NewName();
+        var campusName = Generated.NewName();
         var campus = BuildCampus(campusName);
 
         // Act
@@ -26,13 +26,12 @@ public sealed class CampusServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task CreateAsync_BlankName_ThrowsWithoutTouchingDb()
     {
         // Arrange
         var conn = new FakeDbConnection();
         var service = new CampusService(conn);
-        var name = TestValues.NewBlank();
+        var name = Generated.NewBlank();
         var campus = BuildCampus(name);
 
         // Act
@@ -46,14 +45,13 @@ public sealed class CampusServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task UpdateAsync_RowAffected_ReturnsTrue()
     {
         // Arrange
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithNonQueryResult(1));
         var service = new CampusService(conn);
-        var campus = BuildCampus(TestValues.NewName());
+        var campus = BuildCampus(Generated.NewName());
         var campusId = Guid.NewGuid();
 
         // Act
@@ -66,7 +64,41 @@ public sealed class CampusServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
+    public async Task UpdateAsync_WithNoChurchId_StillUpdates_BecauseTheStatementNeverWritesOne()
+    {
+        // Arrange
+        var conn = new FakeDbConnection();
+        conn.Enqueue(FakeDbCommand.WithNonQueryResult(1));
+        var service = new CampusService(conn);
+        var campus = BuildCampusTheRouteWouldSend(Generated.NewName());
+        var campusId = Guid.NewGuid();
+
+        // Act
+        var updated = await service.UpdateAsync(campusId, campus, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(updated);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_BlankName_ThrowsAndWritesNothing()
+    {
+        // Arrange
+        var conn = new FakeDbConnection();
+        var service = new CampusService(conn);
+        var campus = BuildCampus(Generated.NewBlank());
+        var campusId = Guid.NewGuid();
+
+        // Act
+        var exception = await Record.ExceptionAsync(() =>
+            service.UpdateAsync(campusId, campus, TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.IsType<ArgumentException>(exception);
+        Assert.Empty(conn.ExecutedCommands);
+    }
+
+    [Fact]
     public async Task DeleteAsync_NoRow_ReturnsFalse()
     {
         // Arrange
@@ -83,6 +115,17 @@ public sealed class CampusServiceTests
             c.CommandText.Contains("DELETE FROM [dbo].[Campuses]", StringComparison.Ordinal));
     }
 
+    private static Campus BuildCampusTheRouteWouldSend(string name) => new Campus
+    {
+        ChurchId = Guid.Empty,
+        Name = name,
+        City = Generated.NewCity(),
+        State = Generated.NewStateCode(),
+        Zip = Generated.NewZip(),
+        Latitude = Generated.NewLatitude(),
+        Longitude = Generated.NewLongitude(),
+    };
+
     private static Campus BuildCampus(string name)
     {
         var churchId = Guid.NewGuid();
@@ -90,11 +133,11 @@ public sealed class CampusServiceTests
         {
             ChurchId = churchId,
             Name = name,
-            City = TestValues.NewCity(),
-            State = TestValues.NewStateCode(),
-            Zip = TestValues.NewZip(),
-            Latitude = TestValues.NewLatitude(),
-            Longitude = TestValues.NewLongitude(),
+            City = Generated.NewCity(),
+            State = Generated.NewStateCode(),
+            Zip = Generated.NewZip(),
+            Latitude = Generated.NewLatitude(),
+            Longitude = Generated.NewLongitude(),
         };
     }
 }

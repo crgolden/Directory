@@ -5,9 +5,13 @@ using System.Diagnostics.CodeAnalysis;
 [ExcludeFromCodeCoverage]
 public static class CrawlingEndpoints
 {
+    internal const string Route = "/crawl-sources";
+
+    internal const string TriggerSegment = "/trigger";
+
     public static IEndpointRouteBuilder MapCrawlingEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/crawl-sources")
+        var group = app.MapGroup(Route)
             .WithTags("Crawling")
             .RequireAuthorization(AuthorizationPolicies.ChurchesModPolicy);
 
@@ -20,7 +24,7 @@ public static class CrawlingEndpoints
             CancellationToken ct) =>
         {
             var source = await service.CreateAsync(req.Url, req.ChurchId, ct);
-            return Results.Created($"/crawl-sources/{source.Id}", source);
+            return Results.Created($"{Route}/{source.Id}", source);
         });
 
         group.MapDelete("/{id:guid}", async (
@@ -32,7 +36,7 @@ public static class CrawlingEndpoints
             return deleted ? Results.NoContent() : Results.NotFound();
         });
 
-        group.MapPost("/{id:guid}/trigger", async (
+        group.MapPost($"/{{id:guid}}{TriggerSegment}", async (
             Guid id,
             CrawlingService service,
             CancellationToken ct) =>
@@ -44,5 +48,3 @@ public static class CrawlingEndpoints
         return app;
     }
 }
-
-public record CreateCrawlSourceRequest(Uri Url, Guid? ChurchId);

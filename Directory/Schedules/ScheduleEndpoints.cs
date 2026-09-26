@@ -1,14 +1,17 @@
 namespace Directory.Schedules;
 
 using System.Diagnostics.CodeAnalysis;
-using System.Globalization;
+using System.Globalization;
+using Directory.Church;
 
 [ExcludeFromCodeCoverage]
 public static class ScheduleEndpoints
 {
+    internal const string Route = "/schedules";
+
     public static IEndpointRouteBuilder MapScheduleEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapPost("/churches/{churchId:guid}/schedules", async (
+        app.MapPost($"{ChurchEndpoints.Route}/{{churchId:guid}}{Route}", async (
             Guid churchId,
             ScheduleRequest req,
             ScheduleService service,
@@ -20,10 +23,10 @@ public static class ScheduleEndpoints
             }
 
             var created = await service.CreateAsync(churchId, req.DayOfWeek, startTime, req.Description, ct);
-            return Results.Created($"/schedules/{created.Id}", created);
+            return Results.Created($"{Route}/{created.Id}", created);
         }).RequireAuthorization(AuthorizationPolicies.ChurchesModPolicy).WithTags("Schedules");
 
-        app.MapPut("/schedules/{id:guid}", async (
+        app.MapPut($"{Route}/{{id:guid}}", async (
             Guid id,
             ScheduleRequest req,
             ScheduleService service,
@@ -39,7 +42,7 @@ public static class ScheduleEndpoints
                 : Results.NotFound();
         }).RequireAuthorization(AuthorizationPolicies.ChurchesModPolicy).WithTags("Schedules");
 
-        app.MapDelete("/schedules/{id:guid}", async (
+        app.MapDelete($"{Route}/{{id:guid}}", async (
             Guid id,
             ScheduleService service,
             CancellationToken ct) =>
@@ -49,5 +52,3 @@ public static class ScheduleEndpoints
         return app;
     }
 }
-
-public record ScheduleRequest(byte DayOfWeek, string StartTime, string? Description);

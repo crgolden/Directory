@@ -2,7 +2,7 @@ namespace Directory.Ministries;
 
 using System.Data;
 using System.Data.Common;
-using Entities;
+using Directory.Entities;
 
 public sealed class MinistryService
 {
@@ -21,11 +21,11 @@ public sealed class MinistryService
             INSERT INTO [dbo].[Ministries] ([Id], [ChurchId], [Name], [Description], [CreatedAt], [UpdatedAt])
             VALUES (@Id, @ChurchId, @Name, @Desc, @Now, @Now)
             """;
-        AddParam(cmd, "@Id", ministry.Id);
-        AddParam(cmd, "@ChurchId", churchId);
-        AddParam(cmd, "@Name", name);
-        AddParam(cmd, "@Desc", (object?)description ?? DBNull.Value);
-        AddParam(cmd, "@Now", now);
+        AddParam(cmd, SqlParameters.Id, ministry.Id);
+        AddParam(cmd, SqlParameters.ChurchId, churchId);
+        AddParam(cmd, SqlParameters.Name, name);
+        AddParam(cmd, SqlParameters.Desc, (object?)description ?? DBNull.Value);
+        AddParam(cmd, SqlParameters.Now, now);
         await cmd.ExecuteNonQueryAsync(ct);
         return ministry;
     }
@@ -44,10 +44,10 @@ public sealed class MinistryService
             SET [Name] = @Name, [Description] = @Desc, [UpdatedAt] = @Now
             WHERE [Id] = @Id
             """;
-        AddParam(cmd, "@Id", id);
-        AddParam(cmd, "@Name", name);
-        AddParam(cmd, "@Desc", (object?)description ?? DBNull.Value);
-        AddParam(cmd, "@Now", DateTimeOffset.UtcNow);
+        AddParam(cmd, SqlParameters.Id, id);
+        AddParam(cmd, SqlParameters.Name, name);
+        AddParam(cmd, SqlParameters.Desc, (object?)description ?? DBNull.Value);
+        AddParam(cmd, SqlParameters.Now, DateTimeOffset.UtcNow);
         return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
 
@@ -56,7 +56,7 @@ public sealed class MinistryService
         await EnsureOpenAsync(ct);
         await using var cmd = _dbConnection.CreateCommand();
         cmd.CommandText = "DELETE FROM [dbo].[Ministries] WHERE [Id] = @Id";
-        AddParam(cmd, "@Id", id);
+        AddParam(cmd, SqlParameters.Id, id);
         return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
 

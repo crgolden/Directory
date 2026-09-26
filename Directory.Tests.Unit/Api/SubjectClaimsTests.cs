@@ -1,17 +1,16 @@
 namespace Directory.Tests.Unit.Api;
 
 using System.Security.Claims;
-using Moderation;
-using TestSupport;
+using Directory.Moderation;
 
+[Trait("Category", "Unit")]
 public sealed class SubjectClaimsTests
 {
     [Fact]
-    [Trait("Category", "Unit")]
     public void TryRead_ReadsASubjectThatIsAGuid()
     {
         // Arrange
-        var expectedSubject = TestValues.NewUserId();
+        var expectedSubject = Generated.NewUserId();
         var user = UserWithSubject(expectedSubject.ToString());
 
         // Act
@@ -23,11 +22,10 @@ public sealed class SubjectClaimsTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public void TryRead_RefusesASubjectThatIsNotAGuid()
     {
         // Arrange
-        var user = UserWithSubject(TestValues.NewNonGuidSubject());
+        var user = UserWithSubject(Generated.NewNonGuidSubject());
 
         // Act
         var read = SubjectClaims.TryRead(user, out _);
@@ -37,7 +35,6 @@ public sealed class SubjectClaimsTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public void TryRead_RefusesAUserWithNoSubject()
     {
         // Arrange

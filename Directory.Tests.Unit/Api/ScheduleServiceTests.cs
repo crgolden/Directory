@@ -1,8 +1,9 @@
 namespace Directory.Tests.Unit.Api;
 
-using Schedules;
-using TestSupport;
+using Directory.Schedules;
+using Directory.Tests.Unit.TestSupport;
 
+[Trait("Category", "Unit")]
 public sealed class ScheduleServiceTests
 {
     private const byte DayOfWeekOutOfRangeOffset = 1;
@@ -12,14 +13,13 @@ public sealed class ScheduleServiceTests
     private const int OneRowAffected = 1;
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task CreateAsync_InsertsSchedule()
     {
         // Arrange
         var churchId = Guid.NewGuid();
-        var scheduledDayOfWeek = (byte)TestValues.NewDayOfWeek();
-        var scheduledStartTime = TestValues.NewTimeOfDay();
-        var scheduleDescription = TestValues.NewName();
+        var scheduledDayOfWeek = Generated.NewDayOfWeek();
+        var scheduledStartTime = Generated.NewTimeOfDay();
+        var scheduleDescription = Generated.NewName();
         var conn = new FakeDbConnection();
         var service = new ScheduleService(conn);
 
@@ -36,14 +36,13 @@ public sealed class ScheduleServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task CreateAsync_DayOfWeekAboveSix_ThrowsWithoutTouchingDb()
     {
         // Arrange
         var churchId = Guid.NewGuid();
         const byte dayOfWeek = FirstDayOfWeekAboveRange;
-        var scheduledStartTime = TestValues.NewTimeOfDay();
-        var scheduleDescription = TestValues.NewName();
+        var scheduledStartTime = Generated.NewTimeOfDay();
+        var scheduleDescription = Generated.NewName();
         var conn = new FakeDbConnection();
         var service = new ScheduleService(conn);
 
@@ -63,13 +62,12 @@ public sealed class ScheduleServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task UpdateAsync_RowAffected_ReturnsTrue()
     {
         // Arrange
         var scheduleId = Guid.NewGuid();
-        var scheduledDayOfWeek = (byte)TestValues.NewDayOfWeek();
-        var scheduledStartTime = TestValues.NewTimeOfDay();
+        var scheduledDayOfWeek = Generated.NewDayOfWeek();
+        var scheduledStartTime = Generated.NewTimeOfDay();
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithNonQueryResult(OneRowAffected));
         var service = new ScheduleService(conn);
@@ -85,13 +83,12 @@ public sealed class ScheduleServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task UpdateAsync_DayOfWeekAboveSix_ThrowsWithoutTouchingDb()
     {
         // Arrange
         var scheduleId = Guid.NewGuid();
         const byte dayOfWeek = FirstDayOfWeekAboveRange;
-        var scheduledStartTime = TestValues.NewTimeOfDay();
+        var scheduledStartTime = Generated.NewTimeOfDay();
         var conn = new FakeDbConnection();
         var service = new ScheduleService(conn);
 
@@ -111,7 +108,6 @@ public sealed class ScheduleServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task DeleteAsync_NoRow_ReturnsFalse()
     {
         // Arrange

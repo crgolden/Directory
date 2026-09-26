@@ -1,14 +1,24 @@
-namespace Directory.Tests.Unit.E2E;
+namespace Directory.Tests.Integration;
 
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Enums;
+using Directory.Church;
+using Directory.Entities;
+using Directory.Moderation;
+using Directory.Tests.Integration.TestSupport;
 using Microsoft.Data.SqlClient;
-using TestSupport;
 
+[Trait("Category", "Integration")]
 public sealed class ModerationEndpointsTests : IClassFixture<DirectoryWebApplicationFactory>
 {
+    private const string SeedCorrectionSql = """
+        INSERT INTO [dbo].[UserCorrections]
+            ([Id], [ChurchId], [UserId], [Field], [OldValue], [NewValue], [Status], [CreatedAt])
+        VALUES
+            (@Id, @ChurchId, @UserId, @Field, NULL, @NewValue, 0, @CreatedAt)
+        """;
+
     private readonly DirectoryWebApplicationFactory _factory;
     private readonly HttpClient _client;
 
@@ -19,173 +29,121 @@ public sealed class ModerationEndpointsTests : IClassFixture<DirectoryWebApplica
     }
 
     [Fact]
-    [Trait("Category", "E2E")]
     public async Task GetCorrections_ReturnsOk()
     {
-        // Act
         var response = await _client.GetAsync("/corrections?page=1&pageSize=10", TestContext.Current.CancellationToken);
 
-        // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]
-    [Trait("Category", "E2E")]
     public async Task GetCorrections_ClampsPagination_WhenOutOfRange()
     {
-        // Act
         var response = await _client.GetAsync("/corrections?page=0&pageSize=200", TestContext.Current.CancellationToken);
 
-        // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]
-    [Trait("Category", "E2E")]
     public async Task GetCorrectionById_ReturnsOk_WhenFound()
     {
-        // Arrange
         var churchId = await CreateChurchAndGetIdAsync();
         var correctionId = await SeedCorrectionAsync(churchId);
 
-        // Act
-        var response = await _client.GetAsync($"/corrections/{correctionId}", TestContext.Current.CancellationToken);
+        var response = await _client.GetAsync($"{ModerationEndpoints.Route}/{correctionId}", TestContext.Current.CancellationToken);
 
-        // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]
-    [Trait("Category", "E2E")]
     public async Task GetCorrectionById_ReturnsNotFound_WhenMissing()
     {
-        // Act
-        var response = await _client.GetAsync($"/corrections/{Guid.NewGuid()}", TestContext.Current.CancellationToken);
+        var missingCorrectionId = Guid.NewGuid();
 
-        // Assert
+        var response = await _client.GetAsync($"{ModerationEndpoints.Route}/{missingCorrectionId}", TestContext.Current.CancellationToken);
+
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]
-    [Trait("Category", "E2E")]
     public async Task SubmitCorrection_ReturnsAccepted_WhenChurchExists()
     {
-        // Arrange
         var churchId = await CreateChurchAndGetIdAsync();
-        var body = new { ChurchId = churchId, Field = "PhoneNumber", OldValue = (string?)null, NewValue = "602-555-1212" };
+        var body = new { ChurchId = churchId, Field = nameof(Church.PhoneNumber), NewValue = Generated.NewPhoneNumber() };
 
-        // Act
-        var response = await _client.PostAsJsonAsync("/corrections", body, TestContext.Current.CancellationToken);
+        var response = await _client.PostAsJsonAsync(ModerationEndpoints.Route, body, TestContext.Current.CancellationToken);
 
-        // Assert
         Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
     }
 
     [Fact]
-    [Trait("Category", "E2E")]
     public async Task SubmitCorrection_ReturnsNotFound_WhenChurchMissing()
     {
-        // Arrange
-        var body = new { ChurchId = Guid.NewGuid(), Field = "PhoneNumber", OldValue = (string?)null, NewValue = "602-555-1212" };
+        var missingChurchId = Guid.NewGuid();
+        var body = new { ChurchId = missingChurchId, Field = nameof(Church.PhoneNumber), NewValue = Generated.NewPhoneNumber() };
 
-        // Act
-        var response = await _client.PostAsJsonAsync("/corrections", body, TestContext.Current.CancellationToken);
+        var response = await _client.PostAsJsonAsync(ModerationEndpoints.Route, body, TestContext.Current.CancellationToken);
 
-        // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]
-    [Trait("Category", "E2E")]
     public async Task ApproveCorrection_ReturnsNoContent_WhenFound()
     {
-        // Arrange
         var churchId = await CreateChurchAndGetIdAsync();
         var correctionId = await SeedCorrectionAsync(churchId);
 
-        // Act
-        var response = await _client.PatchAsync($"/corrections/{correctionId}/approve", null, TestContext.Current.CancellationToken);
+        var response = await _client.PatchAsync($"{ModerationEndpoints.Route}/{correctionId}{ModerationEndpoints.ApproveSegment}", null, TestContext.Current.CancellationToken);
 
-        // Assert
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }
 
     [Fact]
-    [Trait("Category", "E2E")]
     public async Task ApproveCorrection_ReturnsNotFound_WhenMissing()
     {
-        // Act
-        var response = await _client.PatchAsync($"/corrections/{Guid.NewGuid()}/approve", null, TestContext.Current.CancellationToken);
+        var missingCorrectionId = Guid.NewGuid();
 
-        // Assert
+        var response = await _client.PatchAsync($"{ModerationEndpoints.Route}/{missingCorrectionId}{ModerationEndpoints.ApproveSegment}", null, TestContext.Current.CancellationToken);
+
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]
-    [Trait("Category", "E2E")]
     public async Task RejectCorrection_ReturnsNoContent_WhenFound()
     {
-        // Arrange
         var churchId = await CreateChurchAndGetIdAsync();
         var correctionId = await SeedCorrectionAsync(churchId);
 
-        // Act
-        var response = await _client.PatchAsync($"/corrections/{correctionId}/reject", null, TestContext.Current.CancellationToken);
+        var response = await _client.PatchAsync($"{ModerationEndpoints.Route}/{correctionId}{ModerationEndpoints.RejectSegment}", null, TestContext.Current.CancellationToken);
 
-        // Assert
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }
 
     [Fact]
-    [Trait("Category", "E2E")]
     public async Task RejectCorrection_ReturnsNotFound_WhenMissing()
     {
-        // Act
-        var response = await _client.PatchAsync($"/corrections/{Guid.NewGuid()}/reject", null, TestContext.Current.CancellationToken);
+        var missingCorrectionId = Guid.NewGuid();
 
-        // Assert
+        var response = await _client.PatchAsync($"{ModerationEndpoints.Route}/{missingCorrectionId}{ModerationEndpoints.RejectSegment}", null, TestContext.Current.CancellationToken);
+
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]
-    [Trait("Category", "E2E")]
     public async Task MergeChurches_ReturnsNoContent()
     {
-        // Arrange
         var survivingId = await CreateChurchAndGetIdAsync();
         var absorbedId = await CreateChurchAndGetIdAsync();
 
-        // Act
         var response = await _client.PostAsync(
-            $"/churches/{survivingId}/merge/{absorbedId}", null, TestContext.Current.CancellationToken);
+            $"{ChurchEndpoints.Route}/{survivingId}{ModerationEndpoints.MergeSegment}/{absorbedId}", null, TestContext.Current.CancellationToken);
 
-        // Assert
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }
 
     private async Task<Guid> CreateChurchAndGetIdAsync()
     {
-        var req = new
-        {
-            CanonicalName = $"Test Church {Guid.NewGuid():N}",
-            Latitude = 33.4484,
-            Longitude = -112.0740,
-            Street = (string?)null,
-            City = "Phoenix",
-            State = "AZ",
-            Zip = "85001",
-            PhoneNumber = (string?)null,
-            Website = (string?)null,
-            EmailAddress = (string?)null,
-            DenominationId = (Guid?)null,
-            WorshipStyle = (int)WorshipStyle.Traditional,
-            PrimaryLanguage = "English",
-            AcceptsLGBTQ = (bool?)null,
-            WheelchairAccessible = (bool?)null,
-            HasNursery = (bool?)null,
-            HasYouthProgram = (bool?)null,
-        };
-        var response = await _client.PostAsJsonAsync("/churches", req, TestContext.Current.CancellationToken);
+        var response = await _client.PostAsJsonAsync(ChurchEndpoints.Route, TestRequests.NewChurch(), TestContext.Current.CancellationToken);
         response.EnsureSuccessStatusCode();
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
         return body.GetProperty("id").GetGuid();
@@ -196,20 +154,13 @@ public sealed class ModerationEndpointsTests : IClassFixture<DirectoryWebApplica
         var id = Guid.CreateVersion7(DateTimeOffset.UtcNow);
         var now = DateTimeOffset.UtcNow;
         await using var conn = await _factory.OpenTestConnectionAsync(TestContext.Current.CancellationToken);
-        await using var cmd = new SqlCommand(
-            """
-            INSERT INTO [dbo].[UserCorrections]
-                ([Id], [ChurchId], [UserId], [Field], [OldValue], [NewValue], [Status], [CreatedAt])
-            VALUES
-                (@Id, @ChurchId, @UserId, @Field, NULL, @NewValue, 0, @CreatedAt)
-            """,
-            conn);
-        cmd.Parameters.AddWithValue("@Id", id);
-        cmd.Parameters.AddWithValue("@ChurchId", churchId);
+        await using var cmd = new SqlCommand(SeedCorrectionSql, conn);
+        cmd.Parameters.AddWithValue(SqlParameters.Id, id);
+        cmd.Parameters.AddWithValue(SqlParameters.ChurchId, churchId);
         cmd.Parameters.AddWithValue("@UserId", IntegrationAuthHandler.TestSub);
-        cmd.Parameters.AddWithValue("@Field", "PhoneNumber");
-        cmd.Parameters.AddWithValue("@NewValue", "602-555-1212");
-        cmd.Parameters.AddWithValue("@CreatedAt", now);
+        cmd.Parameters.AddWithValue("@Field", nameof(Church.PhoneNumber));
+        cmd.Parameters.AddWithValue(SqlParameters.NewValue, Generated.NewPhoneNumber());
+        cmd.Parameters.AddWithValue(SqlParameters.CreatedAt, now);
         await cmd.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
         return id;
     }

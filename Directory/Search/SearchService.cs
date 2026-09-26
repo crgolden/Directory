@@ -2,9 +2,10 @@ namespace Directory.Search;
 
 using System.Data;
 using System.Data.Common;
+using System.Globalization;
 using System.Text;
-using Entities;
-using Enums;
+using Directory.Entities;
+using Directory.Enums;
 
 public sealed class SearchService
 {
@@ -60,7 +61,7 @@ public sealed class SearchService
         var items = new List<SearchResult>();
         while (await reader.ReadAsync(ct))
         {
-            if (Map(reader) is not Church church)
+            if (Map(reader) is not { } church)
             {
                 continue;
             }
@@ -75,9 +76,8 @@ public sealed class SearchService
     internal static string BuildQuery(SearchQuery q, out bool hasDistance)
     {
         hasDistance = q is { Lat: not null, Lng: not null };
-        var containsCondition = BuildContainsCondition(q.Q, out _);
-        var hasFullText = containsCondition is not null;
-        var scope = BuildFromAndWhere(q, hasFullText, hasDistance);
+        var termCount = BuildTermConditions(q.Q).Count;
+        var scope = BuildFromAndWhere(q, termCount, hasDistance);
 
         var sb = new StringBuilder();
         sb.Append("SELECT COUNT(*) AS [TotalCount]");
@@ -91,106 +91,156 @@ public sealed class SearchService
             : ", CAST(NULL AS FLOAT) AS [DistanceMiles]");
         sb.Append(scope);
 
-        AppendOrderBy(sb, q, hasFullText, hasDistance);
+        AppendOrderBy(sb, q, termCount, hasDistance);
 
         sb.Append(" OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY");
         return sb.ToString();
     }
 
-    internal static string? BuildContainsCondition(string? q, out IReadOnlyList<string> terms)
+    internal static string? DescribeInvalidQuery(SearchQuery q)
     {
-        var cleaned = new List<string>();
-        if (!string.IsNullOrWhiteSpace(q))
+        if (!string.IsNullOrWhiteSpace(q.Q) && BuildTermConditions(q.Q).Count == 0)
         {
-            foreach (var rawTerm in q.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
+            return "q must contain at least one letter or number.";
+        }
+
+        if (q.WorshipStyle.HasValue && !Enum.IsDefined(q.WorshipStyle.Value))
+        {
+            return "worshipStyle must be one of 0-5.";
+        }
+
+        if (q.DayOfWeek is < 0 or > 6)
+        {
+            return "dayOfWeek must be 0 (Sunday) through 6 (Saturday).";
+        }
+
+        if (!string.IsNullOrWhiteSpace(q.State) && !Shared.Domain.StateCodes.TryParse(q.State, out _))
+        {
+            return $"Unknown state code '{q.State}'.";
+        }
+
+        if (q.Lat.HasValue != q.Lng.HasValue)
+        {
+            return "lat and lng must be supplied together.";
+        }
+
+        if (q.Lat is < -90 or > 90 || q.Lng is < -180 or > 180)
+        {
+            return "lat must be between -90 and 90, and lng between -180 and 180.";
+        }
+
+        if (q.RadiusMiles.HasValue && !q.Lat.HasValue)
+        {
+            return "radiusMiles needs lat and lng.";
+        }
+
+        if (q.RadiusMiles is <= 0)
+        {
+            return "radiusMiles must be greater than zero.";
+        }
+
+        if (q.StartTimeAfter.HasValue && q.StartTimeBefore.HasValue && q.StartTimeAfter > q.StartTimeBefore)
+        {
+            return "startTimeAfter must be earlier than startTimeBefore.";
+        }
+
+        return null;
+    }
+
+    internal static IReadOnlyList<string> BuildTermConditions(string? q)
+    {
+        var conditions = new List<string>();
+        if (string.IsNullOrWhiteSpace(q))
+        {
+            return conditions;
+        }
+
+        var word = new StringBuilder();
+        foreach (var ch in q)
+        {
+            if (char.IsLetterOrDigit(ch) || ch == '\'')
             {
-                var cleanedTerm = new string(rawTerm.Where(ch => char.IsLetterOrDigit(ch) || ch == '\'').ToArray());
-                if (cleanedTerm.Length > 0)
-                {
-                    cleaned.Add(cleanedTerm);
-                }
+                word.Append(ch);
+                continue;
             }
+
+            AppendTerm(conditions, word);
         }
 
-        terms = cleaned;
-        if (cleaned.Count == 0)
-        {
-            return null;
-        }
-
-        return string.Join(" AND ", cleaned.Select(t => $"\"{t}*\""));
+        AppendTerm(conditions, word);
+        return conditions;
     }
 
     internal static void BindParams(DbCommand cmd, SearchQuery q)
     {
-        var containsCondition = BuildContainsCondition(q.Q, out _);
-        var hasFullText = containsCondition is not null;
-        if (containsCondition is not null)
+        var termConditions = BuildTermConditions(q.Q);
+        var hasFullText = termConditions.Count > 0;
+        for (var term = 0; term < termConditions.Count; term++)
         {
-            AddParam(cmd, "@Q", containsCondition);
+            AddParam(cmd, $"@Q{term}", termConditions[term]);
         }
 
         if (!string.IsNullOrWhiteSpace(q.State))
         {
-            AddParam(cmd, "@State", q.State);
+            AddParam(cmd, SqlParameters.State, q.State);
         }
 
         if (q.DenominationId.HasValue)
         {
-            AddParam(cmd, "@DenominationId", q.DenominationId.Value);
+            AddParam(cmd, SqlParameters.DenominationId, q.DenominationId.Value);
         }
 
         if (q.WorshipStyle.HasValue)
         {
-            AddParam(cmd, "@WorshipStyle", (int)q.WorshipStyle.Value);
+            AddParam(cmd, SqlParameters.WorshipStyle, (int)q.WorshipStyle.Value);
         }
 
         if (q.WheelchairAccessible.HasValue)
         {
-            AddParam(cmd, "@WheelchairAccessible", q.WheelchairAccessible.Value);
+            AddParam(cmd, SqlParameters.WheelchairAccessible, q.WheelchairAccessible.Value);
         }
 
         var hasDistance = q is { Lat: not null, Lng: not null };
         if (q is { Lat: { } latitude, Lng: { } longitude })
         {
-            AddParam(cmd, "@Lat", latitude);
-            AddParam(cmd, "@Lng", longitude);
-            AddParam(cmd, "@RadiusMiles", q.RadiusMiles ?? DefaultRadiusMiles);
+            AddParam(cmd, SqlParameters.Lat, latitude);
+            AddParam(cmd, SqlParameters.Lng, longitude);
+            AddParam(cmd, SqlParameters.RadiusMiles, q.RadiusMiles ?? DefaultRadiusMiles);
         }
 
         if (q.DayOfWeek.HasValue)
         {
-            AddParam(cmd, "@DayOfWeek", q.DayOfWeek.Value);
+            AddParam(cmd, SqlParameters.DayOfWeek, q.DayOfWeek.Value);
         }
 
         if (q.StartTimeAfter.HasValue)
         {
-            AddParam(cmd, "@StartTimeAfter", q.StartTimeAfter.Value.ToTimeSpan());
+            AddParam(cmd, SqlParameters.StartTimeAfter, q.StartTimeAfter.Value.ToTimeSpan());
         }
 
         if (q.StartTimeBefore.HasValue)
         {
-            AddParam(cmd, "@StartTimeBefore", q.StartTimeBefore.Value.ToTimeSpan());
+            AddParam(cmd, SqlParameters.StartTimeBefore, q.StartTimeBefore.Value.ToTimeSpan());
         }
 
         if (ResolveSortMode(q, hasFullText, hasDistance) == SortMode.Relevance && q.Q is { } relevanceQuery)
         {
-            AddParam(cmd, "@ExactQ", relevanceQuery);
-            AddParam(cmd, "@PrefixQ", EscapeLikePrefix(relevanceQuery) + "%");
+            AddParam(cmd, SqlParameters.ExactQ, relevanceQuery);
+            AddParam(cmd, SqlParameters.PrefixQ, EscapeLikePrefix(relevanceQuery) + "%");
         }
 
-        AddParam(cmd, "@Offset", (q.Page - 1) * q.PageSize);
-        AddParam(cmd, "@PageSize", q.PageSize);
+        AddParam(cmd, SqlParameters.Offset, (q.Page - 1) * q.PageSize);
+        AddParam(cmd, SqlParameters.PageSize, q.PageSize);
     }
 
-    private static string BuildFromAndWhere(SearchQuery q, bool hasFullText, bool hasDistance)
+    private static string BuildFromAndWhere(SearchQuery q, int termCount, bool hasDistance)
     {
         var sb = new StringBuilder();
         sb.Append(" FROM [dbo].[Churches] c");
 
-        if (hasFullText)
+        for (var term = 0; term < termCount; term++)
         {
-            sb.Append(" INNER JOIN CONTAINSTABLE([dbo].[Churches], ([CanonicalName], [City]), @Q) AS ft ON ft.[KEY] = c.[Id]");
+            sb.Append(CultureInfo.InvariantCulture, $" INNER JOIN CONTAINSTABLE([dbo].[Churches], ([CanonicalName], [City]), @Q{term}) AS ft{term} ON ft{term}.[KEY] = c.[Id]");
         }
 
         sb.Append(" WHERE c.[IsActive] = 1");
@@ -246,14 +296,17 @@ public sealed class SearchService
         }
     }
 
-    private static void AppendOrderBy(StringBuilder sb, SearchQuery q, bool hasFullText, bool hasDistance)
+    private static void AppendOrderBy(StringBuilder sb, SearchQuery q, int termCount, bool hasDistance)
     {
-        switch (ResolveSortMode(q, hasFullText, hasDistance))
+        switch (ResolveSortMode(q, termCount > 0, hasDistance))
         {
             case SortMode.Relevance:
+                var rank = string.Join(" + ", Enumerable.Range(0, termCount).Select(term => $"ft{term}.[RANK]"));
                 sb.Append(" ORDER BY CASE WHEN c.[CanonicalName] = @ExactQ THEN 0 " +
                           "WHEN c.[CanonicalName] LIKE @PrefixQ ESCAPE '\\' THEN 1 " +
-                          "ELSE 2 END ASC, ft.[RANK] DESC, c.[CanonicalName] ASC");
+                          "ELSE 2 END ASC, ");
+                sb.Append(rank);
+                sb.Append(" DESC, c.[CanonicalName] ASC");
                 break;
             case SortMode.Distance:
                 sb.Append(" ORDER BY [dbo].[fn_HaversineDistance](@Lat, @Lng, c.[Latitude], c.[Longitude]) ASC, c.[CanonicalName] ASC");
@@ -261,6 +314,15 @@ public sealed class SearchService
             default:
                 sb.Append(" ORDER BY c.[CanonicalName] ASC");
                 break;
+        }
+    }
+
+    private static void AppendTerm(List<string> conditions, StringBuilder word)
+    {
+        if (word.Length > 0)
+        {
+            conditions.Add($"\"{word}*\"");
+            word.Clear();
         }
     }
 

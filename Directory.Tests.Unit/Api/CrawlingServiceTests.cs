@@ -2,14 +2,15 @@ namespace Directory.Tests.Unit.Api;
 
 using System.Data;
 using Azure.Messaging.ServiceBus;
-using Crawling;
-using Entities;
-using Enums;
-using Messaging;
+using Directory.Crawling;
+using Directory.Entities;
+using Directory.Enums;
+using Directory.Messaging;
+using Directory.Tests.Unit.TestSupport;
 using Microsoft.Extensions.Azure;
 using Moq;
-using TestSupport;
 
+[Trait("Category", "Unit")]
 public sealed class CrawlingServiceTests
 {
     private const int NoRowsAffected = 0;
@@ -17,17 +18,16 @@ public sealed class CrawlingServiceTests
     private const int OneRowAffected = 1;
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task GetAllAsync_RowPopulated_MapsAllColumns()
     {
         // Arrange
         var crawlSourceId = Guid.NewGuid();
         var churchId = Guid.NewGuid();
-        var crawlUrl = TestValues.NewWebsiteUri();
-        var lastCrawledAt = TestValues.NewUtcTimestamp();
+        var crawlUrl = Generated.NewWebsiteUri();
+        var lastCrawledAt = Generated.NewUtcTimestamp();
         var lastStatus = CrawlStatus.Success;
-        var createdAt = TestValues.NewUtcTimestamp();
-        var updatedAt = TestValues.NewUtcTimestamp();
+        var createdAt = Generated.NewUtcTimestamp();
+        var updatedAt = Generated.NewUtcTimestamp();
         var table = BuildCrawlTable();
         table.Rows.Add(
             crawlSourceId,
@@ -53,14 +53,13 @@ public sealed class CrawlingServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task GetAllAsync_RowWithNullableNulls_MapsNulls()
     {
         // Arrange
         var crawlSourceId = Guid.NewGuid();
-        var crawlUrl = TestValues.NewWebsiteUri();
-        var createdAt = TestValues.NewUtcTimestamp();
-        var updatedAt = TestValues.NewUtcTimestamp();
+        var crawlUrl = Generated.NewWebsiteUri();
+        var createdAt = Generated.NewUtcTimestamp();
+        var updatedAt = Generated.NewUtcTimestamp();
         var table = BuildCrawlTable();
         table.Rows.Add(
             crawlSourceId,
@@ -84,11 +83,10 @@ public sealed class CrawlingServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task CreateAsync_WithChurchId_BindsValue()
     {
         // Arrange
-        var crawlUrl = TestValues.NewWebsiteUri();
+        var crawlUrl = Generated.NewWebsiteUri();
         var churchId = Guid.NewGuid();
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithNonQueryResult(OneRowAffected));
@@ -99,15 +97,14 @@ public sealed class CrawlingServiceTests
 
         // Assert
         var insert = Assert.Single(conn.ExecutedCommands);
-        Assert.Equal(churchId, insert.Parameters["@ChurchId"].Value);
+        Assert.Equal(churchId, insert.Parameters[SqlParameters.ChurchId].Value);
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task CreateAsync_NullChurchId_BindsDbNull()
     {
         // Arrange
-        var crawlUrl = TestValues.NewWebsiteUri();
+        var crawlUrl = Generated.NewWebsiteUri();
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithNonQueryResult(OneRowAffected));
         var service = Create(conn);
@@ -117,11 +114,10 @@ public sealed class CrawlingServiceTests
 
         // Assert
         var insert = Assert.Single(conn.ExecutedCommands);
-        Assert.Equal(DBNull.Value, insert.Parameters["@ChurchId"].Value);
+        Assert.Equal(DBNull.Value, insert.Parameters[SqlParameters.ChurchId].Value);
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task DeleteAsync_RowDeleted_ReturnsTrue()
     {
         // Arrange
@@ -138,7 +134,6 @@ public sealed class CrawlingServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task DeleteAsync_NoRows_ReturnsFalse()
     {
         // Arrange
@@ -155,7 +150,6 @@ public sealed class CrawlingServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task TriggerScrapeAsync_UrlNotFound_ReturnsFalseWithoutSending()
     {
         // Arrange
@@ -175,12 +169,11 @@ public sealed class CrawlingServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task TriggerScrapeAsync_UrlFound_SendsMessageUpdatesStatusAndReturnsTrue()
     {
         // Arrange
         var crawlSourceId = Guid.NewGuid();
-        var crawlUrl = TestValues.NewWebsiteUri();
+        var crawlUrl = Generated.NewWebsiteUri();
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithScalarResult(crawlUrl.AbsoluteUri));
         conn.Enqueue(FakeDbCommand.WithNonQueryResult(OneRowAffected));

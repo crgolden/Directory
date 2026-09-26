@@ -1,4 +1,4 @@
-namespace Directory.Tests.Unit.TestSupport;
+namespace Directory.Tests.Integration.TestSupport;
 
 using System.Security.Claims;
 using System.Text.Encodings.Web;
@@ -10,7 +10,7 @@ internal sealed class IntegrationAuthHandler : AuthenticationHandler<Authenticat
 {
     internal static readonly string SchemeName = Guid.NewGuid().ToString();
 
-    internal static readonly Guid TestSub = TestValues.NewUserId();
+    internal static readonly Guid TestSub = Generated.NewUserId();
 
     public IntegrationAuthHandler(
         IOptionsMonitor<AuthenticationSchemeOptions> options,
@@ -26,7 +26,6 @@ internal sealed class IntegrationAuthHandler : AuthenticationHandler<Authenticat
         {
             new Claim(AuthorizationPolicies.SubjectClaimType, TestSub.ToString()),
             new Claim(AuthorizationPolicies.ScopeClaimType, AuthorizationPolicies.DirectoryScope),
-            new Claim(AuthorizationPolicies.ScopeClaimType, AuthorizationPolicies.ChurchesModScope),
             new Claim(AuthorizationPolicies.ChurchesModClaimType, AuthorizationPolicies.ChurchesModClaimValue),
         };
         var identity = new ClaimsIdentity(claims, SchemeName);

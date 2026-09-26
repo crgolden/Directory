@@ -1,10 +1,12 @@
-namespace Directory.Tests.Unit.E2E;
+namespace Directory.Tests.Integration;
 
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using TestSupport;
+using Directory.Crawling;
+using Directory.Tests.Integration.TestSupport;
 
+[Trait("Category", "Integration")]
 public sealed class CrawlingEndpointsTests : IClassFixture<DirectoryWebApplicationFactory>
 {
     private readonly HttpClient _client;
@@ -15,85 +17,68 @@ public sealed class CrawlingEndpointsTests : IClassFixture<DirectoryWebApplicati
     }
 
     [Fact]
-    [Trait("Category", "E2E")]
     public async Task GetCrawlSources_ReturnsOk()
     {
-        // Act
-        var response = await _client.GetAsync("/crawl-sources", TestContext.Current.CancellationToken);
+        var response = await _client.GetAsync(CrawlingEndpoints.Route, TestContext.Current.CancellationToken);
 
-        // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]
-    [Trait("Category", "E2E")]
     public async Task CreateCrawlSource_ReturnsCreated()
     {
-        // Arrange
         var body = new { Url = $"https://test-{Guid.NewGuid():N}.example/sitemap.xml", ChurchId = (Guid?)null };
 
-        // Act
-        var response = await _client.PostAsJsonAsync("/crawl-sources", body, TestContext.Current.CancellationToken);
+        var response = await _client.PostAsJsonAsync(CrawlingEndpoints.Route, body, TestContext.Current.CancellationToken);
 
-        // Assert
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         Assert.NotNull(response.Headers.Location);
     }
 
     [Fact]
-    [Trait("Category", "E2E")]
     public async Task DeleteCrawlSource_ReturnsNoContent_WhenFound()
     {
-        // Arrange
         var id = await CreateCrawlSourceAndGetIdAsync();
 
-        // Act
-        var response = await _client.DeleteAsync($"/crawl-sources/{id}", TestContext.Current.CancellationToken);
+        var response = await _client.DeleteAsync($"{CrawlingEndpoints.Route}/{id}", TestContext.Current.CancellationToken);
 
-        // Assert
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }
 
     [Fact]
-    [Trait("Category", "E2E")]
     public async Task DeleteCrawlSource_ReturnsNotFound_WhenMissing()
     {
-        // Act
-        var response = await _client.DeleteAsync($"/crawl-sources/{Guid.NewGuid()}", TestContext.Current.CancellationToken);
+        var missingCrawlSourceId = Guid.NewGuid();
 
-        // Assert
+        var response = await _client.DeleteAsync($"{CrawlingEndpoints.Route}/{missingCrawlSourceId}", TestContext.Current.CancellationToken);
+
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]
-    [Trait("Category", "E2E")]
     public async Task TriggerScrape_ReturnsAccepted_WhenFound()
     {
-        // Arrange
         var id = await CreateCrawlSourceAndGetIdAsync();
 
-        // Act
-        var response = await _client.PostAsync($"/crawl-sources/{id}/trigger", null, TestContext.Current.CancellationToken);
+        var response = await _client.PostAsync($"{CrawlingEndpoints.Route}/{id}{CrawlingEndpoints.TriggerSegment}", null, TestContext.Current.CancellationToken);
 
-        // Assert
         Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
     }
 
     [Fact]
-    [Trait("Category", "E2E")]
     public async Task TriggerScrape_ReturnsNotFound_WhenMissing()
     {
-        // Act
-        var response = await _client.PostAsync($"/crawl-sources/{Guid.NewGuid()}/trigger", null, TestContext.Current.CancellationToken);
+        var missingCrawlSourceId = Guid.NewGuid();
 
-        // Assert
+        var response = await _client.PostAsync($"{CrawlingEndpoints.Route}/{missingCrawlSourceId}{CrawlingEndpoints.TriggerSegment}", null, TestContext.Current.CancellationToken);
+
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     private async Task<Guid> CreateCrawlSourceAndGetIdAsync()
     {
         var body = new { Url = $"https://test-{Guid.NewGuid():N}.example/sitemap.xml", ChurchId = (Guid?)null };
-        var response = await _client.PostAsJsonAsync("/crawl-sources", body, TestContext.Current.CancellationToken);
+        var response = await _client.PostAsJsonAsync(CrawlingEndpoints.Route, body, TestContext.Current.CancellationToken);
         response.EnsureSuccessStatusCode();
         var json = await response.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
         return json.GetProperty("id").GetGuid();

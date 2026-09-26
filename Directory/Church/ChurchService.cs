@@ -3,8 +3,8 @@ namespace Directory.Church;
 using System.Data;
 using System.Data.Common;
 using System.Text;
-using Entities;
-using Enums;
+using Directory.Entities;
+using Directory.Enums;
 
 public sealed class ChurchService
 {
@@ -36,8 +36,8 @@ public sealed class ChurchService
             ORDER BY c.[CanonicalName] ASC
             OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY
             """;
-        AddParam(cmd, "@Offset", (page - 1) * pageSize);
-        AddParam(cmd, "@PageSize", pageSize);
+        AddParam(cmd, SqlParameters.Offset, (page - 1) * pageSize);
+        AddParam(cmd, SqlParameters.PageSize, pageSize);
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         var items = new List<Church>();
         var totalCount = 0;
@@ -48,7 +48,7 @@ public sealed class ChurchService
                 totalCount = (int)reader[24];
             }
 
-            if (Map(reader) is Church church)
+            if (Map(reader) is { } church)
             {
                 items.Add(church);
             }
@@ -68,7 +68,7 @@ public sealed class ChurchService
                 FROM [dbo].[Churches] c
                 WHERE c.[Slug] = @Slug AND c.[IsActive] = 1
                 """;
-            AddParam(cmd, "@Slug", slug);
+            AddParam(cmd, SqlParameters.Slug, slug);
             await using var reader = await cmd.ExecuteReaderAsync(ct);
             if (!await reader.ReadAsync(ct))
             {
@@ -98,7 +98,7 @@ public sealed class ChurchService
             FROM [dbo].[Churches] c
             WHERE c.[Id] = @Id
             """;
-        AddParam(cmd, "@Id", id);
+        AddParam(cmd, SqlParameters.Id, id);
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct))
         {
@@ -155,9 +155,9 @@ public sealed class ChurchService
                  @ConfidenceScore, @LastVerifiedAt, @CreatedAt, @UpdatedAt, @IsActive)
             """;
         BindChurch(cmd, church);
-        AddParam(cmd, "@CreatedAt", now);
-        AddParam(cmd, "@UpdatedAt", now);
-        AddParam(cmd, "@IsActive", true);
+        AddParam(cmd, SqlParameters.CreatedAt, now);
+        AddParam(cmd, SqlParameters.UpdatedAt, now);
+        AddParam(cmd, SqlParameters.IsActive, true);
         await cmd.ExecuteNonQueryAsync(ct);
         return church;
     }
@@ -181,7 +181,7 @@ public sealed class ChurchService
             WHERE [Id] = @Id
             """;
         BindChurch(cmd, church);
-        AddParam(cmd, "@UpdatedAt", DateTimeOffset.UtcNow);
+        AddParam(cmd, SqlParameters.UpdatedAt, DateTimeOffset.UtcNow);
         return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
 
@@ -190,7 +190,7 @@ public sealed class ChurchService
         await EnsureOpenAsync(ct);
         await using var cmd = _dbConnection.CreateCommand();
         cmd.CommandText = "SELECT COUNT(1) FROM [dbo].[Churches] WHERE [Id] = @Id AND [IsActive] = 1";
-        AddParam(cmd, "@Id", id);
+        AddParam(cmd, SqlParameters.Id, id);
         var result = await cmd.ExecuteScalarAsync(ct);
         return result is > 0;
     }
@@ -204,8 +204,8 @@ public sealed class ChurchService
             SET [IsActive] = 0, [UpdatedAt] = @UpdatedAt
             WHERE [Id] = @Id
             """;
-        AddParam(cmd, "@Id", id);
-        AddParam(cmd, "@UpdatedAt", DateTimeOffset.UtcNow);
+        AddParam(cmd, SqlParameters.Id, id);
+        AddParam(cmd, SqlParameters.UpdatedAt, DateTimeOffset.UtcNow);
         return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
 
@@ -239,27 +239,27 @@ public sealed class ChurchService
 
     private static void BindChurch(DbCommand cmd, Church church)
     {
-        AddParam(cmd, "@Id", church.Id);
-        AddParam(cmd, "@CanonicalName", church.CanonicalName);
-        AddParam(cmd, "@Slug", church.Slug);
-        AddParam(cmd, "@Latitude", church.Latitude);
-        AddParam(cmd, "@Longitude", church.Longitude);
-        AddParam(cmd, "@Street", (object?)church.Street ?? DBNull.Value);
-        AddParam(cmd, "@City", church.City);
-        AddParam(cmd, "@State", church.State.ToString());
-        AddParam(cmd, "@Zip", church.Zip);
-        AddParam(cmd, "@PhoneNumber", (object?)church.PhoneNumber ?? DBNull.Value);
-        AddParam(cmd, "@Website", (object?)church.Website ?? DBNull.Value);
-        AddParam(cmd, "@EmailAddress", (object?)church.EmailAddress ?? DBNull.Value);
-        AddParam(cmd, "@DenominationId", church.DenominationId.HasValue ? church.DenominationId.Value : DBNull.Value);
-        AddParam(cmd, "@WorshipStyle", (int)church.WorshipStyle);
-        AddParam(cmd, "@PrimaryLanguage", church.PrimaryLanguage);
-        AddParam(cmd, "@AcceptsLGBTQ", church.AcceptsLGBTQ.HasValue ? church.AcceptsLGBTQ.Value : DBNull.Value);
-        AddParam(cmd, "@WheelchairAccessible", church.WheelchairAccessible.HasValue ? church.WheelchairAccessible.Value : DBNull.Value);
-        AddParam(cmd, "@HasNursery", church.HasNursery.HasValue ? church.HasNursery.Value : DBNull.Value);
-        AddParam(cmd, "@HasYouthProgram", church.HasYouthProgram.HasValue ? church.HasYouthProgram.Value : DBNull.Value);
-        AddParam(cmd, "@ConfidenceScore", church.ConfidenceScore);
-        AddParam(cmd, "@LastVerifiedAt", church.LastVerifiedAt.HasValue ? church.LastVerifiedAt.Value : DBNull.Value);
+        AddParam(cmd, SqlParameters.Id, church.Id);
+        AddParam(cmd, SqlParameters.CanonicalName, church.CanonicalName);
+        AddParam(cmd, SqlParameters.Slug, church.Slug);
+        AddParam(cmd, SqlParameters.Latitude, church.Latitude);
+        AddParam(cmd, SqlParameters.Longitude, church.Longitude);
+        AddParam(cmd, SqlParameters.Street, (object?)church.Street ?? DBNull.Value);
+        AddParam(cmd, SqlParameters.City, church.City);
+        AddParam(cmd, SqlParameters.State, church.State.ToString());
+        AddParam(cmd, SqlParameters.Zip, church.Zip);
+        AddParam(cmd, SqlParameters.PhoneNumber, (object?)church.PhoneNumber ?? DBNull.Value);
+        AddParam(cmd, SqlParameters.Website, (object?)church.Website ?? DBNull.Value);
+        AddParam(cmd, SqlParameters.EmailAddress, (object?)church.EmailAddress ?? DBNull.Value);
+        AddParam(cmd, SqlParameters.DenominationId, church.DenominationId.HasValue ? church.DenominationId.Value : DBNull.Value);
+        AddParam(cmd, SqlParameters.WorshipStyle, (int)church.WorshipStyle);
+        AddParam(cmd, SqlParameters.PrimaryLanguage, church.PrimaryLanguage);
+        AddParam(cmd, SqlParameters.AcceptsLGBTQ, church.AcceptsLGBTQ.HasValue ? church.AcceptsLGBTQ.Value : DBNull.Value);
+        AddParam(cmd, SqlParameters.WheelchairAccessible, church.WheelchairAccessible.HasValue ? church.WheelchairAccessible.Value : DBNull.Value);
+        AddParam(cmd, SqlParameters.HasNursery, church.HasNursery.HasValue ? church.HasNursery.Value : DBNull.Value);
+        AddParam(cmd, SqlParameters.HasYouthProgram, church.HasYouthProgram.HasValue ? church.HasYouthProgram.Value : DBNull.Value);
+        AddParam(cmd, SqlParameters.ConfidenceScore, church.ConfidenceScore);
+        AddParam(cmd, SqlParameters.LastVerifiedAt, church.LastVerifiedAt.HasValue ? church.LastVerifiedAt.Value : DBNull.Value);
     }
 
     private static void AddParam(DbCommand cmd, string name, object? value)
@@ -336,7 +336,7 @@ public sealed class ChurchService
             WHERE [ChurchId] = @Id
             ORDER BY [DayOfWeek] ASC, [StartTime] ASC
             """;
-        AddParam(cmd, "@Id", churchId);
+        AddParam(cmd, SqlParameters.Id, churchId);
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         var schedules = new List<ServiceSchedule>();
         while (await reader.ReadAsync(ct))
@@ -366,7 +366,7 @@ public sealed class ChurchService
             WHERE [ChurchId] = @Id
             ORDER BY [Name] ASC
             """;
-        AddParam(cmd, "@Id", churchId);
+        AddParam(cmd, SqlParameters.Id, churchId);
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         var ministries = new List<Ministry>();
         while (await reader.ReadAsync(ct))
@@ -394,7 +394,7 @@ public sealed class ChurchService
             WHERE [ChurchId] = @Id
             ORDER BY [Name] ASC
             """;
-        AddParam(cmd, "@Id", churchId);
+        AddParam(cmd, SqlParameters.Id, churchId);
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         var campuses = new List<Campus>();
         while (await reader.ReadAsync(ct))
@@ -443,7 +443,7 @@ public sealed class ChurchService
         await EnsureOpenAsync(ct);
         await using var cmd = _dbConnection.CreateCommand();
         cmd.CommandText = "SELECT COUNT(1) FROM [dbo].[Churches] WHERE [Slug] = @Slug";
-        AddParam(cmd, "@Slug", slug);
+        AddParam(cmd, SqlParameters.Slug, slug);
         var result = await cmd.ExecuteScalarAsync(ct);
         return result is > 0;
     }

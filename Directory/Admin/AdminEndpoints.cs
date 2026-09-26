@@ -21,7 +21,7 @@ public static class AdminEndpoints
             AdminService service,
             CancellationToken ct) =>
         {
-            if (file is null || !AllowedCsvTypes.Contains(file.ContentType))
+            if (!AllowedCsvTypes.Contains(file.ContentType))
             {
                 return Results.BadRequest("A CSV file is required.");
             }

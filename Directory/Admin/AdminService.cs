@@ -5,7 +5,7 @@ using System.Data.Common;
 using System.Globalization;
 using System.Text;
 using Azure.Messaging.ServiceBus;
-using Messaging;
+using Directory.Messaging;
 using Microsoft.Extensions.Azure;
 
 public sealed class AdminService
@@ -72,7 +72,7 @@ public sealed class AdminService
 
     internal static IEnumerable<ImportRow> ParseCsv(string csv)
     {
-        using var reader = new System.IO.StringReader(csv);
+        using var reader = new StringReader(csv);
         var header = reader.ReadLine();
         if (header is null)
         {
@@ -159,13 +159,3 @@ public sealed class AdminService
             ? fields[index].Trim()
             : null;
 }
-
-internal sealed record ImportRow(
-    string? CanonicalName,
-    string? Street,
-    string? City,
-    string? State,
-    string? Zip,
-    string? PhoneNumber,
-    string? Website,
-    string? EmailAddress);

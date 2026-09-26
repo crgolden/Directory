@@ -2,7 +2,7 @@ namespace Directory.Schedules;
 
 using System.Data;
 using System.Data.Common;
-using Entities;
+using Directory.Entities;
 
 public sealed class ScheduleService
 {
@@ -29,12 +29,12 @@ public sealed class ScheduleService
             INSERT INTO [dbo].[ServiceSchedules] ([Id], [ChurchId], [DayOfWeek], [StartTime], [Description], [CreatedAt], [UpdatedAt])
             VALUES (@Id, @ChurchId, @Day, @Start, @Desc, @Now, @Now)
             """;
-        AddParam(cmd, "@Id", schedule.Id);
-        AddParam(cmd, "@ChurchId", churchId);
-        AddParam(cmd, "@Day", dayOfWeek);
-        AddParam(cmd, "@Start", startTime.ToTimeSpan());
-        AddParam(cmd, "@Desc", (object?)description ?? DBNull.Value);
-        AddParam(cmd, "@Now", now);
+        AddParam(cmd, SqlParameters.Id, schedule.Id);
+        AddParam(cmd, SqlParameters.ChurchId, churchId);
+        AddParam(cmd, SqlParameters.Day, dayOfWeek);
+        AddParam(cmd, SqlParameters.Start, startTime.ToTimeSpan());
+        AddParam(cmd, SqlParameters.Desc, (object?)description ?? DBNull.Value);
+        AddParam(cmd, SqlParameters.Now, now);
         await cmd.ExecuteNonQueryAsync(ct);
         return schedule;
     }
@@ -53,11 +53,11 @@ public sealed class ScheduleService
             SET [DayOfWeek] = @Day, [StartTime] = @Start, [Description] = @Desc, [UpdatedAt] = @Now
             WHERE [Id] = @Id
             """;
-        AddParam(cmd, "@Id", id);
-        AddParam(cmd, "@Day", dayOfWeek);
-        AddParam(cmd, "@Start", startTime.ToTimeSpan());
-        AddParam(cmd, "@Desc", (object?)description ?? DBNull.Value);
-        AddParam(cmd, "@Now", DateTimeOffset.UtcNow);
+        AddParam(cmd, SqlParameters.Id, id);
+        AddParam(cmd, SqlParameters.Day, dayOfWeek);
+        AddParam(cmd, SqlParameters.Start, startTime.ToTimeSpan());
+        AddParam(cmd, SqlParameters.Desc, (object?)description ?? DBNull.Value);
+        AddParam(cmd, SqlParameters.Now, DateTimeOffset.UtcNow);
         return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
 
@@ -66,7 +66,7 @@ public sealed class ScheduleService
         await EnsureOpenAsync(ct);
         await using var cmd = _dbConnection.CreateCommand();
         cmd.CommandText = "DELETE FROM [dbo].[ServiceSchedules] WHERE [Id] = @Id";
-        AddParam(cmd, "@Id", id);
+        AddParam(cmd, SqlParameters.Id, id);
         return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
 

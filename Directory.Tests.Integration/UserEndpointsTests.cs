@@ -1,10 +1,11 @@
-namespace Directory.Tests.Unit.E2E;
+namespace Directory.Tests.Integration;
 
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using TestSupport;
+using Directory.Tests.Integration.TestSupport;
 
+[Trait("Category", "Integration")]
 public sealed class UserEndpointsTests : IClassFixture<DirectoryWebApplicationFactory>
 {
     private readonly HttpClient _client;
@@ -15,17 +16,14 @@ public sealed class UserEndpointsTests : IClassFixture<DirectoryWebApplicationFa
     }
 
     [Fact]
-    [Trait("Category", "E2E")]
     public async Task GetMe_ReturnsAuthenticatedUser_WithClaims()
     {
-        // Act
         var response = await _client.GetAsync("/me", TestContext.Current.CancellationToken);
 
-        // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
         Assert.True(body.GetProperty("isAuthenticated").GetBoolean());
         Assert.Equal(IntegrationAuthHandler.TestSub, body.GetProperty("sub").GetGuid());
-        Assert.True(body.GetProperty("hasModerationScope").GetBoolean());
+        Assert.False(body.TryGetProperty("hasModerationScope", out _));
     }
 }

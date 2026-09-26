@@ -3,9 +3,9 @@ namespace Directory.Crawling;
 using System.Data;
 using System.Data.Common;
 using Azure.Messaging.ServiceBus;
-using Entities;
-using Enums;
-using Messaging;
+using Directory.Entities;
+using Directory.Enums;
+using Directory.Messaging;
 using Microsoft.Extensions.Azure;
 
 public sealed class CrawlingService
@@ -53,12 +53,12 @@ public sealed class CrawlingService
             INSERT INTO [dbo].[CrawlSources] ([Id], [ChurchId], [Url], [LastStatus], [CreatedAt], [UpdatedAt])
             VALUES (@Id, @ChurchId, @Url, @LastStatus, @CreatedAt, @UpdatedAt)
             """;
-        AddParam(cmd, "@Id", source.Id);
-        AddParam(cmd, "@ChurchId", churchId.HasValue ? churchId.Value : DBNull.Value);
-        AddParam(cmd, "@Url", url.AbsoluteUri);
-        AddParam(cmd, "@LastStatus", (int)CrawlStatus.Pending);
-        AddParam(cmd, "@CreatedAt", now);
-        AddParam(cmd, "@UpdatedAt", now);
+        AddParam(cmd, SqlParameters.Id, source.Id);
+        AddParam(cmd, SqlParameters.ChurchId, churchId.HasValue ? churchId.Value : DBNull.Value);
+        AddParam(cmd, SqlParameters.Url, url.AbsoluteUri);
+        AddParam(cmd, SqlParameters.LastStatus, (int)CrawlStatus.Pending);
+        AddParam(cmd, SqlParameters.CreatedAt, now);
+        AddParam(cmd, SqlParameters.UpdatedAt, now);
         await cmd.ExecuteNonQueryAsync(ct);
         return source;
     }
@@ -68,7 +68,7 @@ public sealed class CrawlingService
         await EnsureOpenAsync(ct);
         await using var cmd = _dbConnection.CreateCommand();
         cmd.CommandText = "DELETE FROM [dbo].[CrawlSources] WHERE [Id] = @Id";
-        AddParam(cmd, "@Id", id);
+        AddParam(cmd, SqlParameters.Id, id);
         return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
 
@@ -77,7 +77,7 @@ public sealed class CrawlingService
         await EnsureOpenAsync(ct);
         await using var lookupCmd = _dbConnection.CreateCommand();
         lookupCmd.CommandText = "SELECT [Url] FROM [dbo].[CrawlSources] WHERE [Id] = @Id";
-        AddParam(lookupCmd, "@Id", id);
+        AddParam(lookupCmd, SqlParameters.Id, id);
         var url = await lookupCmd.ExecuteScalarAsync(ct) as string;
         if (url is null)
         {
@@ -94,9 +94,9 @@ public sealed class CrawlingService
             SET [LastStatus] = @Status, [UpdatedAt] = @Now
             WHERE [Id] = @Id
             """;
-        AddParam(updateCmd, "@Id", id);
-        AddParam(updateCmd, "@Status", (int)CrawlStatus.Pending);
-        AddParam(updateCmd, "@Now", DateTimeOffset.UtcNow);
+        AddParam(updateCmd, SqlParameters.Id, id);
+        AddParam(updateCmd, SqlParameters.Status, (int)CrawlStatus.Pending);
+        AddParam(updateCmd, SqlParameters.Now, DateTimeOffset.UtcNow);
         await updateCmd.ExecuteNonQueryAsync(ct);
         return true;
     }

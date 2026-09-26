@@ -2,7 +2,6 @@ namespace Directory.Denomination;
 
 using System.Data;
 using System.Data.Common;
-using Entities;
 
 public sealed class DenominationService
 {
@@ -22,7 +21,7 @@ public sealed class DenominationService
 
         await using var cmd = _dbConnection.CreateCommand();
         cmd.CommandText = """
-            SELECT [Id], [Name]
+            SELECT [Id], [Name], [CreatedAt], [UpdatedAt]
             FROM [dbo].[Denominations]
             ORDER BY [Name] ASC
             """;
@@ -33,7 +32,9 @@ public sealed class DenominationService
             results.Add(new Entities.Denomination
             {
                 Id = reader.GetGuid(0),
-                Name = reader.GetString(1)
+                Name = reader.GetString(1),
+                CreatedAt = reader.GetFieldValue<DateTimeOffset>(2),
+                UpdatedAt = reader.GetFieldValue<DateTimeOffset>(3),
             });
         }
 

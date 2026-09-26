@@ -59,7 +59,7 @@ bulk-import → geocoding-requests → GeocoderWorker → ChurchWriter (parent +
 | `NAME` | `CanonicalName` (row skipped if blank) |
 | `STATE` | `State` (row skipped if blank) |
 | `STREET` / `CITY` / `ZIP` | `Street` / `City` / `Zip` |
-| `NTEE_CD` | `WorshipStyle` (`X21`/`X22` → `5` Liturgical, else `0`); `DenominationName` (`X22` → `Roman Catholic`, else null); emitted as a `ntee_code` `ChurchAttribute` (source `irs`) |
+| `NTEE_CD` | `WorshipStyle` (`X22` Roman Catholic → `5` Liturgical, else `0`; `X21` is Protestant, which says nothing about how a church worships); `DenominationName` (`X22` → `Roman Catholic`, else null); emitted as a `ntee_code` `ChurchAttribute` (source `irs`) |
 | `Latitude` / `Longitude` | pre-geocoded coords (optional; added by `Add-CensusBatchGeocode.ps1`; `0,0` treated as not-geocoded) |
 
 Seeded confidence `0.5`; `PrimaryLanguage` defaults to `English`.

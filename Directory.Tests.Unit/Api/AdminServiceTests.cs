@@ -2,30 +2,31 @@ namespace Directory.Tests.Unit.Api;
 
 using System.Data;
 using System.Globalization;
-using Admin;
 using Azure.Messaging.ServiceBus;
-using Entities;
-using Messaging;
+using Directory.Admin;
+using Directory.Entities;
+using Directory.Enums;
+using Directory.Messaging;
+using Directory.Tests.Unit.TestSupport;
 using Microsoft.Extensions.Azure;
 using Moq;
-using TestSupport;
-using static AdminCsvFixtureConstants;
+using static Directory.Tests.Unit.Api.AdminCsvFixtureConstants;
 
+[Trait("Category", "Unit")]
 public sealed class AdminServiceTests
 {
     [Fact]
-    [Trait("Category", "Unit")]
     public void ParseCsv_SingleRow_MapsAllFields()
     {
         // Arrange
-        var canonicalName = TestValues.NewName();
-        var street = TestValues.NewStreet();
-        var city = TestValues.NewCity();
-        var state = TestValues.NewStateCodeText();
-        var zip = TestValues.NewZip();
-        var phoneNumber = TestValues.NewPhoneNumber();
-        var website = TestValues.NewWebsite();
-        var emailAddress = TestValues.NewEmailAddress();
+        var canonicalName = Generated.NewName();
+        var street = Generated.NewStreet();
+        var city = Generated.NewCity();
+        var state = Generated.NewStateCodeText();
+        var zip = Generated.NewZip();
+        var phoneNumber = Generated.NewPhoneNumber();
+        var website = Generated.NewWebsite();
+        var emailAddress = Generated.NewEmailAddress();
         var csv = string.Join(
             CsvLineSeparator,
             FullCsvHeader(),
@@ -48,15 +49,14 @@ public sealed class AdminServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public void ParseCsv_MissingNameColumn_SkipsRow()
     {
         // Arrange
-        var state = TestValues.NewStateCodeText();
+        var state = Generated.NewStateCodeText();
         var csv = string.Join(
             CsvLineSeparator,
             MinimalCsvHeader(),
-            string.Join(CsvFieldSeparator, TestValues.NewBlank(), state));
+            string.Join(CsvFieldSeparator, Generated.NewBlank(), state));
 
         // Act
         var rows = AdminService.ParseCsv(csv).ToList();
@@ -66,12 +66,11 @@ public sealed class AdminServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public void ParseCsv_StateIsNotAUspsCode_SkipsRow()
     {
         // Arrange
-        var canonicalName = TestValues.NewName();
-        var unparseableState = TestValues.NewUnparseableStateCode();
+        var canonicalName = Generated.NewName();
+        var unparseableState = Generated.NewUnparseableStateCode();
         var csv = string.Join(
             CsvLineSeparator,
             MinimalCsvHeader(),
@@ -85,12 +84,11 @@ public sealed class AdminServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public void ParseCsv_StateIsAUspsCode_KeepsRow()
     {
         // Arrange
-        var canonicalName = TestValues.NewName();
-        var state = TestValues.NewStateCodeText();
+        var canonicalName = Generated.NewName();
+        var state = Generated.NewStateCodeText();
         var csv = string.Join(
             CsvLineSeparator,
             MinimalCsvHeader(),
@@ -106,15 +104,14 @@ public sealed class AdminServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public void ParseCsv_MissingStateColumn_SkipsRow()
     {
         // Arrange
-        var canonicalName = TestValues.NewName();
+        var canonicalName = Generated.NewName();
         var csv = string.Join(
             CsvLineSeparator,
             MinimalCsvHeader(),
-            string.Join(CsvFieldSeparator, canonicalName, TestValues.NewBlank()));
+            string.Join(CsvFieldSeparator, canonicalName, Generated.NewBlank()));
 
         // Act
         var rows = AdminService.ParseCsv(csv).ToList();
@@ -124,7 +121,6 @@ public sealed class AdminServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public void ParseCsv_EmptyBody_YieldsNothing()
     {
         // Act
@@ -132,7 +128,6 @@ public sealed class AdminServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public void ParseCsv_HeaderOnly_YieldsNothing()
     {
         // Act
@@ -140,11 +135,10 @@ public sealed class AdminServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public void ParseCsv_MultipleRows_ParsesAll()
     {
         // Arrange
-        var churchNames = new[] { TestValues.NewName(), TestValues.NewName() };
+        var churchNames = new[] { Generated.NewName(), Generated.NewName() };
         var csv = BuildCsv(churchNames);
 
         // Act
@@ -157,11 +151,10 @@ public sealed class AdminServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task ImportCsvAsync_TwoRows_PublishesTwo()
     {
         // Arrange
-        var churchNames = new[] { TestValues.NewName(), TestValues.NewName() };
+        var churchNames = new[] { Generated.NewName(), Generated.NewName() };
         var csv = BuildCsv(churchNames);
         var (service, sender) = BuildService(new FakeDbConnection());
 
@@ -176,7 +169,6 @@ public sealed class AdminServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task ImportCsvAsync_EmptyCsv_PublishesZero()
     {
         // Arrange
@@ -191,7 +183,6 @@ public sealed class AdminServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task ExportCsvAsync_ConnectionClosed_OpensAndReturnsHeaderRow()
     {
         // Arrange
@@ -203,16 +194,15 @@ public sealed class AdminServiceTests
         var csv = await service.ExportCsvAsync(TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(System.Data.ConnectionState.Open, conn.State);
+        Assert.Equal(ConnectionState.Open, conn.State);
         Assert.StartsWith(AdminService.ExportHeader, csv, StringComparison.Ordinal);
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task ExportCsvAsync_HasRows_RowCountMatchesDataTable()
     {
         // Arrange
-        var churchNames = new[] { TestValues.NewName(), TestValues.NewName() };
+        var churchNames = new[] { Generated.NewName(), Generated.NewName() };
         var table = BuildExportTable();
         table.Rows.Add(ExportRow(churchNames[0]));
         table.Rows.Add(ExportRow(churchNames[1]));
@@ -231,7 +221,6 @@ public sealed class AdminServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task ExportCsvAsync_OrdersByStateThenCanonicalName()
     {
         // Arrange
@@ -248,14 +237,13 @@ public sealed class AdminServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task ExportCsvAsync_ServerCultureIsNotInvariant_FormatsNumbersAndTimestampsInvariantly()
     {
         // Arrange
-        var churchName = TestValues.NewName();
-        var confidenceScore = TestValues.NewConfidenceScore();
-        var createdAt = TestValues.NewUtcTimestamp();
-        var updatedAt = TestValues.NewUtcTimestamp();
+        var churchName = Generated.NewName();
+        var confidenceScore = Generated.NewConfidenceScore();
+        var createdAt = Generated.NewUtcTimestamp();
+        var updatedAt = Generated.NewUtcTimestamp();
         var exportRow = ExportRow(churchName, confidenceScore, createdAt, updatedAt);
 
         // Act
@@ -320,7 +308,7 @@ public sealed class AdminServiceTests
         var lines = new List<string> { MinimalCsvHeader() };
         foreach (var churchName in churchNames)
         {
-            lines.Add(string.Join(CsvFieldSeparator, churchName, TestValues.NewStateCodeText()));
+            lines.Add(string.Join(CsvFieldSeparator, churchName, Generated.NewStateCodeText()));
         }
 
         return string.Join(CsvLineSeparator, lines);
@@ -369,9 +357,9 @@ public sealed class AdminServiceTests
     private static object[] ExportRow(string canonicalName) =>
         ExportRow(
             canonicalName,
-            TestValues.NewConfidenceScore(),
-            TestValues.NewUtcTimestamp(),
-            TestValues.NewUtcTimestamp());
+            Generated.NewConfidenceScore(),
+            Generated.NewUtcTimestamp(),
+            Generated.NewUtcTimestamp());
 
     private static object[] ExportRow(
         string canonicalName,
@@ -380,13 +368,13 @@ public sealed class AdminServiceTests
         DateTimeOffset updatedAt)
     {
         var churchId = Guid.NewGuid();
-        var slug = TestValues.NewSlug();
-        var street = TestValues.NewStreet();
-        var city = TestValues.NewCity();
-        var state = TestValues.NewStateCodeText();
-        var zip = TestValues.NewZip();
-        var worshipStyle = TestValues.NewWorshipStyle();
-        var primaryLanguage = TestValues.NewLanguage();
+        var slug = Generated.NewSlug();
+        var street = Generated.NewStreet();
+        var city = Generated.NewCity();
+        var state = Generated.NewStateCodeText();
+        var zip = Generated.NewZip();
+        var worshipStyle = Generated.NewDefinedValue<WorshipStyle>();
+        var primaryLanguage = Generated.NewLanguage();
         return
         [
             churchId, canonicalName, slug, street, city, state, zip,

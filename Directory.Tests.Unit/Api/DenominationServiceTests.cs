@@ -1,23 +1,23 @@
 namespace Directory.Tests.Unit.Api;
 
 using System.Data;
-using Denomination;
-using TestSupport;
+using Directory.Denomination;
+using Directory.Tests.Unit.TestSupport;
 
+[Trait("Category", "Unit")]
 public sealed class DenominationServiceTests
 {
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task GetAllAsync_ConnectionClosed_OpensAndReturnsRows()
     {
         // Arrange
         var firstDenominationId = Guid.NewGuid();
-        var firstDenominationName = TestValues.NewName();
+        var firstDenominationName = Generated.NewName();
         var secondDenominationId = Guid.NewGuid();
-        var secondDenominationName = TestValues.NewName();
+        var secondDenominationName = Generated.NewName();
         var table = BuildDenominationTable();
-        table.Rows.Add(firstDenominationId, firstDenominationName);
-        table.Rows.Add(secondDenominationId, secondDenominationName);
+        table.Rows.Add(firstDenominationId, firstDenominationName, Generated.NewUtcTimestamp(), Generated.NewUtcTimestamp());
+        table.Rows.Add(secondDenominationId, secondDenominationName, Generated.NewUtcTimestamp(), Generated.NewUtcTimestamp());
 
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithReader(table));
@@ -27,7 +27,7 @@ public sealed class DenominationServiceTests
         var result = await service.GetAllAsync(TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(System.Data.ConnectionState.Open, conn.State);
+        Assert.Equal(ConnectionState.Open, conn.State);
         Assert.Equal(table.Rows.Count, result.Count);
         Assert.Equal(firstDenominationName, result[0].Name);
         Assert.Equal(firstDenominationId, result[0].Id);
@@ -36,14 +36,13 @@ public sealed class DenominationServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task GetAllAsync_ConnectionAlreadyOpen_DoesNotReopenOrFail()
     {
         // Arrange
         var denominationId = Guid.NewGuid();
-        var denominationName = TestValues.NewName();
+        var denominationName = Generated.NewName();
         var table = BuildDenominationTable();
-        table.Rows.Add(denominationId, denominationName);
+        table.Rows.Add(denominationId, denominationName, Generated.NewUtcTimestamp(), Generated.NewUtcTimestamp());
 
         var conn = new FakeDbConnection();
         await conn.OpenAsync(TestContext.Current.CancellationToken);
@@ -59,7 +58,6 @@ public sealed class DenominationServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task GetAllAsync_EmptyTable_ReturnsEmptyList()
     {
         // Arrange
@@ -77,13 +75,12 @@ public sealed class DenominationServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task GetAllAsync_OrdersByNameAscending()
     {
         // Arrange
         var denominationId = Guid.NewGuid();
         var table = BuildDenominationTable();
-        table.Rows.Add(denominationId, TestValues.NewName());
+        table.Rows.Add(denominationId, Generated.NewName(), Generated.NewUtcTimestamp(), Generated.NewUtcTimestamp());
 
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithReader(table));
@@ -97,11 +94,37 @@ public sealed class DenominationServiceTests
         Assert.Contains("ORDER BY [Name] ASC", cmd.CommandText, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task GetAllAsync_ReturnsTheStoredTimestamps_NotTheTimeOfTheRequest()
+    {
+        // Arrange
+        var storedCreatedAt = Generated.NewUtcTimestamp();
+        var storedUpdatedAt = Generated.NewUtcTimestamp();
+        var denominationId = Generated.NewChurchId();
+        var denominationName = Generated.NewName();
+        var table = BuildDenominationTable();
+        table.Rows.Add(denominationId, denominationName, storedCreatedAt, storedUpdatedAt);
+
+        var conn = new FakeDbConnection();
+        conn.Enqueue(FakeDbCommand.WithReader(table));
+        var service = new DenominationService(conn);
+
+        // Act
+        var result = await service.GetAllAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        var denomination = Assert.Single(result);
+        Assert.Equal(storedCreatedAt, denomination.CreatedAt);
+        Assert.Equal(storedUpdatedAt, denomination.UpdatedAt);
+    }
+
     private static DataTable BuildDenominationTable()
     {
         var table = new DataTable();
         table.Columns.Add(nameof(Entities.Denomination.Id), typeof(Guid));
         table.Columns.Add(nameof(Entities.Denomination.Name), typeof(string));
+        table.Columns.Add(nameof(Entities.Denomination.CreatedAt), typeof(DateTimeOffset));
+        table.Columns.Add(nameof(Entities.Denomination.UpdatedAt), typeof(DateTimeOffset));
         return table;
     }
 }

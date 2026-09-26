@@ -1,14 +1,17 @@
 namespace Directory.Campuses;
 
 using System.Diagnostics.CodeAnalysis;
-using Entities;
+using Directory.Church;
+using Directory.Entities;
 
 [ExcludeFromCodeCoverage]
 public static class CampusEndpoints
 {
+    internal const string Route = "/campuses";
+
     public static IEndpointRouteBuilder MapCampusEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapPost("/churches/{churchId:guid}/campuses", async (
+        app.MapPost($"{ChurchEndpoints.Route}/{{churchId:guid}}{Route}", async (
             Guid churchId,
             CampusRequest req,
             CampusService service,
@@ -20,10 +23,10 @@ public static class CampusEndpoints
             }
 
             var created = await service.CreateAsync(churchId, ToCampus(churchId, req, state), ct);
-            return Results.Created($"/campuses/{created.Id}", created);
+            return Results.Created($"{Route}/{created.Id}", created);
         }).RequireAuthorization(AuthorizationPolicies.ChurchesModPolicy).WithTags("Campuses");
 
-        app.MapPut("/campuses/{id:guid}", async (
+        app.MapPut($"{Route}/{{id:guid}}", async (
             Guid id,
             CampusRequest req,
             CampusService service,
@@ -39,7 +42,7 @@ public static class CampusEndpoints
                 : Results.NotFound();
         }).RequireAuthorization(AuthorizationPolicies.ChurchesModPolicy).WithTags("Campuses");
 
-        app.MapDelete("/campuses/{id:guid}", async (
+        app.MapDelete($"{Route}/{{id:guid}}", async (
             Guid id,
             CampusService service,
             CancellationToken ct) =>
@@ -65,12 +68,3 @@ public static class CampusEndpoints
         Longitude = req.Longitude,
     };
 }
-
-public record CampusRequest(
-    string Name,
-    string? Street,
-    string City,
-    string State,
-    string Zip,
-    double Latitude,
-    double Longitude);

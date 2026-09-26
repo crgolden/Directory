@@ -51,7 +51,7 @@ The end-to-end platform architecture — how this API, the Churches UI/BFF, and 
 | `POST` | `/corrections` | `directory` scope | Submit a user correction (enqueued to Service Bus) |
 | `PATCH` | `/corrections/{id:guid}/approve` | `churches.mod` | Approve a correction |
 | `PATCH` | `/corrections/{id:guid}/reject` | `churches.mod` | Reject a correction |
-| `GET` | `/me` | Anonymous | Current identity (`IsAuthenticated`, `Sub`, `Email`, `Name`, `HasModerationScope`) |
+| `GET` | `/me` | Anonymous | Current identity (`IsAuthenticated`, `Sub`, `Email`, `Name`) |
 
 OIDC tokens are issued by [Identity](https://github.com/crgolden/Identity); the [Churches](https://github.com/crgolden/Churches) BFF forwards the user token (type `UserOrNone`) when proxying `/directory/api/**`.
 

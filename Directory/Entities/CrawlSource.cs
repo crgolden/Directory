@@ -1,6 +1,6 @@
 namespace Directory.Entities;
 
-using Enums;
+using Directory.Enums;
 
 public sealed class CrawlSource
 {
@@ -8,7 +8,7 @@ public sealed class CrawlSource
 
     public Guid? ChurchId { get; set; }
 
-    required public Uri Url { get; set; }
+    public required Uri Url { get; set; }
 
     public DateTimeOffset? LastCrawledAt { get; set; }
 

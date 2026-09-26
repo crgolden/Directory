@@ -4,9 +4,9 @@ public sealed class Ministry
 {
     public Guid Id { get; init; } = Guid.CreateVersion7(DateTimeOffset.UtcNow);
 
-    required public Guid ChurchId { get; init; }
+    public required Guid ChurchId { get; init; }
 
-    required public string Name { get; set; }
+    public required string Name { get; set; }
 
     public string? Description { get; set; }
 

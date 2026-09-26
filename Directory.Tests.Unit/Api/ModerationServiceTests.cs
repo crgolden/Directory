@@ -3,15 +3,16 @@ namespace Directory.Tests.Unit.Api;
 using System.Data;
 using System.Text.Json;
 using Azure.Messaging.ServiceBus;
-using Church;
-using Entities;
-using Enums;
-using Messaging;
+using Directory.Church;
+using Directory.Entities;
+using Directory.Enums;
+using Directory.Messaging;
+using Directory.Moderation;
+using Directory.Tests.Unit.TestSupport;
 using Microsoft.Extensions.Azure;
-using Moderation;
 using Moq;
-using TestSupport;
 
+[Trait("Category", "Unit")]
 public sealed class ModerationServiceTests
 {
     private const int NoRowsUpdated = 0;
@@ -19,12 +20,11 @@ public sealed class ModerationServiceTests
     private const int OneRowUpdated = 1;
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task ReviewCorrectionAsync_ReturnsFalse_WhenNoRowsUpdated()
     {
         // Arrange
         var correctionId = Guid.NewGuid();
-        var reviewedBy = TestValues.NewUserId();
+        var reviewedBy = Generated.NewUserId();
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithNonQueryResult(NoRowsUpdated));
         var service = Create(conn);
@@ -41,12 +41,11 @@ public sealed class ModerationServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task ReviewCorrectionAsync_ReturnsTrue_WhenRowUpdated()
     {
         // Arrange
         var correctionId = Guid.NewGuid();
-        var reviewedBy = TestValues.NewUserId();
+        var reviewedBy = Generated.NewUserId();
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithNonQueryResult(OneRowUpdated));
         var service = Create(conn);
@@ -63,12 +62,11 @@ public sealed class ModerationServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task ReviewCorrectionAsync_StoresTheReviewersSubjectAsAGuid()
     {
         // Arrange
         var correctionId = Guid.NewGuid();
-        var reviewedBy = TestValues.NewUserId();
+        var reviewedBy = Generated.NewUserId();
         var conn = new FakeDbConnection();
         var update = FakeDbCommand.WithNonQueryResult(OneRowUpdated);
         conn.Enqueue(update);
@@ -82,15 +80,15 @@ public sealed class ModerationServiceTests
             TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(reviewedBy, update.Parameters["@ReviewedBy"].Value);
+        Assert.Equal(reviewedBy, update.Parameters[SqlParameters.ReviewedBy].Value);
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task SubmitCorrectionAsync_SendsTheSubmittersSubjectAsAGuid()
     {
         // Arrange
-        var submittingUserId = TestValues.NewUserId();
+        var submittingUserId = Generated.NewUserId();
+        var churchId = Guid.NewGuid();
         var sent = new List<ServiceBusMessage>();
         var senderMock = new Mock<ServiceBusSender>(MockBehavior.Strict);
         senderMock
@@ -101,11 +99,11 @@ public sealed class ModerationServiceTests
 
         // Act
         await service.SubmitCorrectionAsync(
-            Guid.NewGuid(),
+            churchId,
             submittingUserId,
-            TestValues.NewFieldName(),
+            Generated.NewFieldName(),
             null,
-            TestValues.NewPhoneNumber(),
+            Generated.NewPhoneNumber(),
             TestContext.Current.CancellationToken);
 
         // Assert
@@ -114,14 +112,13 @@ public sealed class ModerationServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task SubmitCorrectionAsync_EnqueuesMessageAndReturnsId()
     {
         // Arrange
         var churchId = Guid.NewGuid();
-        var submittingUserId = TestValues.NewUserId();
-        var correctedField = TestValues.NewFieldName();
-        var proposedPhoneNumber = TestValues.NewPhoneNumber();
+        var submittingUserId = Generated.NewUserId();
+        var correctedField = Generated.NewFieldName();
+        var proposedPhoneNumber = Generated.NewPhoneNumber();
         var senderMock = new Mock<ServiceBusSender>(MockBehavior.Strict);
         senderMock
             .Setup(s => s.SendMessageAsync(It.IsAny<ServiceBusMessage>(), It.IsAny<CancellationToken>()))
@@ -145,7 +142,6 @@ public sealed class ModerationServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task GetCorrectionByIdAsync_ReturnsNull_WhenNoRows()
     {
         // Arrange
@@ -163,13 +159,12 @@ public sealed class ModerationServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task MergeAsync_CommitsTransaction()
     {
         // Arrange
         var survivingChurchId = Guid.NewGuid();
         var absorbedChurchId = Guid.NewGuid();
-        var mergedBy = TestValues.NewUserId();
+        var mergedBy = Generated.NewUserId();
         var conn = new FakeDbConnection();
         conn.Enqueue(SurvivingChurchExists());
         conn.Enqueue(AbsorbedChurchExists());
@@ -189,14 +184,13 @@ public sealed class ModerationServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task MergeAsync_WhenCommandThrows_RollsBackAndRethrows()
     {
         // Arrange
         var survivingChurchId = Guid.NewGuid();
         var absorbedChurchId = Guid.NewGuid();
-        var mergedBy = TestValues.NewUserId();
-        var repointFailureMessage = TestValues.NewFailureMessage();
+        var mergedBy = Generated.NewUserId();
+        var repointFailureMessage = Generated.NewFailureMessage();
         var conn = new FakeDbConnection();
         conn.Enqueue(SurvivingChurchExists());
         conn.Enqueue(AbsorbedChurchExists());
@@ -214,14 +208,13 @@ public sealed class ModerationServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task MergeAsync_SameSurvivingAndAbsorbedId_ThrowsWithoutTouchingDb()
     {
         // Arrange
         var conn = new FakeDbConnection();
         var survivingChurchId = Guid.NewGuid();
         var absorbedId = survivingChurchId;
-        var mergedBy = TestValues.NewUserId();
+        var mergedBy = Generated.NewUserId();
         var service = Create(conn);
 
         // Act
@@ -235,13 +228,12 @@ public sealed class ModerationServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task MergeAsync_SurvivingChurchNotActive_ThrowsAndNeverStartsTransaction()
     {
         // Arrange
         var survivingChurchId = Guid.NewGuid();
         var absorbedChurchId = Guid.NewGuid();
-        var mergedBy = TestValues.NewUserId();
+        var mergedBy = Generated.NewUserId();
         var conn = new FakeDbConnection();
         conn.Enqueue(ChurchDoesNotExist());
         var service = Create(conn);
@@ -256,13 +248,12 @@ public sealed class ModerationServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task MergeAsync_AbsorbedChurchNotActive_ThrowsAndNeverStartsTransaction()
     {
         // Arrange
         var survivingChurchId = Guid.NewGuid();
         var absorbedChurchId = Guid.NewGuid();
-        var mergedBy = TestValues.NewUserId();
+        var mergedBy = Generated.NewUserId();
         var conn = new FakeDbConnection();
         conn.Enqueue(SurvivingChurchExists());
         conn.Enqueue(ChurchDoesNotExist());
@@ -278,14 +269,13 @@ public sealed class ModerationServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task GetCorrectionsAsync_WithStatusFilter_AddsWhereClauseAndMapsRow()
     {
         // Arrange
-        var expectedNewValue = TestValues.NewStreet();
-        var expectedTotalCount = TestValues.NewRowCount();
-        var requestedPage = TestValues.NewPage();
-        var requestedPageSize = TestValues.NewPageSize();
+        var expectedNewValue = Generated.NewStreet();
+        var expectedTotalCount = Generated.NewRowCount();
+        var requestedPage = Generated.NewPage();
+        var requestedPageSize = Generated.NewPageSize();
         var table = BuildCorrectionTable(includeTotalCount: true);
         table.Rows.Add(CorrectionRowPopulated(newValue: expectedNewValue, totalCount: expectedTotalCount));
         var conn = new FakeDbConnection();
@@ -299,18 +289,17 @@ public sealed class ModerationServiceTests
 
         // Assert
         Assert.Contains("WHERE (@Status IS NULL OR c.[Status] = @Status)", cmd.CapturedCommandText, StringComparison.Ordinal);
-        Assert.Equal((int)CorrectionStatus.Pending, cmd.Parameters["@Status"].Value);
+        Assert.Equal((int)CorrectionStatus.Pending, cmd.Parameters[SqlParameters.Status].Value);
         Assert.Equal(expectedTotalCount, totalCount);
         Assert.Equal(expectedNewValue, Assert.Single(items).NewValue);
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task GetCorrectionsAsync_WithoutStatusFilter_PassesDbNullStatus()
     {
         // Arrange
-        var requestedPage = TestValues.NewPage();
-        var requestedPageSize = TestValues.NewPageSize();
+        var requestedPage = Generated.NewPage();
+        var requestedPageSize = Generated.NewPageSize();
         var conn = new FakeDbConnection();
         var cmd = FakeDbCommand.WithReader(BuildCorrectionTable(includeTotalCount: true));
         conn.Enqueue(cmd);
@@ -321,13 +310,12 @@ public sealed class ModerationServiceTests
             null, requestedPage, requestedPageSize, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(DBNull.Value, cmd.Parameters["@Status"].Value);
+        Assert.Equal(DBNull.Value, cmd.Parameters[SqlParameters.Status].Value);
         Assert.Empty(items);
         Assert.Equal(0, totalCount);
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task GetCorrectionByIdAsync_SystemAuthoredRowWithNullableNulls_MapsNulls()
     {
         // Arrange
@@ -351,15 +339,14 @@ public sealed class ModerationServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task GetCorrectionByIdAsync_RowPopulated_MapsAllColumns()
     {
         // Arrange
         var correctionId = Guid.NewGuid();
-        var expectedOldValue = TestValues.NewStreet();
-        var expectedUserId = TestValues.NewUserId();
-        var expectedReviewedBy = TestValues.NewUserId();
-        var expectedChurchName = TestValues.NewName();
+        var expectedOldValue = Generated.NewStreet();
+        var expectedUserId = Generated.NewUserId();
+        var expectedReviewedBy = Generated.NewUserId();
+        var expectedChurchName = Generated.NewName();
         var table = BuildCorrectionTable(includeTotalCount: false);
         table.Rows.Add(CorrectionRowPopulated(
             oldValue: expectedOldValue,
@@ -422,6 +409,9 @@ public sealed class ModerationServiceTests
         t.Columns.Add(nameof(UserCorrection.ReviewedAt), typeof(DateTimeOffset));
         t.Columns.Add(nameof(UserCorrection.CreatedAt), typeof(DateTimeOffset));
         t.Columns.Add(nameof(UserCorrection.ChurchName), typeof(string));
+        t.Columns.Add(nameof(UserCorrection.TargetChurchName), typeof(string));
+        t.Columns.Add(nameof(UserCorrection.ChurchSlug), typeof(string));
+        t.Columns.Add(nameof(UserCorrection.TargetChurchSlug), typeof(string));
         if (includeTotalCount)
         {
             t.Columns.Add(nameof(PagedResult<UserCorrection>.TotalCount), typeof(int));
@@ -445,15 +435,18 @@ public sealed class ModerationServiceTests
         {
             correctionId,
             churchId,
-            userId ?? TestValues.NewUserId(),
-            TestValues.NewFieldName(),
-            oldValue ?? TestValues.NewStreet(),
-            newValue ?? TestValues.NewStreet(),
+            userId ?? Generated.NewUserId(),
+            Generated.NewFieldName(),
+            oldValue ?? Generated.NewStreet(),
+            newValue ?? Generated.NewStreet(),
             (int)CorrectionStatus.Approved,
-            reviewedBy ?? TestValues.NewUserId(),
-            TestValues.NewUtcTimestamp(),
-            TestValues.NewUtcTimestamp(),
-            churchName ?? TestValues.NewName(),
+            reviewedBy ?? Generated.NewUserId(),
+            Generated.NewUtcTimestamp(),
+            Generated.NewUtcTimestamp(),
+            churchName ?? Generated.NewName(),
+            DBNull.Value,
+            DBNull.Value,
+            DBNull.Value,
         };
         if (totalCount.HasValue)
         {
@@ -473,13 +466,16 @@ public sealed class ModerationServiceTests
             correctionId,
             churchId,
             DBNull.Value,
-            TestValues.NewFieldName(),
+            Generated.NewFieldName(),
             DBNull.Value,
-            TestValues.NewStreet(),
+            Generated.NewStreet(),
             (int)CorrectionStatus.Pending,
             DBNull.Value,
             DBNull.Value,
-            TestValues.NewUtcTimestamp(),
+            Generated.NewUtcTimestamp(),
+            DBNull.Value,
+            DBNull.Value,
+            DBNull.Value,
             DBNull.Value,
         ];
     }

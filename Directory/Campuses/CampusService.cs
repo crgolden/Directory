@@ -2,7 +2,7 @@ namespace Directory.Campuses;
 
 using System.Data;
 using System.Data.Common;
-using Entities;
+using Directory.Entities;
 
 public sealed class CampusService
 {
@@ -20,23 +20,23 @@ public sealed class CampusService
             INSERT INTO [dbo].[Campuses] ([Id], [ChurchId], [Name], [Street], [City], [State], [Zip], [Latitude], [Longitude], [CreatedAt], [UpdatedAt])
             VALUES (@Id, @ChurchId, @Name, @Street, @City, @State, @Zip, @Lat, @Lng, @Now, @Now)
             """;
-        AddParam(cmd, "@Id", campus.Id);
-        AddParam(cmd, "@ChurchId", churchId);
-        AddParam(cmd, "@Name", campus.Name);
-        AddParam(cmd, "@Street", (object?)campus.Street ?? DBNull.Value);
-        AddParam(cmd, "@City", campus.City);
-        AddParam(cmd, "@State", campus.State.ToString());
-        AddParam(cmd, "@Zip", campus.Zip);
-        AddParam(cmd, "@Lat", campus.Latitude);
-        AddParam(cmd, "@Lng", campus.Longitude);
-        AddParam(cmd, "@Now", now);
+        AddParam(cmd, SqlParameters.Id, campus.Id);
+        AddParam(cmd, SqlParameters.ChurchId, churchId);
+        AddParam(cmd, SqlParameters.Name, campus.Name);
+        AddParam(cmd, SqlParameters.Street, (object?)campus.Street ?? DBNull.Value);
+        AddParam(cmd, SqlParameters.City, campus.City);
+        AddParam(cmd, SqlParameters.State, campus.State.ToString());
+        AddParam(cmd, SqlParameters.Zip, campus.Zip);
+        AddParam(cmd, SqlParameters.Lat, campus.Latitude);
+        AddParam(cmd, SqlParameters.Lng, campus.Longitude);
+        AddParam(cmd, SqlParameters.Now, now);
         await cmd.ExecuteNonQueryAsync(ct);
         return campus;
     }
 
     public async Task<bool> UpdateAsync(Guid id, Campus campus, CancellationToken ct = default)
     {
-        EnsureValid(id, campus.ChurchId, campus, campus.CreatedAt, DateTimeOffset.UtcNow);
+        EnsureTheUpdatedColumnsAreValid(campus);
         await EnsureOpenAsync(ct);
         await using var cmd = _dbConnection.CreateCommand();
         cmd.CommandText = """
@@ -45,15 +45,15 @@ public sealed class CampusService
                 [Latitude] = @Lat, [Longitude] = @Lng, [UpdatedAt] = @Now
             WHERE [Id] = @Id
             """;
-        AddParam(cmd, "@Id", id);
-        AddParam(cmd, "@Name", campus.Name);
-        AddParam(cmd, "@Street", (object?)campus.Street ?? DBNull.Value);
-        AddParam(cmd, "@City", campus.City);
-        AddParam(cmd, "@State", campus.State.ToString());
-        AddParam(cmd, "@Zip", campus.Zip);
-        AddParam(cmd, "@Lat", campus.Latitude);
-        AddParam(cmd, "@Lng", campus.Longitude);
-        AddParam(cmd, "@Now", DateTimeOffset.UtcNow);
+        AddParam(cmd, SqlParameters.Id, id);
+        AddParam(cmd, SqlParameters.Name, campus.Name);
+        AddParam(cmd, SqlParameters.Street, (object?)campus.Street ?? DBNull.Value);
+        AddParam(cmd, SqlParameters.City, campus.City);
+        AddParam(cmd, SqlParameters.State, campus.State.ToString());
+        AddParam(cmd, SqlParameters.Zip, campus.Zip);
+        AddParam(cmd, SqlParameters.Lat, campus.Latitude);
+        AddParam(cmd, SqlParameters.Lng, campus.Longitude);
+        AddParam(cmd, SqlParameters.Now, DateTimeOffset.UtcNow);
         return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
 
@@ -62,8 +62,41 @@ public sealed class CampusService
         await EnsureOpenAsync(ct);
         await using var cmd = _dbConnection.CreateCommand();
         cmd.CommandText = "DELETE FROM [dbo].[Campuses] WHERE [Id] = @Id";
-        AddParam(cmd, "@Id", id);
+        AddParam(cmd, SqlParameters.Id, id);
         return await cmd.ExecuteNonQueryAsync(ct) > 0;
+    }
+
+    private static void EnsureTheUpdatedColumnsAreValid(Campus campus)
+    {
+        if (string.IsNullOrWhiteSpace(campus.Name) || string.IsNullOrWhiteSpace(campus.City)
+            || string.IsNullOrWhiteSpace(campus.Zip))
+        {
+            throw new ArgumentException("Name, City and Zip are required.", nameof(campus));
+        }
+
+        if (!Enum.IsDefined(campus.State))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(campus), campus.State, "State must be a defined StateCode.");
+        }
+
+        if (campus.Latitude is < Shared.Domain.CampusBuilder.MinLatitude
+            or > Shared.Domain.CampusBuilder.MaxLatitude)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(campus),
+                campus.Latitude,
+                $"Latitude must be between {Shared.Domain.CampusBuilder.MinLatitude} and {Shared.Domain.CampusBuilder.MaxLatitude}.");
+        }
+
+        if (campus.Longitude is < Shared.Domain.CampusBuilder.MinLongitude
+            or > Shared.Domain.CampusBuilder.MaxLongitude)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(campus),
+                campus.Longitude,
+                $"Longitude must be between {Shared.Domain.CampusBuilder.MinLongitude} and {Shared.Domain.CampusBuilder.MaxLongitude}.");
+        }
     }
 
     private static void EnsureValid(Guid id, Guid churchId, Campus campus, DateTimeOffset createdAt, DateTimeOffset updatedAt) =>

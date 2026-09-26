@@ -1,13 +1,16 @@
 namespace Directory.Ministries;
 
-using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.CodeAnalysis;
+using Directory.Church;
 
 [ExcludeFromCodeCoverage]
 public static class MinistryEndpoints
 {
+    internal const string Route = "/ministries";
+
     public static IEndpointRouteBuilder MapMinistryEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapPost("/churches/{churchId:guid}/ministries", async (
+        app.MapPost($"{ChurchEndpoints.Route}/{{churchId:guid}}{Route}", async (
             Guid churchId,
             MinistryRequest req,
             MinistryService service,
@@ -19,10 +22,10 @@ public static class MinistryEndpoints
             }
 
             var created = await service.CreateAsync(churchId, req.Name, req.Description, ct);
-            return Results.Created($"/ministries/{created.Id}", created);
+            return Results.Created($"{Route}/{created.Id}", created);
         }).RequireAuthorization(AuthorizationPolicies.ChurchesModPolicy).WithTags("Ministries");
 
-        app.MapPut("/ministries/{id:guid}", async (
+        app.MapPut($"{Route}/{{id:guid}}", async (
             Guid id,
             MinistryRequest req,
             MinistryService service,
@@ -38,7 +41,7 @@ public static class MinistryEndpoints
                 : Results.NotFound();
         }).RequireAuthorization(AuthorizationPolicies.ChurchesModPolicy).WithTags("Ministries");
 
-        app.MapDelete("/ministries/{id:guid}", async (
+        app.MapDelete($"{Route}/{{id:guid}}", async (
             Guid id,
             MinistryService service,
             CancellationToken ct) =>
@@ -48,5 +51,3 @@ public static class MinistryEndpoints
         return app;
     }
 }
-
-public record MinistryRequest(string Name, string? Description);

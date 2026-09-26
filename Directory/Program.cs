@@ -1,4 +1,3 @@
-#pragma warning disable SA1200
 using System.Data.Common;
 using System.Diagnostics;
 using System.Security.Claims;
@@ -23,13 +22,13 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Azure;
+using Microsoft.IdentityModel.JsonWebTokens;
 using OpenTelemetry.Instrumentation.AspNetCore;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Serilog;
 using Shared.Extensions;
-#pragma warning restore SA1200
 
 Log.Logger = new LoggerConfiguration().WriteTo.Console().CreateBootstrapLogger();
 
@@ -108,11 +107,6 @@ try
     }
     else
     {
-        if (builder.Environment.IsDevelopment())
-        {
-            builder.Configuration.AddUserSecrets("61549613-3239-4c31-8300-39334a7c2657");
-        }
-
         var serviceBusConnectionString = builder.Configuration.GetRequired<string>("ServiceBusConnectionString");
         builder.Services
             .AddSerilog((serviceProvider, loggerConfiguration) => loggerConfiguration
@@ -126,7 +120,10 @@ try
             });
     }
 
-    builder.Services.AddScoped<DbConnection>(sp =>
+    builder.Services.ConfigureHttpJsonOptions(jsonOptions =>
+        jsonOptions.SerializerOptions.Converters.Add(new OptionalConverterFactory()));
+
+    builder.Services.AddScoped<DbConnection>(_ =>
     {
         var conn = SqlClientFactory.Instance.CreateConnection() ?? throw new InvalidOperationException($"{nameof(SqlClientFactory)} failed to create a {nameof(DbConnection)}.");
         conn.ConnectionString = sqlConnectionStringBuilder.ConnectionString;
@@ -149,7 +146,7 @@ try
         .AddPolicy(AuthorizationPolicies.ChurchesModPolicy, policy =>
         {
             policy.RequireAuthenticatedUser();
-            policy.RequireClaim(AuthorizationPolicies.ChurchesModClaimType, AuthorizationPolicies.ChurchesModClaimValue);
+            policy.RequireAssertion(context => AuthorizationPolicies.GrantsChurchesMod(context.User));
         });
     builder.Services
         .AddScoped<AdminService>()
@@ -199,8 +196,8 @@ try
             return next(ctx);
         }
 
-        using (Serilog.Context.LogContext.PushProperty("UserId", ctx.User.FindFirstValue("sub")))
-        using (Serilog.Context.LogContext.PushProperty("UserEmail", ctx.User.FindFirstValue("email")))
+        using (Serilog.Context.LogContext.PushProperty("UserId", ctx.User.FindFirstValue(AuthorizationPolicies.SubjectClaimType)))
+        using (Serilog.Context.LogContext.PushProperty("UserEmail", ctx.User.FindFirstValue(JwtRegisteredClaimNames.Email)))
         {
             return next(ctx);
         }

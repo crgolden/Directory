@@ -1,22 +1,22 @@
 namespace Directory.Tests.Unit.Api;
 
 using System.Data;
-using Entities;
-using Enums;
-using Search;
-using TestSupport;
+using Directory.Entities;
+using Directory.Enums;
+using Directory.Search;
+using Directory.Tests.Unit.TestSupport;
 
+[Trait("Category", "Unit")]
 public sealed class SearchServiceTests
 {
-    public static TheoryData<string?> NullAndWhitespaceQueries() => [null, TestValues.NewBlank()];
+    public static TheoryData<string?> NullAndWhitespaceQueries() => new() { (string?)null, Generated.NewBlank() };
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task SearchAsync_IncludesDistanceColumn_WhenGeoFilterProvided()
     {
         // Arrange
-        var searchLatitude = TestValues.NewLatitude();
-        var searchLongitude = TestValues.NewLongitude();
+        var searchLatitude = Generated.NewLatitude();
+        var searchLongitude = Generated.NewLongitude();
         var conn = BuildConn(out var cmd);
         var service = new SearchService(conn);
 
@@ -29,7 +29,6 @@ public sealed class SearchServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task SearchAsync_ExcludesDistanceColumn_WhenNoGeoFilter()
     {
         // Arrange
@@ -45,11 +44,10 @@ public sealed class SearchServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task SearchAsync_IncludesContainsTableJoin_WhenKeywordProvided()
     {
         // Arrange
-        var searchKeyword = TestValues.NewKeyword();
+        var searchKeyword = Generated.NewKeyword();
         var conn = BuildConn(out var cmd);
         var service = new SearchService(conn);
 
@@ -58,11 +56,10 @@ public sealed class SearchServiceTests
 
         // Assert
         Assert.Contains("CONTAINSTABLE", cmd.CapturedCommandText, StringComparison.Ordinal);
-        Assert.Contains("ft.[KEY] = c.[Id]", cmd.CapturedCommandText, StringComparison.Ordinal);
+        Assert.Contains("ft0.[KEY] = c.[Id]", cmd.CapturedCommandText, StringComparison.Ordinal);
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task SearchAsync_OmitsContainsTableJoin_WhenNoKeyword()
     {
         // Arrange
@@ -77,11 +74,10 @@ public sealed class SearchServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task SearchAsync_OmitsContainsTableJoin_WhenKeywordIsJunkOnly()
     {
         // Arrange
-        var punctuationOnlyQuery = TestValues.NewPunctuationOnlyQuery();
+        var punctuationOnlyQuery = Generated.NewPunctuationOnlyQuery();
         var conn = BuildConn(out var cmd);
         var service = new SearchService(conn);
 
@@ -93,11 +89,10 @@ public sealed class SearchServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task SearchAsync_IncludesStateFilter_WhenStateProvided()
     {
         // Arrange
-        var stateFilter = TestValues.NewStateCodeText();
+        var stateFilter = Generated.NewStateCodeText();
         var conn = BuildConn(out var cmd);
         var service = new SearchService(conn);
 
@@ -105,11 +100,10 @@ public sealed class SearchServiceTests
         await service.SearchAsync(QueryWith(state: stateFilter), TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Contains("@State", cmd.CapturedCommandText, StringComparison.Ordinal);
+        Assert.Contains(SqlParameters.State, cmd.CapturedCommandText, StringComparison.Ordinal);
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task SearchAsync_IncludesWheelchairFilter_WhenFilterProvided()
     {
         // Arrange
@@ -121,16 +115,15 @@ public sealed class SearchServiceTests
             QueryWith(wheelchairAccessible: true), TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Contains("@WheelchairAccessible", cmd.CapturedCommandText, StringComparison.Ordinal);
+        Assert.Contains(SqlParameters.WheelchairAccessible, cmd.CapturedCommandText, StringComparison.Ordinal);
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task SearchAsync_OrdersByDistance_WhenGeoFilterProvided()
     {
         // Arrange
-        var searchLatitude = TestValues.NewLatitude();
-        var searchLongitude = TestValues.NewLongitude();
+        var searchLatitude = Generated.NewLatitude();
+        var searchLongitude = Generated.NewLongitude();
         var conn = BuildConn(out var cmd);
         var service = new SearchService(conn);
 
@@ -144,7 +137,6 @@ public sealed class SearchServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task SearchAsync_ReturnsEmptyResult_WhenNoRows()
     {
         // Arrange
@@ -161,7 +153,6 @@ public sealed class SearchServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public void BuildQuery_DenominationIdSet_AddsFilter()
     {
         var filteredDenominationId = Guid.NewGuid();
@@ -175,10 +166,9 @@ public sealed class SearchServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public void BuildQuery_WorshipStyleSet_AddsFilter()
     {
-        var filteredWorshipStyle = TestValues.NewWorshipStyle();
+        var filteredWorshipStyle = Generated.NewDefinedValue<WorshipStyle>();
         var query = QueryWith(worshipStyle: filteredWorshipStyle);
 
         // Act
@@ -189,11 +179,10 @@ public sealed class SearchServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public void BuildQuery_DayOfWeekSet_AddsScheduleJoin()
     {
         // Arrange
-        var filteredDayOfWeek = TestValues.NewDayOfWeek();
+        var filteredDayOfWeek = Generated.NewDayOfWeek();
         var query = QueryWith(dayOfWeek: filteredDayOfWeek);
 
         // Act
@@ -202,16 +191,15 @@ public sealed class SearchServiceTests
         // Assert
         Assert.Contains("[ServiceSchedules]", sql, StringComparison.Ordinal);
         Assert.Contains("ss.[DayOfWeek] = @DayOfWeek", sql, StringComparison.Ordinal);
-        Assert.DoesNotContain("@StartTimeAfter", sql, StringComparison.Ordinal);
-        Assert.DoesNotContain("@StartTimeBefore", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain(SqlParameters.StartTimeAfter, sql, StringComparison.Ordinal);
+        Assert.DoesNotContain(SqlParameters.StartTimeBefore, sql, StringComparison.Ordinal);
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public void BuildQuery_StartTimeAfterSet_AddsScheduleJoinWithTimeFilter()
     {
         // Arrange
-        var earliestStartTime = TestValues.NewTimeOfDay();
+        var earliestStartTime = Generated.NewTimeOfDay();
         var query = QueryWith(startTimeAfter: earliestStartTime);
 
         // Act
@@ -220,15 +208,14 @@ public sealed class SearchServiceTests
         // Assert
         Assert.Contains("[ServiceSchedules]", sql, StringComparison.Ordinal);
         Assert.Contains("ss.[StartTime] >= @StartTimeAfter", sql, StringComparison.Ordinal);
-        Assert.DoesNotContain("@DayOfWeek", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain(SqlParameters.DayOfWeek, sql, StringComparison.Ordinal);
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public void BuildQuery_StartTimeBeforeSet_AddsScheduleJoinWithTimeFilter()
     {
         // Arrange
-        var latestStartTime = TestValues.NewTimeOfDay();
+        var latestStartTime = Generated.NewTimeOfDay();
         var query = QueryWith(startTimeBefore: latestStartTime);
 
         // Act
@@ -237,17 +224,16 @@ public sealed class SearchServiceTests
         // Assert
         Assert.Contains("[ServiceSchedules]", sql, StringComparison.Ordinal);
         Assert.Contains("ss.[StartTime] <= @StartTimeBefore", sql, StringComparison.Ordinal);
-        Assert.DoesNotContain("@StartTimeAfter", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain(SqlParameters.StartTimeAfter, sql, StringComparison.Ordinal);
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public void BuildQuery_AllScheduleFiltersSet_AddsAllConditions()
     {
         // Arrange
-        var filteredDayOfWeek = TestValues.NewDayOfWeek();
-        var latestStartTime = TestValues.NewTimeOfDay();
-        var earliestStartTime = TestValues.NewTimeOfDay();
+        var filteredDayOfWeek = Generated.NewDayOfWeek();
+        var latestStartTime = Generated.NewTimeOfDay();
+        var earliestStartTime = Generated.NewTimeOfDay();
         var query = QueryWith(
             dayOfWeek: filteredDayOfWeek,
             startTimeBefore: latestStartTime,
@@ -263,11 +249,10 @@ public sealed class SearchServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public void BuildQuery_NoScheduleFilters_OmitsScheduleJoin()
     {
         // Arrange
-        var stateFilter = TestValues.NewStateCodeText();
+        var stateFilter = Generated.NewStateCodeText();
         var query = QueryWith(state: stateFilter);
 
         // Act
@@ -278,14 +263,13 @@ public sealed class SearchServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public void BindParams_ScheduleFiltersSet_BindsAllThree()
     {
         // Arrange
         var cmd = new FakeDbCommand();
-        var filteredDayOfWeek = TestValues.NewDayOfWeek();
-        var earliestStartTime = TestValues.NewTimeOfDay();
-        var latestStartTime = TestValues.NewTimeOfDay();
+        var filteredDayOfWeek = (int)Generated.NewDayOfWeek();
+        var earliestStartTime = Generated.NewTimeOfDay();
+        var latestStartTime = Generated.NewTimeOfDay();
         var query = QueryWith(
             dayOfWeek: filteredDayOfWeek,
             startTimeBefore: latestStartTime,
@@ -295,26 +279,25 @@ public sealed class SearchServiceTests
         SearchService.BindParams(cmd, query);
 
         // Assert
-        Assert.True(cmd.Parameters.Contains("@DayOfWeek"));
-        Assert.True(cmd.Parameters.Contains("@StartTimeAfter"));
-        Assert.True(cmd.Parameters.Contains("@StartTimeBefore"));
-        Assert.Equal(filteredDayOfWeek, cmd.Parameters["@DayOfWeek"].Value);
-        Assert.Equal(earliestStartTime.ToTimeSpan(), cmd.Parameters["@StartTimeAfter"].Value);
-        Assert.Equal(latestStartTime.ToTimeSpan(), cmd.Parameters["@StartTimeBefore"].Value);
+        Assert.True(cmd.Parameters.Contains(SqlParameters.DayOfWeek));
+        Assert.True(cmd.Parameters.Contains(SqlParameters.StartTimeAfter));
+        Assert.True(cmd.Parameters.Contains(SqlParameters.StartTimeBefore));
+        Assert.Equal(filteredDayOfWeek, cmd.Parameters[SqlParameters.DayOfWeek].Value);
+        Assert.Equal(earliestStartTime.ToTimeSpan(), cmd.Parameters[SqlParameters.StartTimeAfter].Value);
+        Assert.Equal(latestStartTime.ToTimeSpan(), cmd.Parameters[SqlParameters.StartTimeBefore].Value);
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public void BindParams_AllFiltersSet_BindsProvidedRadiusAndOptionalParams()
     {
         var cmd = new FakeDbCommand();
-        var searchKeyword = TestValues.NewKeyword();
-        var searchLatitude = TestValues.NewLatitude();
-        var searchLongitude = TestValues.NewLongitude();
-        var searchRadiusMiles = TestValues.NewRadiusMiles();
-        var stateFilter = TestValues.NewStateCodeText();
+        var searchKeyword = Generated.NewKeyword();
+        var searchLatitude = Generated.NewLatitude();
+        var searchLongitude = Generated.NewLongitude();
+        var searchRadiusMiles = Generated.NewRadiusMiles();
+        var stateFilter = Generated.NewStateCodeText();
         var filteredDenominationId = Guid.NewGuid();
-        var filteredWorshipStyle = TestValues.NewWorshipStyle();
+        var filteredWorshipStyle = Generated.NewDefinedValue<WorshipStyle>();
         var query = QueryWith(
             q: searchKeyword,
             lat: searchLatitude,
@@ -329,22 +312,21 @@ public sealed class SearchServiceTests
         SearchService.BindParams(cmd, query);
 
         // Assert
-        Assert.Equal(searchRadiusMiles, cmd.Parameters["@RadiusMiles"].Value);
-        Assert.Equal(filteredDenominationId, cmd.Parameters["@DenominationId"].Value);
-        Assert.Equal((int)filteredWorshipStyle, cmd.Parameters["@WorshipStyle"].Value);
-        Assert.True(cmd.Parameters.Contains("@WheelchairAccessible"));
-        Assert.Equal(stateFilter, cmd.Parameters["@State"].Value);
+        Assert.Equal(searchRadiusMiles, cmd.Parameters[SqlParameters.RadiusMiles].Value);
+        Assert.Equal(filteredDenominationId, cmd.Parameters[SqlParameters.DenominationId].Value);
+        Assert.Equal((int)filteredWorshipStyle, cmd.Parameters[SqlParameters.WorshipStyle].Value);
+        Assert.True(cmd.Parameters.Contains(SqlParameters.WheelchairAccessible));
+        Assert.Equal(stateFilter, cmd.Parameters[SqlParameters.State].Value);
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task SearchAsync_GeoQueryRowWithDistance_MapsDistanceAndTotalCount()
     {
-        var expectedStreet = TestValues.NewStreet();
-        var expectedDistanceMiles = TestValues.NewRadiusMiles();
-        var expectedTotalCount = TestValues.NewRowCount();
-        var searchLatitude = TestValues.NewLatitude();
-        var searchLongitude = TestValues.NewLongitude();
+        var expectedStreet = Generated.NewStreet();
+        var expectedDistanceMiles = Generated.NewRadiusMiles();
+        var expectedTotalCount = Generated.NewRowCount();
+        var searchLatitude = Generated.NewLatitude();
+        var searchLongitude = Generated.NewLongitude();
         var table = BuildSearchTable();
         table.Rows.Add(SearchRowPopulated(expectedStreet, expectedDistanceMiles));
         var conn = new FakeDbConnection();
@@ -363,13 +345,12 @@ public sealed class SearchServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task SearchAsync_GeoQueryRowWithNullDistance_LeavesDistanceNull()
     {
-        var rowStreet = TestValues.NewStreet();
-        var rowTotalCount = TestValues.NewRowCount();
-        var searchLatitude = TestValues.NewLatitude();
-        var searchLongitude = TestValues.NewLongitude();
+        var rowStreet = Generated.NewStreet();
+        var rowTotalCount = Generated.NewRowCount();
+        var searchLatitude = Generated.NewLatitude();
+        var searchLongitude = Generated.NewLongitude();
         var table = BuildSearchTable();
         table.Rows.Add(SearchRowPopulated(rowStreet, DBNull.Value));
         var conn = new FakeDbConnection();
@@ -385,10 +366,9 @@ public sealed class SearchServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task SearchAsync_NoGeoQueryRowWithNullableNulls_MapsNullsAndNoDistance()
     {
-        var expectedTotalCount = TestValues.NewRowCount();
+        var expectedTotalCount = Generated.NewRowCount();
         var table = BuildSearchTable();
         table.Rows.Add(SearchRowNullable());
         var conn = new FakeDbConnection();
@@ -408,70 +388,91 @@ public sealed class SearchServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
-    public void BuildContainsCondition_MultipleWords_BuildsAndOfPrefixTerms()
+    public void BuildTermConditions_MultipleWords_BuildsOnePrefixTermEach()
     {
-        var firstWord = TestValues.NewKeyword();
-        var secondWord = TestValues.NewKeyword();
+        var firstWord = Generated.NewKeyword();
+        var secondWord = Generated.NewKeyword();
 
         // Act
-        var containsSql = SearchService.BuildContainsCondition($"{firstWord} {secondWord}", out var terms);
+        var conditions = SearchService.BuildTermConditions($"{firstWord} {secondWord}");
 
         // Assert
-        Assert.Equal($"\"{firstWord}*\" AND \"{secondWord}*\"", containsSql);
-        Assert.Equal([firstWord, secondWord], terms);
+        Assert.Equal([$"\"{firstWord}*\"", $"\"{secondWord}*\""], conditions);
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
-    public void BuildContainsCondition_JunkOnlyInput_ReturnsNullAndNoTerms()
+    public void BuildQuery_TwoWords_JoinsOneFullTextTablePerTermSoEitherColumnCanMatch()
     {
         // Arrange
-        var punctuationOnlyQuery = TestValues.NewPunctuationOnlyQuery();
+        var nameWord = Generated.NewKeyword();
+        var cityWord = Generated.NewKeyword();
 
         // Act
-        var containsSql = SearchService.BuildContainsCondition(punctuationOnlyQuery, out var terms);
+        var sql = SearchService.BuildQuery(QueryWith(q: $"{nameWord} {cityWord}"), out _);
 
         // Assert
-        Assert.Null(containsSql);
-        Assert.Empty(terms);
+        Assert.Contains("CONTAINSTABLE([dbo].[Churches], ([CanonicalName], [City]), @Q0) AS ft0", sql, StringComparison.Ordinal);
+        Assert.Contains("CONTAINSTABLE([dbo].[Churches], ([CanonicalName], [City]), @Q1) AS ft1", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain(" AND \"", sql, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BuildTermConditions_HyphenatedWord_SplitsIntoTwoTerms()
+    {
+        // Arrange
+        var beforeHyphen = Generated.NewKeyword();
+        var afterHyphen = Generated.NewKeyword();
+
+        // Act
+        var conditions = SearchService.BuildTermConditions($"{beforeHyphen}-{afterHyphen}");
+
+        // Assert
+        Assert.Equal([$"\"{beforeHyphen}*\"", $"\"{afterHyphen}*\""], conditions);
+    }
+
+    [Fact]
+    public void BuildTermConditions_JunkOnlyInput_ReturnsNoTerms()
+    {
+        // Arrange
+        var punctuationOnlyQuery = Generated.NewPunctuationOnlyQuery();
+
+        // Act
+        var conditions = SearchService.BuildTermConditions(punctuationOnlyQuery);
+
+        // Assert
+        Assert.Empty(conditions);
     }
 
     [Theory]
-    [Trait("Category", "Unit")]
     [MemberData(nameof(NullAndWhitespaceQueries))]
-    public void BuildContainsCondition_NullOrWhitespace_ReturnsNullAndNoTerms(string? query)
+    public void BuildTermConditions_NullOrWhitespace_ReturnsNoTerms(string? query)
     {
         // Act
-        var containsSql = SearchService.BuildContainsCondition(query, out var terms);
+        var conditions = SearchService.BuildTermConditions(query);
 
         // Assert
-        Assert.Null(containsSql);
-        Assert.Empty(terms);
+        Assert.Empty(conditions);
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
-    public void BuildContainsCondition_StripsPunctuation_KeepsApostrophe()
+    public void BuildTermConditions_StripsPunctuation_KeepsApostrophe()
     {
-        var beforeApostrophe = TestValues.NewKeyword();
-        var afterApostrophe = TestValues.NewKeyword();
+        var beforeApostrophe = Generated.NewKeyword();
+        var afterApostrophe = Generated.NewKeyword();
         var apostrophedName = $"{beforeApostrophe}'{afterApostrophe}";
 
         // Act
-        var containsSql = SearchService.BuildContainsCondition($"{apostrophedName}!", out var terms);
+        var conditions = SearchService.BuildTermConditions($"{apostrophedName}!");
 
         // Assert
-        Assert.Equal($"\"{apostrophedName}*\"", containsSql);
-        Assert.Equal([apostrophedName], terms);
+        Assert.Equal([$"\"{apostrophedName}*\""], conditions);
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public void BuildQuery_RelevanceSortWithKeyword_UsesRankOrdering()
     {
         // Arrange
-        var searchKeyword = TestValues.NewKeyword();
+        var searchKeyword = Generated.NewKeyword();
         var query = QueryWith(q: searchKeyword, sort: SearchService.SortByRelevance);
 
         // Act
@@ -479,32 +480,30 @@ public sealed class SearchServiceTests
 
         // Assert
         Assert.Contains("CASE WHEN c.[CanonicalName] = @ExactQ THEN 0", sql, StringComparison.Ordinal);
-        Assert.Contains("ft.[RANK] DESC", sql, StringComparison.Ordinal);
+        Assert.Contains("ft0.[RANK] DESC", sql, StringComparison.Ordinal);
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public void BuildQuery_RelevanceSortWithoutUsableKeyword_FallsBackToName()
     {
-        var punctuationOnlyQuery = TestValues.NewPunctuationToken();
+        var punctuationOnlyQuery = Generated.NewPunctuationToken();
         var query = QueryWith(q: punctuationOnlyQuery, sort: SearchService.SortByRelevance);
 
         // Act
         var sql = SearchService.BuildQuery(query, out _);
 
         // Assert
-        Assert.DoesNotContain("ft.[RANK]", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("[RANK]", sql, StringComparison.Ordinal);
         Assert.Contains("ORDER BY c.[CanonicalName] ASC", sql, StringComparison.Ordinal);
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public void BuildQuery_NameSort_AlwaysAlphabetical_EvenWithKeywordAndGeo()
     {
         // Arrange
-        var searchKeyword = TestValues.NewKeyword();
-        var searchLatitude = TestValues.NewLatitude();
-        var searchLongitude = TestValues.NewLongitude();
+        var searchKeyword = Generated.NewKeyword();
+        var searchLatitude = Generated.NewLatitude();
+        var searchLongitude = Generated.NewLongitude();
         var query = QueryWith(
             q: searchKeyword, lat: searchLatitude, lng: searchLongitude, sort: SearchService.SortByName);
 
@@ -518,12 +517,11 @@ public sealed class SearchServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public void BuildQuery_DistanceSort_UsesHaversineWhenGeoPresent()
     {
         // Arrange
-        var searchLatitude = TestValues.NewLatitude();
-        var searchLongitude = TestValues.NewLongitude();
+        var searchLatitude = Generated.NewLatitude();
+        var searchLongitude = Generated.NewLongitude();
         var query = QueryWith(
             lat: searchLatitude, lng: searchLongitude, sort: SearchService.SortByDistance);
 
@@ -535,7 +533,6 @@ public sealed class SearchServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public void BuildQuery_DistanceSortWithoutGeo_FallsBackToName()
     {
         var query = QueryWith(sort: SearchService.SortByDistance);
@@ -548,29 +545,27 @@ public sealed class SearchServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public void BuildQuery_DefaultSort_NoSortParam_PrefersRelevanceWhenKeywordPresent()
     {
         // Arrange
-        var searchKeyword = TestValues.NewKeyword();
-        var searchLatitude = TestValues.NewLatitude();
-        var searchLongitude = TestValues.NewLongitude();
+        var searchKeyword = Generated.NewKeyword();
+        var searchLatitude = Generated.NewLatitude();
+        var searchLongitude = Generated.NewLongitude();
         var query = QueryWith(q: searchKeyword, lat: searchLatitude, lng: searchLongitude);
 
         // Act
         var sql = SearchService.BuildQuery(query, out _);
 
         // Assert
-        Assert.Contains("ft.[RANK] DESC", sql, StringComparison.Ordinal);
+        Assert.Contains("ft0.[RANK] DESC", sql, StringComparison.Ordinal);
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public void BuildQuery_DefaultSort_NoKeywordButGeo_UsesDistance()
     {
         // Arrange
-        var searchLatitude = TestValues.NewLatitude();
-        var searchLongitude = TestValues.NewLongitude();
+        var searchLatitude = Generated.NewLatitude();
+        var searchLongitude = Generated.NewLongitude();
         var query = QueryWith(lat: searchLatitude, lng: searchLongitude);
 
         // Act
@@ -581,7 +576,6 @@ public sealed class SearchServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public void BuildQuery_DefaultSort_NoKeywordNoGeo_UsesName()
     {
         var query = QueryWith();
@@ -594,38 +588,167 @@ public sealed class SearchServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public void BindParams_RelevanceSort_BindsExactAndPrefixParams()
     {
         var cmd = new FakeDbCommand();
-        var searchKeyword = TestValues.NewKeyword();
+        var searchKeyword = Generated.NewKeyword();
         var query = QueryWith(q: searchKeyword, sort: SearchService.SortByRelevance);
 
         // Act
         SearchService.BindParams(cmd, query);
 
         // Assert
-        Assert.True(cmd.Parameters.Contains("@ExactQ"));
-        Assert.True(cmd.Parameters.Contains("@PrefixQ"));
-        Assert.Equal(searchKeyword, cmd.Parameters["@ExactQ"].Value);
-        Assert.Equal(searchKeyword + "%", cmd.Parameters["@PrefixQ"].Value);
-        Assert.Equal($"\"{searchKeyword}*\"", cmd.Parameters["@Q"].Value);
+        Assert.True(cmd.Parameters.Contains(SqlParameters.ExactQ));
+        Assert.True(cmd.Parameters.Contains(SqlParameters.PrefixQ));
+        Assert.Equal(searchKeyword, cmd.Parameters[SqlParameters.ExactQ].Value);
+        Assert.Equal(searchKeyword + "%", cmd.Parameters[SqlParameters.PrefixQ].Value);
+        Assert.Equal($"\"{searchKeyword}*\"", cmd.Parameters["@Q0"].Value);
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public void BindParams_NonRelevanceSort_DoesNotBindExactOrPrefixParams()
     {
         var cmd = new FakeDbCommand();
-        var searchKeyword = TestValues.NewKeyword();
+        var searchKeyword = Generated.NewKeyword();
         var query = QueryWith(q: searchKeyword, sort: SearchService.SortByName);
 
         // Act
         SearchService.BindParams(cmd, query);
 
         // Assert
-        Assert.False(cmd.Parameters.Contains("@ExactQ"));
-        Assert.False(cmd.Parameters.Contains("@PrefixQ"));
+        Assert.False(cmd.Parameters.Contains(SqlParameters.ExactQ));
+        Assert.False(cmd.Parameters.Contains(SqlParameters.PrefixQ));
+    }
+
+    [Fact]
+    public void DescribeInvalidQuery_PunctuationOnlyQuery_IsRejectedRatherThanMatchingEverything()
+    {
+        // Arrange
+        var query = QueryWith(q: Generated.NewPunctuationOnlyQuery());
+
+        // Act
+        var invalid = SearchService.DescribeInvalidQuery(query);
+
+        // Assert
+        Assert.NotNull(invalid);
+    }
+
+    [Fact]
+    public void DescribeInvalidQuery_BlankQuery_IsAcceptedBecauseBrowsingIsNotSearching()
+    {
+        // Arrange
+        var query = QueryWith(q: Generated.NewBlank());
+
+        // Act
+        var invalid = SearchService.DescribeInvalidQuery(query);
+
+        // Assert
+        Assert.Null(invalid);
+    }
+
+    [Fact]
+    public void DescribeInvalidQuery_WorshipStyleOutsideTheEnum_IsRejected()
+    {
+        // Arrange
+        var query = QueryWith(worshipStyle: Generated.NewUndefinedValue<WorshipStyle>());
+
+        // Act
+        var invalid = SearchService.DescribeInvalidQuery(query);
+
+        // Assert
+        Assert.NotNull(invalid);
+    }
+
+    [Fact]
+    public void DescribeInvalidQuery_UnknownStateCode_IsRejected()
+    {
+        // Arrange
+        var unknownState = Generated.NewUnparseableStateCode();
+        var query = QueryWith(state: unknownState);
+
+        // Act
+        var invalid = SearchService.DescribeInvalidQuery(query);
+
+        // Assert
+        Assert.NotNull(invalid);
+        Assert.Contains(unknownState, invalid, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DescribeInvalidQuery_RadiusWithoutCoordinates_IsRejected()
+    {
+        // Arrange
+        var query = QueryWith(radiusMiles: Generated.NewRadiusMiles() + 1);
+
+        // Act
+        var invalid = SearchService.DescribeInvalidQuery(query);
+
+        // Assert
+        Assert.NotNull(invalid);
+    }
+
+    [Fact]
+    public void DescribeInvalidQuery_NegativeRadius_IsRejected()
+    {
+        // Arrange
+        var query = QueryWith(
+            lat: Generated.NewLatitude(),
+            lng: Generated.NewLongitude(),
+            radiusMiles: -Generated.NewRadiusMiles() - 1);
+
+        // Act
+        var invalid = SearchService.DescribeInvalidQuery(query);
+
+        // Assert
+        Assert.NotNull(invalid);
+    }
+
+    [Fact]
+    public void DescribeInvalidQuery_LatitudeOffThePlanet_IsRejected()
+    {
+        // Arrange
+        var query = QueryWith(lat: Generated.NewLatitudeBeyondThePole(), lng: Generated.NewLongitude());
+
+        // Act
+        var invalid = SearchService.DescribeInvalidQuery(query);
+
+        // Assert
+        Assert.NotNull(invalid);
+    }
+
+    [Fact]
+    public void DescribeInvalidQuery_StartTimeWindowInverted_IsRejected()
+    {
+        // Arrange
+        var earlier = Generated.NewTimeOfDayBeforeTheLastHour();
+        var later = earlier.AddHours(1);
+        var query = QueryWith(startTimeAfter: later, startTimeBefore: earlier);
+
+        // Act
+        var invalid = SearchService.DescribeInvalidQuery(query);
+
+        // Assert
+        Assert.NotNull(invalid);
+    }
+
+    [Fact]
+    public void DescribeInvalidQuery_EveryFilterInRange_IsAccepted()
+    {
+        // Arrange
+        var query = QueryWith(
+            q: Generated.NewKeyword(),
+            lat: Generated.NewLatitude(),
+            lng: Generated.NewLongitude(),
+            radiusMiles: Generated.NewRadiusMiles() + 1,
+            state: Generated.NewStateCodeText(),
+            worshipStyle: Generated.NewDefinedValue<WorshipStyle>(),
+            dayOfWeek: Generated.NewDayOfWeek());
+
+        // Act
+        var invalid = SearchService.DescribeInvalidQuery(query);
+
+        // Assert
+        Assert.Null(invalid);
     }
 
     private static SearchQuery QueryWith(
@@ -642,8 +765,8 @@ public sealed class SearchServiceTests
         TimeOnly? startTimeAfter = null,
         string? sort = null)
     {
-        var requestedPage = TestValues.NewPage();
-        var requestedPageSize = TestValues.NewPageSize();
+        var requestedPage = Generated.NewPage();
+        var requestedPageSize = Generated.NewPageSize();
         return new SearchQuery(
             q,
             lat,
@@ -711,23 +834,23 @@ public sealed class SearchServiceTests
     private static object[] SearchRowPopulated(string street, object distanceMiles)
     {
         var churchId = Guid.NewGuid();
-        var canonicalName = TestValues.NewName();
-        var slug = TestValues.NewSlug();
-        var latitude = TestValues.NewLatitude();
-        var longitude = TestValues.NewLongitude();
-        var city = TestValues.NewCity();
-        var state = TestValues.NewStateCodeText();
-        var zip = TestValues.NewZip();
-        var phoneNumber = TestValues.NewPhoneNumber();
-        var website = TestValues.NewWebsite();
-        var emailAddress = TestValues.NewEmailAddress();
+        var canonicalName = Generated.NewName();
+        var slug = Generated.NewSlug();
+        var latitude = Generated.NewLatitude();
+        var longitude = Generated.NewLongitude();
+        var city = Generated.NewCity();
+        var state = Generated.NewStateCodeText();
+        var zip = Generated.NewZip();
+        var phoneNumber = Generated.NewPhoneNumber();
+        var website = Generated.NewWebsite();
+        var emailAddress = Generated.NewEmailAddress();
         var denominationId = Guid.NewGuid();
-        var worshipStyle = TestValues.NewWorshipStyle();
-        var primaryLanguage = TestValues.NewLanguage();
-        var confidenceScore = TestValues.NewConfidenceScore();
-        var lastVerifiedAt = TestValues.NewUtcTimestamp();
-        var createdAt = TestValues.NewUtcTimestamp();
-        var updatedAt = TestValues.NewUtcTimestamp();
+        var worshipStyle = Generated.NewDefinedValue<WorshipStyle>();
+        var primaryLanguage = Generated.NewLanguage();
+        var confidenceScore = Generated.NewConfidenceScore();
+        var lastVerifiedAt = Generated.NewUtcTimestamp();
+        var createdAt = Generated.NewUtcTimestamp();
+        var updatedAt = Generated.NewUtcTimestamp();
         return
         [
             churchId, canonicalName, slug, latitude, longitude, street,
@@ -740,18 +863,18 @@ public sealed class SearchServiceTests
     private static object[] SearchRowNullable()
     {
         var churchId = Guid.NewGuid();
-        var canonicalName = TestValues.NewName();
-        var slug = TestValues.NewSlug();
-        var latitude = TestValues.NewLatitude();
-        var longitude = TestValues.NewLongitude();
-        var city = TestValues.NewCity();
-        var state = TestValues.NewStateCodeText();
-        var zip = TestValues.NewZip();
-        var worshipStyle = TestValues.NewWorshipStyle();
-        var primaryLanguage = TestValues.NewLanguage();
-        var confidenceScore = TestValues.NewConfidenceScore();
-        var createdAt = TestValues.NewUtcTimestamp();
-        var updatedAt = TestValues.NewUtcTimestamp();
+        var canonicalName = Generated.NewName();
+        var slug = Generated.NewSlug();
+        var latitude = Generated.NewLatitude();
+        var longitude = Generated.NewLongitude();
+        var city = Generated.NewCity();
+        var state = Generated.NewStateCodeText();
+        var zip = Generated.NewZip();
+        var worshipStyle = Generated.NewDefinedValue<WorshipStyle>();
+        var primaryLanguage = Generated.NewLanguage();
+        var confidenceScore = Generated.NewConfidenceScore();
+        var createdAt = Generated.NewUtcTimestamp();
+        var updatedAt = Generated.NewUtcTimestamp();
         return
         [
             churchId, canonicalName, slug, latitude, longitude, DBNull.Value,

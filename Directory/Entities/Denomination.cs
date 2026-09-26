@@ -2,11 +2,11 @@ namespace Directory.Entities;
 
 public sealed class Denomination
 {
-    public Guid Id { get; init; } = Guid.CreateVersion7(DateTimeOffset.UtcNow);
+    public required Guid Id { get; init; }
 
-    required public string Name { get; set; }
+    public required string Name { get; set; }
 
-    public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
+    public required DateTimeOffset CreatedAt { get; init; }
 
-    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public required DateTimeOffset UpdatedAt { get; set; }
 }

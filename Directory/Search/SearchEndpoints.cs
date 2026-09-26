@@ -2,9 +2,6 @@ namespace Directory.Search;
 
 using System.Diagnostics.CodeAnalysis;
 
-using Entities;
-using Enums;
-
 [ExcludeFromCodeCoverage]
 public static class SearchEndpoints
 {
@@ -32,6 +29,11 @@ public static class SearchEndpoints
                 page,
                 pageSize,
                 request.Sort);
+            if (SearchService.DescribeInvalidQuery(query) is { } invalid)
+            {
+                return Results.BadRequest(invalid);
+            }
+
             var (items, totalCount) = await service.SearchAsync(query, ct);
             return Results.Ok(new SearchPagedResult(items, totalCount, page, pageSize));
         }).WithTags("Search");
@@ -39,43 +41,3 @@ public static class SearchEndpoints
         return app;
     }
 }
-
-public readonly record struct SearchRequest(
-    string? Q,
-    double? Lat,
-    double? Lng,
-    double? RadiusMiles,
-    string? State,
-    Guid? DenominationId,
-    WorshipStyle? WorshipStyle,
-    bool? WheelchairAccessible,
-    int? DayOfWeek,
-    TimeOnly? StartTimeBefore,
-    TimeOnly? StartTimeAfter,
-    string? Sort,
-    int Page = 1,
-    int PageSize = 20);
-
-public record SearchQuery(
-    string? Q,
-    double? Lat,
-    double? Lng,
-    double? RadiusMiles,
-    string? State,
-    Guid? DenominationId,
-    WorshipStyle? WorshipStyle,
-    bool? WheelchairAccessible,
-    int? DayOfWeek,
-    TimeOnly? StartTimeBefore,
-    TimeOnly? StartTimeAfter,
-    int Page,
-    int PageSize,
-    string? Sort = null);
-
-public record SearchResult(Church Church, double? DistanceMiles);
-
-public record SearchPagedResult(
-    IReadOnlyList<SearchResult> Items,
-    int TotalCount,
-    int Page,
-    int PageSize);

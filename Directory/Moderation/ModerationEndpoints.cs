@@ -1,20 +1,27 @@
 namespace Directory.Moderation;
 
 using System.Diagnostics.CodeAnalysis;
-
 using System.Security.Claims;
-using Church;
-using Entities;
-using Enums;
+using Directory.Church;
+using Directory.Entities;
+using Directory.Enums;
 
 [ExcludeFromCodeCoverage]
 public static class ModerationEndpoints
 {
+    internal const string Route = "/corrections";
+
+    internal const string ApproveSegment = "/approve";
+
+    internal const string RejectSegment = "/reject";
+
+    internal const string MergeSegment = "/merge";
+
     private const string ChurchesModPolicy = AuthorizationPolicies.ChurchesModPolicy;
 
     public static IEndpointRouteBuilder MapModerationEndpoints(this IEndpointRouteBuilder app)
     {
-        var modGroup = app.MapGroup("/corrections")
+        var modGroup = app.MapGroup(Route)
             .WithTags("Moderation");
 
         modGroup.MapGet("/", async (
@@ -58,11 +65,12 @@ public static class ModerationEndpoints
 
             var id = await service.SubmitCorrectionAsync(
                 req.ChurchId, userId, req.Field, req.OldValue, req.NewValue, ct);
-            return Results.Accepted($"/corrections/{id}", new { Id = id });
+            return Results.Accepted($"{Route}/{id}", new { Id = id });
         }).RequireAuthorization(AuthorizationPolicies.DirectoryPolicy);
 
-        modGroup.MapPatch("/{id:guid}/approve", async (
+        modGroup.MapPatch($"/{{id:guid}}{ApproveSegment}", async (
             Guid id,
+            Guid? survivingId,
             ClaimsPrincipal user,
             ModerationService service,
             CancellationToken ct) =>
@@ -72,11 +80,22 @@ public static class ModerationEndpoints
                 return Results.Unauthorized();
             }
 
+            var correction = await service.GetCorrectionByIdAsync(id, ct);
+            if (correction is null || correction.Status != CorrectionStatus.Pending)
+            {
+                return Results.NotFound();
+            }
+
+            if (await service.ApplyCorrectionAsync(correction, reviewedBy, survivingId, ct) is { } refusal)
+            {
+                return Results.BadRequest(refusal);
+            }
+
             var updated = await service.ReviewCorrectionAsync(id, CorrectionStatus.Approved, reviewedBy, ct);
             return updated ? Results.NoContent() : Results.NotFound();
         }).RequireAuthorization(ChurchesModPolicy);
 
-        modGroup.MapPatch("/{id:guid}/reject", async (
+        modGroup.MapPatch($"/{{id:guid}}{RejectSegment}", async (
             Guid id,
             ClaimsPrincipal user,
             ModerationService service,
@@ -91,7 +110,7 @@ public static class ModerationEndpoints
             return updated ? Results.NoContent() : Results.NotFound();
         }).RequireAuthorization(ChurchesModPolicy);
 
-        app.MapPost("/churches/{survivingId:guid}/merge/{absorbedId:guid}", async (
+        app.MapPost($"{ChurchEndpoints.Route}/{{survivingId:guid}}{MergeSegment}/{{absorbedId:guid}}", async (
             Guid survivingId,
             Guid absorbedId,
             ClaimsPrincipal user,
@@ -110,5 +129,3 @@ public static class ModerationEndpoints
         return app;
     }
 }
-
-public record SubmitCorrectionRequest(Guid ChurchId, string Field, string? OldValue, string NewValue);

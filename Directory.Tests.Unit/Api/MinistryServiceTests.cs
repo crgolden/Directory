@@ -1,20 +1,20 @@
 namespace Directory.Tests.Unit.Api;
 
-using Ministries;
-using TestSupport;
+using Directory.Ministries;
+using Directory.Tests.Unit.TestSupport;
 
+[Trait("Category", "Unit")]
 public sealed class MinistryServiceTests
 {
     private const int OneRowAffected = 1;
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task CreateAsync_InsertsMinistry()
     {
         // Arrange
         var churchId = Guid.NewGuid();
-        var ministryName = TestValues.NewName();
-        var ministryDescription = TestValues.NewName();
+        var ministryName = Generated.NewName();
+        var ministryDescription = Generated.NewName();
         var conn = new FakeDbConnection();
         var service = new MinistryService(conn);
 
@@ -30,13 +30,12 @@ public sealed class MinistryServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task CreateAsync_BlankName_ThrowsWithoutTouchingDb()
     {
         // Arrange
         var churchId = Guid.NewGuid();
-        var name = TestValues.NewBlank();
-        var ministryDescription = TestValues.NewName();
+        var name = Generated.NewBlank();
+        var ministryDescription = Generated.NewName();
         var conn = new FakeDbConnection();
         var service = new MinistryService(conn);
 
@@ -51,12 +50,11 @@ public sealed class MinistryServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task UpdateAsync_RowAffected_ReturnsTrue()
     {
         // Arrange
         var ministryId = Guid.NewGuid();
-        var ministryName = TestValues.NewName();
+        var ministryName = Generated.NewName();
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithNonQueryResult(OneRowAffected));
         var service = new MinistryService(conn);
@@ -72,13 +70,12 @@ public sealed class MinistryServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task UpdateAsync_BlankName_ThrowsWithoutTouchingDb()
     {
         // Arrange
         var ministryId = Guid.NewGuid();
-        var name = TestValues.NewBlank();
-        var ministryDescription = TestValues.NewName();
+        var name = Generated.NewBlank();
+        var ministryDescription = Generated.NewName();
         var conn = new FakeDbConnection();
         var service = new MinistryService(conn);
 
@@ -93,7 +90,6 @@ public sealed class MinistryServiceTests
     }
 
     [Fact]
-    [Trait("Category", "Unit")]
     public async Task DeleteAsync_NoRow_ReturnsFalse()
     {
         // Arrange

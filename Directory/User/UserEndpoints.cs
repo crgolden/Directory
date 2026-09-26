@@ -1,8 +1,8 @@
 namespace Directory.User;
 
 using System.Diagnostics.CodeAnalysis;
-
 using System.Security.Claims;
+using Microsoft.IdentityModel.JsonWebTokens;
 
 [ExcludeFromCodeCoverage]
 public static class UserEndpoints
@@ -19,10 +19,9 @@ public static class UserEndpoints
             return Results.Ok(new
             {
                 IsAuthenticated = true,
-                Sub = user.FindFirstValue("sub"),
-                Email = user.FindFirstValue("email"),
-                Name = user.FindFirstValue("name"),
-                HasModerationScope = user.HasClaim(AuthorizationPolicies.ScopeClaimType, AuthorizationPolicies.ChurchesModScope),
+                Sub = user.FindFirstValue(AuthorizationPolicies.SubjectClaimType),
+                Email = user.FindFirstValue(JwtRegisteredClaimNames.Email),
+                Name = user.FindFirstValue(JwtRegisteredClaimNames.Name),
             });
         }).WithTags("User").AllowAnonymous();
 
