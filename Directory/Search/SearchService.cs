@@ -97,55 +97,8 @@ public sealed class SearchService
         return sb.ToString();
     }
 
-    internal static string? DescribeInvalidQuery(SearchQuery q)
-    {
-        if (!string.IsNullOrWhiteSpace(q.Q) && BuildTermConditions(q.Q).Count == 0)
-        {
-            return "q must contain at least one letter or number.";
-        }
-
-        if (q.WorshipStyle.HasValue && !Enum.IsDefined(q.WorshipStyle.Value))
-        {
-            return "worshipStyle must be one of 0-5.";
-        }
-
-        if (q.DayOfWeek is < 0 or > 6)
-        {
-            return "dayOfWeek must be 0 (Sunday) through 6 (Saturday).";
-        }
-
-        if (!string.IsNullOrWhiteSpace(q.State) && !Shared.Domain.StateCodes.TryParse(q.State, out _))
-        {
-            return $"Unknown state code '{q.State}'.";
-        }
-
-        if (q.Lat.HasValue != q.Lng.HasValue)
-        {
-            return "lat and lng must be supplied together.";
-        }
-
-        if (q.Lat is < -90 or > 90 || q.Lng is < -180 or > 180)
-        {
-            return "lat must be between -90 and 90, and lng between -180 and 180.";
-        }
-
-        if (q.RadiusMiles.HasValue && !q.Lat.HasValue)
-        {
-            return "radiusMiles needs lat and lng.";
-        }
-
-        if (q.RadiusMiles is <= 0)
-        {
-            return "radiusMiles must be greater than zero.";
-        }
-
-        if (q.StartTimeAfter.HasValue && q.StartTimeBefore.HasValue && q.StartTimeAfter > q.StartTimeBefore)
-        {
-            return "startTimeAfter must be earlier than startTimeBefore.";
-        }
-
-        return null;
-    }
+    internal static string? DescribeInvalidQuery(SearchQuery q) =>
+        DescribeInvalidFilters(q) ?? DescribeInvalidLocation(q) ?? DescribeInvalidTimeWindow(q);
 
     internal static IReadOnlyList<string> BuildTermConditions(string? q)
     {
@@ -231,6 +184,66 @@ public sealed class SearchService
 
         AddParam(cmd, SqlParameters.Offset, (q.Page - 1) * q.PageSize);
         AddParam(cmd, SqlParameters.PageSize, q.PageSize);
+    }
+
+    private static string? DescribeInvalidFilters(SearchQuery q)
+    {
+        if (!string.IsNullOrWhiteSpace(q.Q) && BuildTermConditions(q.Q).Count == 0)
+        {
+            return "q must contain at least one letter or number.";
+        }
+
+        if (q.WorshipStyle.HasValue && !Enum.IsDefined(q.WorshipStyle.Value))
+        {
+            return "worshipStyle must be one of 0-5.";
+        }
+
+        if (q.DayOfWeek is < 0 or > 6)
+        {
+            return "dayOfWeek must be 0 (Sunday) through 6 (Saturday).";
+        }
+
+        if (!string.IsNullOrWhiteSpace(q.State) && !Shared.Domain.StateCodes.TryParse(q.State, out _))
+        {
+            return $"Unknown state code '{q.State}'.";
+        }
+
+        return null;
+    }
+
+    private static string? DescribeInvalidLocation(SearchQuery q)
+    {
+        if (q.Lat.HasValue != q.Lng.HasValue)
+        {
+            return "lat and lng must be supplied together.";
+        }
+
+        if (q.Lat is < -90 or > 90 || q.Lng is < -180 or > 180)
+        {
+            return "lat must be between -90 and 90, and lng between -180 and 180.";
+        }
+
+        if (q.RadiusMiles.HasValue && !q.Lat.HasValue)
+        {
+            return "radiusMiles needs lat and lng.";
+        }
+
+        if (q.RadiusMiles is <= 0)
+        {
+            return "radiusMiles must be greater than zero.";
+        }
+
+        return null;
+    }
+
+    private static string? DescribeInvalidTimeWindow(SearchQuery q)
+    {
+        if (q.StartTimeAfter.HasValue && q.StartTimeBefore.HasValue && q.StartTimeAfter > q.StartTimeBefore)
+        {
+            return "startTimeAfter must be earlier than startTimeBefore.";
+        }
+
+        return null;
     }
 
     private static string BuildFromAndWhere(SearchQuery q, int termCount, bool hasDistance)
