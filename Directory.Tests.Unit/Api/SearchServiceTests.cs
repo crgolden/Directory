@@ -9,8 +9,6 @@ using Directory.Tests.Unit.TestSupport;
 [Trait("Category", "Unit")]
 public sealed class SearchServiceTests
 {
-    public static TheoryData<string?> NullAndWhitespaceQueries() => new() { (string?)null, Generated.NewBlank() };
-
     [Fact]
     public async Task SearchAsync_IncludesDistanceColumn_WhenGeoFilterProvided()
     {
@@ -443,12 +441,24 @@ public sealed class SearchServiceTests
         Assert.Empty(conditions);
     }
 
-    [Theory]
-    [MemberData(nameof(NullAndWhitespaceQueries))]
-    public void BuildTermConditions_NullOrWhitespace_ReturnsNoTerms(string? query)
+    [Fact]
+    public void BuildTermConditions_Null_ReturnsNoTerms()
     {
         // Act
-        var conditions = SearchService.BuildTermConditions(query);
+        var conditions = SearchService.BuildTermConditions(null);
+
+        // Assert
+        Assert.Empty(conditions);
+    }
+
+    [Fact]
+    public void BuildTermConditions_Blank_ReturnsNoTerms()
+    {
+        // Arrange
+        var blankQuery = Generated.NewBlank();
+
+        // Act
+        var conditions = SearchService.BuildTermConditions(blankQuery);
 
         // Assert
         Assert.Empty(conditions);

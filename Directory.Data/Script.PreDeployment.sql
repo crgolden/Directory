@@ -6,14 +6,7 @@ IF EXISTS (
       AND name = N'UserId'
       AND TYPE_NAME(system_type_id) = N'nvarchar')
 BEGIN
-    EXEC (N'
-        IF EXISTS (
-            SELECT 1 FROM [dbo].[UserCorrections]
-            WHERE ([UserId] <> N''system'' AND TRY_CONVERT(UNIQUEIDENTIFIER, [UserId]) IS NULL)
-               OR ([ReviewedBy] <> N''system-auto-merge'' AND TRY_CONVERT(UNIQUEIDENTIFIER, [ReviewedBy]) IS NULL))
-        BEGIN
-            THROW 50001, N''UserCorrections holds a UserId that is neither a GUID nor system, or a ReviewedBy that is neither a GUID nor system-auto-merge. Correct those rows before publishing.'', 1;
-        END;');
+    EXEC (N'IF EXISTS (SELECT 1 FROM [dbo].[UserCorrections] WHERE ([UserId] <> N''system'' AND TRY_CONVERT(UNIQUEIDENTIFIER, [UserId]) IS NULL) OR ([ReviewedBy] <> N''system-auto-merge'' AND TRY_CONVERT(UNIQUEIDENTIFIER, [ReviewedBy]) IS NULL)) BEGIN THROW 50001, N''UserCorrections holds a UserId that is neither a GUID nor system, or a ReviewedBy that is neither a GUID nor system-auto-merge. Correct those rows before publishing.'', 1; END;');
 
     BEGIN TRANSACTION;
 
@@ -34,21 +27,7 @@ BEGIN
         );
     END;
 
-    EXEC (N'
-        INSERT INTO [dbo].[UserCorrections_GuidMigration]
-            ([Id], [ChurchId], [UserId], [Field], [OldValue], [NewValue], [Status], [ReviewedBy], [ReviewedAt], [CreatedAt])
-        SELECT
-            [Id],
-            [ChurchId],
-            CASE WHEN [UserId] = N''system'' THEN NULL ELSE CONVERT(UNIQUEIDENTIFIER, [UserId]) END,
-            [Field],
-            [OldValue],
-            [NewValue],
-            [Status],
-            CASE WHEN [ReviewedBy] = N''system-auto-merge'' THEN NULL ELSE CONVERT(UNIQUEIDENTIFIER, [ReviewedBy]) END,
-            [ReviewedAt],
-            [CreatedAt]
-        FROM [dbo].[UserCorrections];');
+    EXEC (N'INSERT INTO [dbo].[UserCorrections_GuidMigration] ([Id], [ChurchId], [UserId], [Field], [OldValue], [NewValue], [Status], [ReviewedBy], [ReviewedAt], [CreatedAt]) SELECT [Id], [ChurchId], CASE WHEN [UserId] = N''system'' THEN NULL ELSE CONVERT(UNIQUEIDENTIFIER, [UserId]) END, [Field], [OldValue], [NewValue], [Status], CASE WHEN [ReviewedBy] = N''system-auto-merge'' THEN NULL ELSE CONVERT(UNIQUEIDENTIFIER, [ReviewedBy]) END, [ReviewedAt], [CreatedAt] FROM [dbo].[UserCorrections];');
 
     DELETE FROM [dbo].[UserCorrections];
 
@@ -61,11 +40,7 @@ IF EXISTS (
       AND name = N'MergedBy'
       AND TYPE_NAME(system_type_id) = N'nvarchar')
 BEGIN
-    EXEC (N'
-        IF EXISTS (SELECT 1 FROM [dbo].[MergeAuditLog] WHERE [MergedBy] <> N''system-auto-merge'' AND TRY_CONVERT(UNIQUEIDENTIFIER, [MergedBy]) IS NULL)
-        BEGIN
-            THROW 50002, N''MergeAuditLog holds a MergedBy that is neither a GUID nor system-auto-merge. Correct those rows before publishing.'', 1;
-        END;');
+    EXEC (N'IF EXISTS (SELECT 1 FROM [dbo].[MergeAuditLog] WHERE [MergedBy] <> N''system-auto-merge'' AND TRY_CONVERT(UNIQUEIDENTIFIER, [MergedBy]) IS NULL) BEGIN THROW 50002, N''MergeAuditLog holds a MergedBy that is neither a GUID nor system-auto-merge. Correct those rows before publishing.'', 1; END;');
 
     BEGIN TRANSACTION;
 
@@ -82,11 +57,7 @@ BEGIN
         );
     END;
 
-    EXEC (N'
-        INSERT INTO [dbo].[MergeAuditLog_GuidMigration]
-            ([Id], [SurvivingId], [AbsorbedId], [MergedBy], [MergedAt], [FieldsOverridden])
-        SELECT [Id], [SurvivingId], [AbsorbedId], CASE WHEN [MergedBy] = N''system-auto-merge'' THEN NULL ELSE CONVERT(UNIQUEIDENTIFIER, [MergedBy]) END, [MergedAt], [FieldsOverridden]
-        FROM [dbo].[MergeAuditLog];');
+    EXEC (N'INSERT INTO [dbo].[MergeAuditLog_GuidMigration] ([Id], [SurvivingId], [AbsorbedId], [MergedBy], [MergedAt], [FieldsOverridden]) SELECT [Id], [SurvivingId], [AbsorbedId], CASE WHEN [MergedBy] = N''system-auto-merge'' THEN NULL ELSE CONVERT(UNIQUEIDENTIFIER, [MergedBy]) END, [MergedAt], [FieldsOverridden] FROM [dbo].[MergeAuditLog];');
 
     DELETE FROM [dbo].[MergeAuditLog];
 

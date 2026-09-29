@@ -212,9 +212,9 @@ public sealed class ChurchServiceTests
             Generated.NewPage(), Generated.NewPageSize(), TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Single(items);
+        var item = Assert.Single(items);
         Assert.Equal(expectedTotalCount, totalCount);
-        Assert.Equal(StoredCanonicalName, items[0].CanonicalName);
+        Assert.Equal(StoredCanonicalName, item.CanonicalName);
     }
 
     [Fact]
@@ -302,9 +302,9 @@ public sealed class ChurchServiceTests
         // Assert
         Assert.NotNull(result);
         Assert.NotNull(result.Campuses);
-        Assert.Single(result.Campuses);
-        Assert.Equal(CampusName, result.Campuses[0].Name);
-        Assert.Equal(CampusLatitude, result.Campuses[0].Latitude);
+        var campus = Assert.Single(result.Campuses);
+        Assert.Equal(CampusName, campus.Name);
+        Assert.Equal(CampusLatitude, campus.Latitude);
     }
 
     [Fact]

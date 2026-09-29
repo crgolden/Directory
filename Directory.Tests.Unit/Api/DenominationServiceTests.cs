@@ -53,8 +53,8 @@ public sealed class DenominationServiceTests
         var result = await service.GetAllAsync(TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Single(result);
-        Assert.Equal(denominationName, result[0].Name);
+        var denomination = Assert.Single(result);
+        Assert.Equal(denominationName, denomination.Name);
     }
 
     [Fact]

@@ -36,8 +36,7 @@ public sealed class AdminServiceTests
         var rows = AdminService.ParseCsv(csv).ToList();
 
         // Assert
-        Assert.Single(rows);
-        var r = rows[0];
+        var r = Assert.Single(rows);
         Assert.Equal(canonicalName, r.CanonicalName);
         Assert.Equal(street, r.Street);
         Assert.Equal(city, r.City);

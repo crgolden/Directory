@@ -2,7 +2,7 @@
 
 [![Build and deploy ASP.Net Core app to Azure Web App - crgolden-directory](https://github.com/crgolden/Directory/actions/workflows/main_crgolden-directory.yml/badge.svg)](https://github.com/crgolden/Directory/actions/workflows/main_crgolden-directory.yml)
 
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=crgolden_Directory&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=crgolden_Directory)
+[![Quality gate](https://sonarcloud.io/api/project_badges/quality_gate?project=crgolden_Directory)](https://sonarcloud.io/summary/new_code?id=crgolden_Directory)
 
 ASP.NET Core 10 Minimal API serving a nationwide U.S. church directory, backed by SQL Server through BCL ADO.NET (no EF Core, no Dapper). Public search and church lookup are anonymous; correction submissions require a `directory`-scoped JWT, and moderation/crawl operations require the `churches.mod` claim. Observable via OpenTelemetry (Grafana Alloy) and documented via OpenAPI.
 
