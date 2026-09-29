@@ -17,10 +17,10 @@ public sealed class SearchServiceTests
         var searchLongitude = Generated.NewLongitude();
         var conn = BuildConn(out var cmd);
         var service = new SearchService(conn);
+        var query = UnfilteredQuery() with { Lat = searchLatitude, Lng = searchLongitude };
 
         // Act
-        await service.SearchAsync(
-            QueryWith(lat: searchLatitude, lng: searchLongitude), TestContext.Current.CancellationToken);
+        await service.SearchAsync(query, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Contains("fn_HaversineDistance", cmd.CapturedCommandText, StringComparison.Ordinal);
@@ -34,7 +34,7 @@ public sealed class SearchServiceTests
         var service = new SearchService(conn);
 
         // Act
-        await service.SearchAsync(QueryWith(), TestContext.Current.CancellationToken);
+        await service.SearchAsync(UnfilteredQuery(), TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Contains("CAST(NULL AS FLOAT)", cmd.CapturedCommandText, StringComparison.Ordinal);
@@ -50,7 +50,7 @@ public sealed class SearchServiceTests
         var service = new SearchService(conn);
 
         // Act
-        await service.SearchAsync(QueryWith(q: searchKeyword), TestContext.Current.CancellationToken);
+        await service.SearchAsync(UnfilteredQuery() with { Q = searchKeyword }, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Contains("CONTAINSTABLE", cmd.CapturedCommandText, StringComparison.Ordinal);
@@ -65,7 +65,7 @@ public sealed class SearchServiceTests
         var service = new SearchService(conn);
 
         // Act
-        await service.SearchAsync(QueryWith(), TestContext.Current.CancellationToken);
+        await service.SearchAsync(UnfilteredQuery(), TestContext.Current.CancellationToken);
 
         // Assert
         Assert.DoesNotContain("CONTAINSTABLE", cmd.CapturedCommandText, StringComparison.Ordinal);
@@ -78,9 +78,10 @@ public sealed class SearchServiceTests
         var punctuationOnlyQuery = Generated.NewPunctuationOnlyQuery();
         var conn = BuildConn(out var cmd);
         var service = new SearchService(conn);
+        var query = UnfilteredQuery() with { Q = punctuationOnlyQuery };
 
         // Act
-        await service.SearchAsync(QueryWith(q: punctuationOnlyQuery), TestContext.Current.CancellationToken);
+        await service.SearchAsync(query, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.DoesNotContain("CONTAINSTABLE", cmd.CapturedCommandText, StringComparison.Ordinal);
@@ -93,9 +94,10 @@ public sealed class SearchServiceTests
         var stateFilter = Generated.NewStateCodeText();
         var conn = BuildConn(out var cmd);
         var service = new SearchService(conn);
+        var query = UnfilteredQuery() with { State = stateFilter };
 
         // Act
-        await service.SearchAsync(QueryWith(state: stateFilter), TestContext.Current.CancellationToken);
+        await service.SearchAsync(query, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Contains(SqlParameters.State, cmd.CapturedCommandText, StringComparison.Ordinal);
@@ -110,7 +112,7 @@ public sealed class SearchServiceTests
 
         // Act
         await service.SearchAsync(
-            QueryWith(wheelchairAccessible: true), TestContext.Current.CancellationToken);
+            UnfilteredQuery() with { WheelchairAccessible = true }, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Contains(SqlParameters.WheelchairAccessible, cmd.CapturedCommandText, StringComparison.Ordinal);
@@ -124,10 +126,10 @@ public sealed class SearchServiceTests
         var searchLongitude = Generated.NewLongitude();
         var conn = BuildConn(out var cmd);
         var service = new SearchService(conn);
+        var query = UnfilteredQuery() with { Lat = searchLatitude, Lng = searchLongitude };
 
         // Act
-        await service.SearchAsync(
-            QueryWith(lat: searchLatitude, lng: searchLongitude), TestContext.Current.CancellationToken);
+        await service.SearchAsync(query, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Contains("ORDER BY", cmd.CapturedCommandText, StringComparison.Ordinal);
@@ -143,7 +145,7 @@ public sealed class SearchServiceTests
 
         // Act
         var (items, totalCount) = await service.SearchAsync(
-            QueryWith(), TestContext.Current.CancellationToken);
+            UnfilteredQuery(), TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Empty(items);
@@ -154,7 +156,7 @@ public sealed class SearchServiceTests
     public void BuildQuery_DenominationIdSet_AddsFilter()
     {
         var filteredDenominationId = Guid.NewGuid();
-        var query = QueryWith(denominationId: filteredDenominationId);
+        var query = UnfilteredQuery() with { DenominationId = filteredDenominationId };
 
         // Act
         var sql = SearchService.BuildQuery(query, out _);
@@ -167,7 +169,7 @@ public sealed class SearchServiceTests
     public void BuildQuery_WorshipStyleSet_AddsFilter()
     {
         var filteredWorshipStyle = Generated.NewDefinedValue<WorshipStyle>();
-        var query = QueryWith(worshipStyle: filteredWorshipStyle);
+        var query = UnfilteredQuery() with { WorshipStyle = filteredWorshipStyle };
 
         // Act
         var sql = SearchService.BuildQuery(query, out _);
@@ -181,7 +183,7 @@ public sealed class SearchServiceTests
     {
         // Arrange
         var filteredDayOfWeek = Generated.NewDayOfWeek();
-        var query = QueryWith(dayOfWeek: filteredDayOfWeek);
+        var query = UnfilteredQuery() with { DayOfWeek = filteredDayOfWeek };
 
         // Act
         var sql = SearchService.BuildQuery(query, out _);
@@ -198,7 +200,7 @@ public sealed class SearchServiceTests
     {
         // Arrange
         var earliestStartTime = Generated.NewTimeOfDay();
-        var query = QueryWith(startTimeAfter: earliestStartTime);
+        var query = UnfilteredQuery() with { StartTimeAfter = earliestStartTime };
 
         // Act
         var sql = SearchService.BuildQuery(query, out _);
@@ -214,7 +216,7 @@ public sealed class SearchServiceTests
     {
         // Arrange
         var latestStartTime = Generated.NewTimeOfDay();
-        var query = QueryWith(startTimeBefore: latestStartTime);
+        var query = UnfilteredQuery() with { StartTimeBefore = latestStartTime };
 
         // Act
         var sql = SearchService.BuildQuery(query, out _);
@@ -232,10 +234,12 @@ public sealed class SearchServiceTests
         var filteredDayOfWeek = Generated.NewDayOfWeek();
         var latestStartTime = Generated.NewTimeOfDay();
         var earliestStartTime = Generated.NewTimeOfDay();
-        var query = QueryWith(
-            dayOfWeek: filteredDayOfWeek,
-            startTimeBefore: latestStartTime,
-            startTimeAfter: earliestStartTime);
+        var query = UnfilteredQuery() with
+        {
+            DayOfWeek = filteredDayOfWeek,
+            StartTimeBefore = latestStartTime,
+            StartTimeAfter = earliestStartTime,
+        };
 
         // Act
         var sql = SearchService.BuildQuery(query, out _);
@@ -251,7 +255,7 @@ public sealed class SearchServiceTests
     {
         // Arrange
         var stateFilter = Generated.NewStateCodeText();
-        var query = QueryWith(state: stateFilter);
+        var query = UnfilteredQuery() with { State = stateFilter };
 
         // Act
         var sql = SearchService.BuildQuery(query, out _);
@@ -268,10 +272,12 @@ public sealed class SearchServiceTests
         var filteredDayOfWeek = (int)Generated.NewDayOfWeek();
         var earliestStartTime = Generated.NewTimeOfDay();
         var latestStartTime = Generated.NewTimeOfDay();
-        var query = QueryWith(
-            dayOfWeek: filteredDayOfWeek,
-            startTimeBefore: latestStartTime,
-            startTimeAfter: earliestStartTime);
+        var query = UnfilteredQuery() with
+        {
+            DayOfWeek = filteredDayOfWeek,
+            StartTimeBefore = latestStartTime,
+            StartTimeAfter = earliestStartTime,
+        };
 
         // Act
         SearchService.BindParams(cmd, query);
@@ -296,15 +302,17 @@ public sealed class SearchServiceTests
         var stateFilter = Generated.NewStateCodeText();
         var filteredDenominationId = Guid.NewGuid();
         var filteredWorshipStyle = Generated.NewDefinedValue<WorshipStyle>();
-        var query = QueryWith(
-            q: searchKeyword,
-            lat: searchLatitude,
-            lng: searchLongitude,
-            radiusMiles: searchRadiusMiles,
-            state: stateFilter,
-            denominationId: filteredDenominationId,
-            worshipStyle: filteredWorshipStyle,
-            wheelchairAccessible: true);
+        var query = UnfilteredQuery() with
+        {
+            Q = searchKeyword,
+            Lat = searchLatitude,
+            Lng = searchLongitude,
+            RadiusMiles = searchRadiusMiles,
+            State = stateFilter,
+            DenominationId = filteredDenominationId,
+            WorshipStyle = filteredWorshipStyle,
+            WheelchairAccessible = true,
+        };
 
         // Act
         SearchService.BindParams(cmd, query);
@@ -330,7 +338,7 @@ public sealed class SearchServiceTests
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithReaders(BuildCountTable(expectedTotalCount), table));
         var service = new SearchService(conn);
-        var query = QueryWith(lat: searchLatitude, lng: searchLongitude);
+        var query = UnfilteredQuery() with { Lat = searchLatitude, Lng = searchLongitude };
 
         // Act
         var (items, totalCount) = await service.SearchAsync(query, TestContext.Current.CancellationToken);
@@ -354,7 +362,7 @@ public sealed class SearchServiceTests
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithReaders(BuildCountTable(rowTotalCount), table));
         var service = new SearchService(conn);
-        var query = QueryWith(lat: searchLatitude, lng: searchLongitude);
+        var query = UnfilteredQuery() with { Lat = searchLatitude, Lng = searchLongitude };
 
         // Act
         var (items, _) = await service.SearchAsync(query, TestContext.Current.CancellationToken);
@@ -372,7 +380,7 @@ public sealed class SearchServiceTests
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithReaders(BuildCountTable(expectedTotalCount), table));
         var service = new SearchService(conn);
-        var query = QueryWith();
+        var query = UnfilteredQuery();
 
         // Act
         var (items, totalCount) = await service.SearchAsync(query, TestContext.Current.CancellationToken);
@@ -406,7 +414,7 @@ public sealed class SearchServiceTests
         var cityWord = Generated.NewKeyword();
 
         // Act
-        var sql = SearchService.BuildQuery(QueryWith(q: $"{nameWord} {cityWord}"), out _);
+        var sql = SearchService.BuildQuery(UnfilteredQuery() with { Q = $"{nameWord} {cityWord}" }, out _);
 
         // Assert
         Assert.Contains("CONTAINSTABLE([dbo].[Churches], ([CanonicalName], [City]), @Q0) AS ft0", sql, StringComparison.Ordinal);
@@ -483,7 +491,7 @@ public sealed class SearchServiceTests
     {
         // Arrange
         var searchKeyword = Generated.NewKeyword();
-        var query = QueryWith(q: searchKeyword, sort: SearchService.SortByRelevance);
+        var query = UnfilteredQuery() with { Q = searchKeyword, Sort = SearchService.SortByRelevance };
 
         // Act
         var sql = SearchService.BuildQuery(query, out _);
@@ -497,7 +505,7 @@ public sealed class SearchServiceTests
     public void BuildQuery_RelevanceSortWithoutUsableKeyword_FallsBackToName()
     {
         var punctuationOnlyQuery = Generated.NewPunctuationToken();
-        var query = QueryWith(q: punctuationOnlyQuery, sort: SearchService.SortByRelevance);
+        var query = UnfilteredQuery() with { Q = punctuationOnlyQuery, Sort = SearchService.SortByRelevance };
 
         // Act
         var sql = SearchService.BuildQuery(query, out _);
@@ -514,8 +522,13 @@ public sealed class SearchServiceTests
         var searchKeyword = Generated.NewKeyword();
         var searchLatitude = Generated.NewLatitude();
         var searchLongitude = Generated.NewLongitude();
-        var query = QueryWith(
-            q: searchKeyword, lat: searchLatitude, lng: searchLongitude, sort: SearchService.SortByName);
+        var query = UnfilteredQuery() with
+        {
+            Q = searchKeyword,
+            Lat = searchLatitude,
+            Lng = searchLongitude,
+            Sort = SearchService.SortByName,
+        };
 
         // Act
         var sql = SearchService.BuildQuery(query, out _);
@@ -532,8 +545,12 @@ public sealed class SearchServiceTests
         // Arrange
         var searchLatitude = Generated.NewLatitude();
         var searchLongitude = Generated.NewLongitude();
-        var query = QueryWith(
-            lat: searchLatitude, lng: searchLongitude, sort: SearchService.SortByDistance);
+        var query = UnfilteredQuery() with
+        {
+            Lat = searchLatitude,
+            Lng = searchLongitude,
+            Sort = SearchService.SortByDistance,
+        };
 
         // Act
         var sql = SearchService.BuildQuery(query, out _);
@@ -545,7 +562,7 @@ public sealed class SearchServiceTests
     [Fact]
     public void BuildQuery_DistanceSortWithoutGeo_FallsBackToName()
     {
-        var query = QueryWith(sort: SearchService.SortByDistance);
+        var query = UnfilteredQuery() with { Sort = SearchService.SortByDistance };
 
         // Act
         var sql = SearchService.BuildQuery(query, out _);
@@ -561,7 +578,7 @@ public sealed class SearchServiceTests
         var searchKeyword = Generated.NewKeyword();
         var searchLatitude = Generated.NewLatitude();
         var searchLongitude = Generated.NewLongitude();
-        var query = QueryWith(q: searchKeyword, lat: searchLatitude, lng: searchLongitude);
+        var query = UnfilteredQuery() with { Q = searchKeyword, Lat = searchLatitude, Lng = searchLongitude };
 
         // Act
         var sql = SearchService.BuildQuery(query, out _);
@@ -576,7 +593,7 @@ public sealed class SearchServiceTests
         // Arrange
         var searchLatitude = Generated.NewLatitude();
         var searchLongitude = Generated.NewLongitude();
-        var query = QueryWith(lat: searchLatitude, lng: searchLongitude);
+        var query = UnfilteredQuery() with { Lat = searchLatitude, Lng = searchLongitude };
 
         // Act
         var sql = SearchService.BuildQuery(query, out _);
@@ -588,7 +605,7 @@ public sealed class SearchServiceTests
     [Fact]
     public void BuildQuery_DefaultSort_NoKeywordNoGeo_UsesName()
     {
-        var query = QueryWith();
+        var query = UnfilteredQuery();
 
         // Act
         var sql = SearchService.BuildQuery(query, out _);
@@ -602,7 +619,7 @@ public sealed class SearchServiceTests
     {
         var cmd = new FakeDbCommand();
         var searchKeyword = Generated.NewKeyword();
-        var query = QueryWith(q: searchKeyword, sort: SearchService.SortByRelevance);
+        var query = UnfilteredQuery() with { Q = searchKeyword, Sort = SearchService.SortByRelevance };
 
         // Act
         SearchService.BindParams(cmd, query);
@@ -620,7 +637,7 @@ public sealed class SearchServiceTests
     {
         var cmd = new FakeDbCommand();
         var searchKeyword = Generated.NewKeyword();
-        var query = QueryWith(q: searchKeyword, sort: SearchService.SortByName);
+        var query = UnfilteredQuery() with { Q = searchKeyword, Sort = SearchService.SortByName };
 
         // Act
         SearchService.BindParams(cmd, query);
@@ -634,7 +651,7 @@ public sealed class SearchServiceTests
     public void DescribeInvalidQuery_PunctuationOnlyQuery_IsRejectedRatherThanMatchingEverything()
     {
         // Arrange
-        var query = QueryWith(q: Generated.NewPunctuationOnlyQuery());
+        var query = UnfilteredQuery() with { Q = Generated.NewPunctuationOnlyQuery() };
 
         // Act
         var invalid = SearchService.DescribeInvalidQuery(query);
@@ -647,7 +664,7 @@ public sealed class SearchServiceTests
     public void DescribeInvalidQuery_BlankQuery_IsAcceptedBecauseBrowsingIsNotSearching()
     {
         // Arrange
-        var query = QueryWith(q: Generated.NewBlank());
+        var query = UnfilteredQuery() with { Q = Generated.NewBlank() };
 
         // Act
         var invalid = SearchService.DescribeInvalidQuery(query);
@@ -660,7 +677,7 @@ public sealed class SearchServiceTests
     public void DescribeInvalidQuery_WorshipStyleOutsideTheEnum_IsRejected()
     {
         // Arrange
-        var query = QueryWith(worshipStyle: Generated.NewUndefinedValue<WorshipStyle>());
+        var query = UnfilteredQuery() with { WorshipStyle = Generated.NewUndefinedValue<WorshipStyle>() };
 
         // Act
         var invalid = SearchService.DescribeInvalidQuery(query);
@@ -674,7 +691,7 @@ public sealed class SearchServiceTests
     {
         // Arrange
         var unknownState = Generated.NewUnparseableStateCode();
-        var query = QueryWith(state: unknownState);
+        var query = UnfilteredQuery() with { State = unknownState };
 
         // Act
         var invalid = SearchService.DescribeInvalidQuery(query);
@@ -688,7 +705,7 @@ public sealed class SearchServiceTests
     public void DescribeInvalidQuery_RadiusWithoutCoordinates_IsRejected()
     {
         // Arrange
-        var query = QueryWith(radiusMiles: Generated.NewRadiusMiles() + 1);
+        var query = UnfilteredQuery() with { RadiusMiles = Generated.NewRadiusMiles() + 1 };
 
         // Act
         var invalid = SearchService.DescribeInvalidQuery(query);
@@ -701,10 +718,12 @@ public sealed class SearchServiceTests
     public void DescribeInvalidQuery_NegativeRadius_IsRejected()
     {
         // Arrange
-        var query = QueryWith(
-            lat: Generated.NewLatitude(),
-            lng: Generated.NewLongitude(),
-            radiusMiles: -Generated.NewRadiusMiles() - 1);
+        var query = UnfilteredQuery() with
+        {
+            Lat = Generated.NewLatitude(),
+            Lng = Generated.NewLongitude(),
+            RadiusMiles = -Generated.NewRadiusMiles() - 1,
+        };
 
         // Act
         var invalid = SearchService.DescribeInvalidQuery(query);
@@ -717,7 +736,11 @@ public sealed class SearchServiceTests
     public void DescribeInvalidQuery_LatitudeOffThePlanet_IsRejected()
     {
         // Arrange
-        var query = QueryWith(lat: Generated.NewLatitudeBeyondThePole(), lng: Generated.NewLongitude());
+        var query = UnfilteredQuery() with
+        {
+            Lat = Generated.NewLatitudeBeyondThePole(),
+            Lng = Generated.NewLongitude(),
+        };
 
         // Act
         var invalid = SearchService.DescribeInvalidQuery(query);
@@ -732,7 +755,7 @@ public sealed class SearchServiceTests
         // Arrange
         var earlier = Generated.NewTimeOfDayBeforeTheLastHour();
         var later = earlier.AddHours(1);
-        var query = QueryWith(startTimeAfter: later, startTimeBefore: earlier);
+        var query = UnfilteredQuery() with { StartTimeAfter = later, StartTimeBefore = earlier };
 
         // Act
         var invalid = SearchService.DescribeInvalidQuery(query);
@@ -745,14 +768,16 @@ public sealed class SearchServiceTests
     public void DescribeInvalidQuery_EveryFilterInRange_IsAccepted()
     {
         // Arrange
-        var query = QueryWith(
-            q: Generated.NewKeyword(),
-            lat: Generated.NewLatitude(),
-            lng: Generated.NewLongitude(),
-            radiusMiles: Generated.NewRadiusMiles() + 1,
-            state: Generated.NewStateCodeText(),
-            worshipStyle: Generated.NewDefinedValue<WorshipStyle>(),
-            dayOfWeek: Generated.NewDayOfWeek());
+        var query = UnfilteredQuery() with
+        {
+            Q = Generated.NewKeyword(),
+            Lat = Generated.NewLatitude(),
+            Lng = Generated.NewLongitude(),
+            RadiusMiles = Generated.NewRadiusMiles() + 1,
+            State = Generated.NewStateCodeText(),
+            WorshipStyle = Generated.NewDefinedValue<WorshipStyle>(),
+            DayOfWeek = Generated.NewDayOfWeek(),
+        };
 
         // Act
         var invalid = SearchService.DescribeInvalidQuery(query);
@@ -761,37 +786,24 @@ public sealed class SearchServiceTests
         Assert.Null(invalid);
     }
 
-    private static SearchQuery QueryWith(
-        string? q = null,
-        double? lat = null,
-        double? lng = null,
-        double? radiusMiles = null,
-        string? state = null,
-        Guid? denominationId = null,
-        WorshipStyle? worshipStyle = null,
-        bool? wheelchairAccessible = null,
-        int? dayOfWeek = null,
-        TimeOnly? startTimeBefore = null,
-        TimeOnly? startTimeAfter = null,
-        string? sort = null)
+    private static SearchQuery UnfilteredQuery()
     {
         var requestedPage = Generated.NewPage();
         var requestedPageSize = Generated.NewPageSize();
         return new SearchQuery(
-            q,
-            lat,
-            lng,
-            radiusMiles,
-            state,
-            denominationId,
-            worshipStyle,
-            wheelchairAccessible,
-            dayOfWeek,
-            startTimeBefore,
-            startTimeAfter,
-            requestedPage,
-            requestedPageSize,
-            sort);
+            Q: null,
+            Lat: null,
+            Lng: null,
+            RadiusMiles: null,
+            State: null,
+            DenominationId: null,
+            WorshipStyle: null,
+            WheelchairAccessible: null,
+            DayOfWeek: null,
+            StartTimeBefore: null,
+            StartTimeAfter: null,
+            Page: requestedPage,
+            PageSize: requestedPageSize);
     }
 
     private static FakeDbConnection BuildConn(out FakeDbCommand cmd)
