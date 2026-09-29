@@ -16,7 +16,7 @@ using static Directory.Tests.Unit.Api.AdminCsvFixtureConstants;
 public sealed class AdminServiceTests
 {
     [Fact]
-    public void ParseCsv_SingleRow_MapsAllFields()
+    public async Task ParseCsv_SingleRow_MapsAllFields()
     {
         // Arrange
         var canonicalName = Generated.NewName();
@@ -33,7 +33,8 @@ public sealed class AdminServiceTests
             string.Join(CsvFieldSeparator, canonicalName, street, city, state, zip, phoneNumber, website, emailAddress));
 
         // Act
-        var rows = AdminService.ParseCsv(csv).ToList();
+        using var reader = new StringReader(csv);
+        var rows = await AdminService.ParseCsvAsync(reader, TestContext.Current.CancellationToken).ToListAsync(TestContext.Current.CancellationToken);
 
         // Assert
         var r = Assert.Single(rows);
@@ -48,7 +49,7 @@ public sealed class AdminServiceTests
     }
 
     [Fact]
-    public void ParseCsv_MissingNameColumn_SkipsRow()
+    public async Task ParseCsv_MissingNameColumn_SkipsRow()
     {
         // Arrange
         var state = Generated.NewStateCodeText();
@@ -58,14 +59,15 @@ public sealed class AdminServiceTests
             string.Join(CsvFieldSeparator, Generated.NewBlank(), state));
 
         // Act
-        var rows = AdminService.ParseCsv(csv).ToList();
+        using var reader = new StringReader(csv);
+        var rows = await AdminService.ParseCsvAsync(reader, TestContext.Current.CancellationToken).ToListAsync(TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Empty(rows);
     }
 
     [Fact]
-    public void ParseCsv_StateIsNotAUspsCode_SkipsRow()
+    public async Task ParseCsv_StateIsNotAUspsCode_SkipsRow()
     {
         // Arrange
         var canonicalName = Generated.NewName();
@@ -76,14 +78,15 @@ public sealed class AdminServiceTests
             string.Join(CsvFieldSeparator, canonicalName, unparseableState));
 
         // Act
-        var rows = AdminService.ParseCsv(csv).ToList();
+        using var reader = new StringReader(csv);
+        var rows = await AdminService.ParseCsvAsync(reader, TestContext.Current.CancellationToken).ToListAsync(TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Empty(rows);
     }
 
     [Fact]
-    public void ParseCsv_StateIsAUspsCode_KeepsRow()
+    public async Task ParseCsv_StateIsAUspsCode_KeepsRow()
     {
         // Arrange
         var canonicalName = Generated.NewName();
@@ -94,7 +97,8 @@ public sealed class AdminServiceTests
             string.Join(CsvFieldSeparator, canonicalName, state));
 
         // Act
-        var rows = AdminService.ParseCsv(csv).ToList();
+        using var reader = new StringReader(csv);
+        var rows = await AdminService.ParseCsvAsync(reader, TestContext.Current.CancellationToken).ToListAsync(TestContext.Current.CancellationToken);
 
         // Assert
         var row = Assert.Single(rows);
@@ -103,7 +107,7 @@ public sealed class AdminServiceTests
     }
 
     [Fact]
-    public void ParseCsv_MissingStateColumn_SkipsRow()
+    public async Task ParseCsv_MissingStateColumn_SkipsRow()
     {
         // Arrange
         var canonicalName = Generated.NewName();
@@ -113,35 +117,38 @@ public sealed class AdminServiceTests
             string.Join(CsvFieldSeparator, canonicalName, Generated.NewBlank()));
 
         // Act
-        var rows = AdminService.ParseCsv(csv).ToList();
+        using var reader = new StringReader(csv);
+        var rows = await AdminService.ParseCsvAsync(reader, TestContext.Current.CancellationToken).ToListAsync(TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Empty(rows);
     }
 
     [Fact]
-    public void ParseCsv_EmptyBody_YieldsNothing()
+    public async Task ParseCsv_EmptyBody_YieldsNothing()
     {
         // Act
-        Assert.Empty(AdminService.ParseCsv(string.Empty));
+        Assert.Empty(await AdminService.ParseCsvAsync(TextReader.Null, TestContext.Current.CancellationToken).ToListAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact]
-    public void ParseCsv_HeaderOnly_YieldsNothing()
+    public async Task ParseCsv_HeaderOnly_YieldsNothing()
     {
         // Act
-        Assert.Empty(AdminService.ParseCsv(MinimalCsvHeader()));
+        using var reader = new StringReader(MinimalCsvHeader());
+        Assert.Empty(await AdminService.ParseCsvAsync(reader, TestContext.Current.CancellationToken).ToListAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact]
-    public void ParseCsv_MultipleRows_ParsesAll()
+    public async Task ParseCsv_MultipleRows_ParsesAll()
     {
         // Arrange
         var churchNames = new[] { Generated.NewName(), Generated.NewName() };
         var csv = BuildCsv(churchNames);
 
         // Act
-        var rows = AdminService.ParseCsv(csv).ToList();
+        using var reader = new StringReader(csv);
+        var rows = await AdminService.ParseCsvAsync(reader, TestContext.Current.CancellationToken).ToListAsync(TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(churchNames.Length, rows.Count);
@@ -158,7 +165,8 @@ public sealed class AdminServiceTests
         var (service, sender) = BuildService(new FakeDbConnection());
 
         // Act
-        var published = await service.ImportCsvAsync(csv, TestContext.Current.CancellationToken);
+        using var reader = new StringReader(csv);
+        var published = await service.ImportCsvAsync(reader, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(churchNames.Length, published);
@@ -174,7 +182,7 @@ public sealed class AdminServiceTests
         var (service, sender) = BuildService(new FakeDbConnection());
 
         // Act
-        var published = await service.ImportCsvAsync(string.Empty, TestContext.Current.CancellationToken);
+        var published = await service.ImportCsvAsync(TextReader.Null, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal(0, published);

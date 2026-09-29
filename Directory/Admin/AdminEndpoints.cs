@@ -27,8 +27,7 @@ public static class AdminEndpoints
             }
 
             using var reader = new StreamReader(file.OpenReadStream());
-            var csv = await reader.ReadToEndAsync(ct);
-            var published = await service.ImportCsvAsync(csv, ct);
+            var published = await service.ImportCsvAsync(reader, ct);
             return Results.Ok(new { published });
         }).DisableAntiforgery();
 

@@ -3,6 +3,7 @@ namespace Directory.Admin;
 using System.Data;
 using System.Data.Common;
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Text;
 using Azure.Messaging.ServiceBus;
 using Directory.Messaging;
@@ -25,12 +26,11 @@ public sealed class AdminService
         _serviceBusClient = serviceBusClientFactory.CreateClient(ServiceBusNames.Client);
     }
 
-    public async Task<int> ImportCsvAsync(string csv, CancellationToken ct = default)
+    public async Task<int> ImportCsvAsync(TextReader csv, CancellationToken ct = default)
     {
-        var rows = ParseCsv(csv);
         await using var sender = _serviceBusClient.CreateSender(ServiceBusNames.GeocodingRequests);
         var published = 0;
-        foreach (var row in rows)
+        await foreach (var row in ParseCsvAsync(csv, ct))
         {
             await sender.SendMessageAsync(
                 new ServiceBusMessage(System.Text.Json.JsonSerializer.Serialize(row)),
@@ -70,10 +70,11 @@ public sealed class AdminService
         return sb.ToString();
     }
 
-    internal static IEnumerable<ImportRow> ParseCsv(string csv)
+    internal static async IAsyncEnumerable<ImportRow> ParseCsvAsync(
+        TextReader reader,
+        [EnumeratorCancellation] CancellationToken ct = default)
     {
-        using var reader = new StringReader(csv);
-        var header = reader.ReadLine();
+        var header = await reader.ReadLineAsync(ct);
         if (header is null)
         {
             yield break;
@@ -90,7 +91,7 @@ public sealed class AdminService
         var emailIdx = IndexOf(columns, nameof(ImportRow.EmailAddress));
 
         string? line;
-        while ((line = reader.ReadLine()) is not null)
+        while ((line = await reader.ReadLineAsync(ct)) is not null)
         {
             var fields = line.Split(',');
             var name = SafeGet(fields, nameIdx);
