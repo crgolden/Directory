@@ -1,6 +1,7 @@
 namespace Directory.Tests.Unit.Api;
 
 using System.Globalization;
+using Directory.Church;
 using Directory.Entities;
 using Directory.Enums;
 using Directory.Moderation;
@@ -12,12 +13,13 @@ using Moq;
 public sealed class ModerationApplyCorrectionTests
 {
     [Fact]
-    public async Task ApplyCorrectionAsync_FieldCorrection_WritesTheNewValueToTheChurch()
+    public async Task ApplyCorrectionAsync_FieldCorrection_SavesTheChurchWithTheNewValue()
     {
         // Arrange
         var newPhoneNumber = Generated.NewPhoneNumber();
         var correction = CorrectionFor(nameof(Church.PhoneNumber), newPhoneNumber);
         var conn = new FakeDbConnection();
+        conn.Enqueue(FakeDbCommand.WithReader(ChurchRows.ActiveChurch(correction.ChurchId)));
         conn.Enqueue(FakeDbCommand.WithNonQueryResult(1));
         var service = NewService(conn);
 
@@ -26,14 +28,14 @@ public sealed class ModerationApplyCorrectionTests
 
         // Assert
         Assert.Null(refusal);
-        var cmd = Assert.Single(conn.ExecutedCommands);
-        Assert.Contains("UPDATE [dbo].[Churches] SET [PhoneNumber] = @NewValue", cmd.CapturedCommandText, StringComparison.Ordinal);
-        Assert.Equal(newPhoneNumber, cmd.Parameters[SqlParameters.NewValue].Value);
-        Assert.Equal(correction.ChurchId, cmd.Parameters[SqlParameters.ChurchId].Value);
+        var update = conn.ExecutedCommands[^1];
+        Assert.Contains("UPDATE [dbo].[Churches]", update.CapturedCommandText, StringComparison.Ordinal);
+        Assert.Equal(newPhoneNumber, update.Parameters[SqlParameters.PhoneNumber].Value);
+        Assert.Equal(correction.ChurchId, update.Parameters[SqlParameters.Id].Value);
     }
 
     [Fact]
-    public async Task ApplyCorrectionAsync_FieldOutsideTheCorrectableSet_WritesNothing()
+    public async Task ApplyCorrectionAsync_FieldOutsideTheCorrectableSet_ReadsAndWritesNothing()
     {
         // Arrange
         var correction = CorrectionFor(Generated.NewFieldName(), Generated.NewName());
@@ -49,11 +51,12 @@ public sealed class ModerationApplyCorrectionTests
     }
 
     [Fact]
-    public async Task ApplyCorrectionAsync_StateCorrectionThatIsNotAUspsCode_WritesNothing()
+    public async Task ApplyCorrectionAsync_BlankName_WritesNothing()
     {
         // Arrange
-        var correction = CorrectionFor(nameof(Church.State), Generated.NewUnparseableStateCode());
+        var correction = CorrectionFor(nameof(Church.CanonicalName), Generated.NewBlank());
         var conn = new FakeDbConnection();
+        conn.Enqueue(FakeDbCommand.WithReader(ChurchRows.ActiveChurch(correction.ChurchId)));
         var service = NewService(conn);
 
         // Act
@@ -61,7 +64,92 @@ public sealed class ModerationApplyCorrectionTests
 
         // Assert
         Assert.NotNull(refusal);
-        Assert.Empty(conn.ExecutedCommands);
+        Assert.Single(conn.ExecutedCommands);
+    }
+
+    [Fact]
+    public async Task ApplyCorrectionAsync_ChurchWhoseStoredRowIsInvalid_WritesNothing()
+    {
+        // Arrange
+        var correction = CorrectionFor(nameof(Church.PhoneNumber), Generated.NewPhoneNumber());
+        var conn = new FakeDbConnection();
+        conn.Enqueue(FakeDbCommand.WithReader(ChurchRows.ActiveChurchWithBlankCity(correction.ChurchId)));
+        var service = NewService(conn);
+
+        // Act
+        var refusal = await service.ApplyCorrectionAsync(correction, Generated.NewUserId(), null, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(refusal);
+        Assert.Single(conn.ExecutedCommands);
+    }
+
+    [Fact]
+    public async Task ApplyCorrectionAsync_InactiveChurch_WritesNothing()
+    {
+        // Arrange
+        var correction = CorrectionFor(nameof(Church.PhoneNumber), Generated.NewPhoneNumber());
+        var conn = new FakeDbConnection();
+        conn.Enqueue(FakeDbCommand.WithReader(ChurchRows.InactiveChurch(correction.ChurchId)));
+        var service = NewService(conn);
+
+        // Act
+        var refusal = await service.ApplyCorrectionAsync(correction, Generated.NewUserId(), null, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(refusal);
+        Assert.Single(conn.ExecutedCommands);
+    }
+
+    [Fact]
+    public async Task ApplyCorrectionAsync_MissingChurch_WritesNothing()
+    {
+        // Arrange
+        var correction = CorrectionFor(nameof(Church.PhoneNumber), Generated.NewPhoneNumber());
+        var conn = new FakeDbConnection();
+        conn.Enqueue(FakeDbCommand.WithReader(ChurchRows.Table(includeTotalCount: false)));
+        var service = NewService(conn);
+
+        // Act
+        var refusal = await service.ApplyCorrectionAsync(correction, Generated.NewUserId(), null, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(refusal);
+        Assert.Single(conn.ExecutedCommands);
+    }
+
+    [Fact]
+    public async Task ApplyCorrectionAsync_ChurchGoneBeforeTheSave_IsRefused()
+    {
+        // Arrange
+        var correction = CorrectionFor(nameof(Church.PhoneNumber), Generated.NewPhoneNumber());
+        var conn = new FakeDbConnection();
+        conn.Enqueue(FakeDbCommand.WithReader(ChurchRows.ActiveChurch(correction.ChurchId)));
+        conn.Enqueue(FakeDbCommand.WithNonQueryResult(0));
+        var service = NewService(conn);
+
+        // Act
+        var refusal = await service.ApplyCorrectionAsync(correction, Generated.NewUserId(), null, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(refusal);
+    }
+
+    [Fact]
+    public async Task ApplyCorrectionAsync_StateCorrectionThatIsNotAUspsCode_WritesNothing()
+    {
+        // Arrange
+        var correction = CorrectionFor(nameof(Church.State), Generated.NewUnparseableStateCode());
+        var conn = new FakeDbConnection();
+        conn.Enqueue(FakeDbCommand.WithReader(ChurchRows.ActiveChurch(correction.ChurchId)));
+        var service = NewService(conn);
+
+        // Act
+        var refusal = await service.ApplyCorrectionAsync(correction, Generated.NewUserId(), null, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(refusal);
+        Assert.Single(conn.ExecutedCommands);
     }
 
     [Fact]
@@ -71,6 +159,7 @@ public sealed class ModerationApplyCorrectionTests
         var style = Generated.NewDefinedValue<WorshipStyle>();
         var correction = CorrectionFor(nameof(Church.WorshipStyle), ((int)style).ToString(CultureInfo.InvariantCulture));
         var conn = new FakeDbConnection();
+        conn.Enqueue(FakeDbCommand.WithReader(ChurchRows.ActiveChurch(correction.ChurchId)));
         conn.Enqueue(FakeDbCommand.WithNonQueryResult(1));
         var service = NewService(conn);
 
@@ -79,9 +168,7 @@ public sealed class ModerationApplyCorrectionTests
 
         // Assert
         Assert.Null(refusal);
-        var cmd = Assert.Single(conn.ExecutedCommands);
-        Assert.Contains("[WorshipStyle] = @NewValue", cmd.CapturedCommandText, StringComparison.Ordinal);
-        Assert.Equal((int)style, cmd.Parameters[SqlParameters.NewValue].Value);
+        Assert.Equal((int)style, conn.ExecutedCommands[^1].Parameters[SqlParameters.WorshipStyle].Value);
     }
 
     [Fact]
@@ -92,6 +179,7 @@ public sealed class ModerationApplyCorrectionTests
             nameof(Church.WorshipStyle),
             ((int)Generated.NewUndefinedValue<WorshipStyle>()).ToString(CultureInfo.InvariantCulture));
         var conn = new FakeDbConnection();
+        conn.Enqueue(FakeDbCommand.WithReader(ChurchRows.ActiveChurch(correction.ChurchId)));
         var service = NewService(conn);
 
         // Act
@@ -99,7 +187,7 @@ public sealed class ModerationApplyCorrectionTests
 
         // Assert
         Assert.NotNull(refusal);
-        Assert.Empty(conn.ExecutedCommands);
+        Assert.Single(conn.ExecutedCommands);
     }
 
     [Theory]
@@ -110,6 +198,7 @@ public sealed class ModerationApplyCorrectionTests
         // Arrange
         var correction = CorrectionFor(nameof(Church.WheelchairAccessible), accessible.ToString());
         var conn = new FakeDbConnection();
+        conn.Enqueue(FakeDbCommand.WithReader(ChurchRows.ActiveChurch(correction.ChurchId)));
         conn.Enqueue(FakeDbCommand.WithNonQueryResult(1));
         var service = NewService(conn);
 
@@ -118,8 +207,7 @@ public sealed class ModerationApplyCorrectionTests
 
         // Assert
         Assert.Null(refusal);
-        var cmd = Assert.Single(conn.ExecutedCommands);
-        Assert.Equal(accessible, Assert.IsType<bool>(cmd.Parameters[SqlParameters.NewValue].Value));
+        Assert.Equal(accessible, Assert.IsType<bool>(conn.ExecutedCommands[^1].Parameters[SqlParameters.WheelchairAccessible].Value));
     }
 
     [Fact]
@@ -128,6 +216,7 @@ public sealed class ModerationApplyCorrectionTests
         // Arrange
         var correction = CorrectionFor(nameof(Church.DenominationId), Generated.NewName());
         var conn = new FakeDbConnection();
+        conn.Enqueue(FakeDbCommand.WithReader(ChurchRows.ActiveChurch(correction.ChurchId)));
         var service = NewService(conn);
 
         // Act
@@ -135,7 +224,7 @@ public sealed class ModerationApplyCorrectionTests
 
         // Assert
         Assert.NotNull(refusal);
-        Assert.Empty(conn.ExecutedCommands);
+        Assert.Single(conn.ExecutedCommands);
     }
 
     [Fact]
@@ -199,7 +288,10 @@ public sealed class ModerationApplyCorrectionTests
     }
 
     private static ModerationService NewService(FakeDbConnection conn) =>
-        new ModerationService(conn, Mock.Of<IAzureClientFactory<Azure.Messaging.ServiceBus.ServiceBusClient>>());
+        new ModerationService(
+            conn,
+            Mock.Of<IAzureClientFactory<Azure.Messaging.ServiceBus.ServiceBusClient>>(),
+            new ChurchService(conn));
 
     private static UserCorrection CorrectionFor(string field, string newValue) => new UserCorrection
     {

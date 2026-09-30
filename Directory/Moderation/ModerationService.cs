@@ -4,6 +4,7 @@ using System.Data;
 using System.Data.Common;
 using System.Text.Json;
 using Azure.Messaging.ServiceBus;
+using Directory.Church;
 using Directory.Entities;
 using Directory.Enums;
 using Directory.Messaging;
@@ -25,25 +26,52 @@ public sealed class ModerationService
 
     private const int SoftDeleteAndAuditWrites = 2;
 
-    private const string UpdateSuffix = " = @NewValue, [UpdatedAt] = @Now WHERE [Id] = @ChurchId AND [IsActive] = 1";
+    private const string ChurchNotActive = "That church is no longer active.";
 
-    private static readonly Dictionary<string, string> CorrectableUpdates = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly Dictionary<string, Func<Church, string, bool>> CorrectionAppliers = new(StringComparer.OrdinalIgnoreCase)
     {
-        [ChurchJsonNames.CanonicalName] = "UPDATE [dbo].[Churches] SET [CanonicalName]" + UpdateSuffix,
-        [ChurchJsonNames.Street] = "UPDATE [dbo].[Churches] SET [Street]" + UpdateSuffix,
-        [ChurchJsonNames.City] = "UPDATE [dbo].[Churches] SET [City]" + UpdateSuffix,
-        [ChurchJsonNames.State] = "UPDATE [dbo].[Churches] SET [State]" + UpdateSuffix,
-        [ChurchJsonNames.Zip] = "UPDATE [dbo].[Churches] SET [Zip]" + UpdateSuffix,
-        [ChurchJsonNames.PhoneNumber] = "UPDATE [dbo].[Churches] SET [PhoneNumber]" + UpdateSuffix,
-        [ChurchJsonNames.Website] = "UPDATE [dbo].[Churches] SET [Website]" + UpdateSuffix,
-        [ChurchJsonNames.EmailAddress] = "UPDATE [dbo].[Churches] SET [EmailAddress]" + UpdateSuffix,
-        [ChurchJsonNames.PrimaryLanguage] = "UPDATE [dbo].[Churches] SET [PrimaryLanguage]" + UpdateSuffix,
-        [ChurchJsonNames.WorshipStyle] = "UPDATE [dbo].[Churches] SET [WorshipStyle]" + UpdateSuffix,
-        [ChurchJsonNames.DenominationId] = "UPDATE [dbo].[Churches] SET [DenominationId]" + UpdateSuffix,
-        [ChurchJsonNames.WheelchairAccessible] = "UPDATE [dbo].[Churches] SET [WheelchairAccessible]" + UpdateSuffix,
-        [ChurchJsonNames.HasNursery] = "UPDATE [dbo].[Churches] SET [HasNursery]" + UpdateSuffix,
-        [ChurchJsonNames.HasYouthProgram] = "UPDATE [dbo].[Churches] SET [HasYouthProgram]" + UpdateSuffix,
-        [ChurchJsonNames.AcceptsLGBTQ] = "UPDATE [dbo].[Churches] SET [AcceptsLGBTQ]" + UpdateSuffix,
+        [ChurchJsonNames.CanonicalName] = Text(static (church, value) => church.CanonicalName = value),
+        [ChurchJsonNames.Street] = Text(static (church, value) => church.Street = value),
+        [ChurchJsonNames.City] = Text(static (church, value) => church.City = value),
+        [ChurchJsonNames.State] = static (church, value) =>
+        {
+            if (!Shared.Domain.StateCodes.TryParse(value, out var state))
+            {
+                return false;
+            }
+
+            church.State = state;
+            return true;
+        },
+        [ChurchJsonNames.Zip] = Text(static (church, value) => church.Zip = value),
+        [ChurchJsonNames.PhoneNumber] = Text(static (church, value) => church.PhoneNumber = value),
+        [ChurchJsonNames.Website] = Text(static (church, value) => church.Website = value),
+        [ChurchJsonNames.EmailAddress] = Text(static (church, value) => church.EmailAddress = value),
+        [ChurchJsonNames.PrimaryLanguage] = Text(static (church, value) => church.PrimaryLanguage = value),
+        [ChurchJsonNames.WorshipStyle] = static (church, value) =>
+        {
+            if (!Enum.TryParse<WorshipStyle>(value, out var style) || !Enum.IsDefined(style))
+            {
+                return false;
+            }
+
+            church.WorshipStyle = style;
+            return true;
+        },
+        [ChurchJsonNames.DenominationId] = static (church, value) =>
+        {
+            if (!Guid.TryParse(value, out var denominationId))
+            {
+                return false;
+            }
+
+            church.DenominationId = denominationId;
+            return true;
+        },
+        [ChurchJsonNames.WheelchairAccessible] = Flag(static (church, flag) => church.WheelchairAccessible = flag),
+        [ChurchJsonNames.HasNursery] = Flag(static (church, flag) => church.HasNursery = flag),
+        [ChurchJsonNames.HasYouthProgram] = Flag(static (church, flag) => church.HasYouthProgram = flag),
+        [ChurchJsonNames.AcceptsLGBTQ] = Flag(static (church, flag) => church.AcceptsLGBTQ = flag),
     };
 
     private static readonly string[] MergeRepointStatements =
@@ -58,11 +86,16 @@ public sealed class ModerationService
 
     private readonly DbConnection _dbConnection;
     private readonly ServiceBusClient _serviceBusClient;
+    private readonly ChurchService _churches;
 
-    public ModerationService(DbConnection dbConnection, IAzureClientFactory<ServiceBusClient> serviceBusClientFactory)
+    public ModerationService(
+        DbConnection dbConnection,
+        IAzureClientFactory<ServiceBusClient> serviceBusClientFactory,
+        ChurchService churches)
     {
         _dbConnection = dbConnection;
         _serviceBusClient = serviceBusClientFactory.CreateClient(ServiceBusNames.Client);
+        _churches = churches;
     }
 
     internal static int MergeWriteCount => MergeRepointStatements.Length + SoftDeleteAndAuditWrites;
@@ -161,25 +194,30 @@ public sealed class ModerationService
             return await ApplyMergeAsync(correction, reviewedBy, survivingId, ct);
         }
 
-        if (!CorrectableUpdates.TryGetValue(correction.Field, out var updateSql))
+        if (!CorrectionAppliers.TryGetValue(correction.Field, out var apply))
         {
             return $"'{correction.Field}' is not a field this app can apply.";
         }
 
-        var value = ReadCorrectionValue(correction.Field, correction.NewValue);
-        if (value is null)
+        var church = await _churches.GetByIdAsync(correction.ChurchId, ct);
+        if (church is not { IsActive: true })
+        {
+            return ChurchNotActive;
+        }
+
+        if (!apply(church, correction.NewValue))
         {
             return $"'{correction.NewValue}' is not a value {correction.Field} accepts.";
         }
 
-        await EnsureOpenAsync(ct);
-        await using var cmd = _dbConnection.CreateCommand();
-        cmd.CommandText = updateSql;
-        AddParam(cmd, SqlParameters.NewValue, value);
-        AddParam(cmd, SqlParameters.Now, DateTimeOffset.UtcNow);
-        AddParam(cmd, SqlParameters.ChurchId, correction.ChurchId);
-        var updated = await cmd.ExecuteNonQueryAsync(ct);
-        return updated > 0 ? null : "That church is no longer active.";
+        try
+        {
+            return await _churches.UpdateAsync(church, ct) ? null : ChurchNotActive;
+        }
+        catch (ArgumentException exception)
+        {
+            return $"The church cannot be saved with this correction: {exception.Message}";
+        }
     }
 
     public async Task MergeAsync(
@@ -252,15 +290,23 @@ public sealed class ModerationService
         }
     }
 
-    private static object? ReadCorrectionValue(string field, string newValue) =>
-        field.ToUpperInvariant() switch
+    private static Func<Church, string, bool> Text(Action<Church, string> assign) =>
+        (church, value) =>
         {
-            "STATE" => Shared.Domain.StateCodes.TryParse(newValue, out var state) ? state.ToString() : null,
-            "WORSHIPSTYLE" => Enum.TryParse<WorshipStyle>(newValue, out var style) && Enum.IsDefined(style) ? (int)style : null,
-            "DENOMINATIONID" => Guid.TryParse(newValue, out var denominationId) ? denominationId : null,
-            "WHEELCHAIRACCESSIBLE" or "HASNURSERY" or "HASYOUTHPROGRAM" or "ACCEPTSLGBTQ" =>
-                bool.TryParse(newValue, out var flag) ? flag : null,
-            _ => newValue,
+            assign(church, value);
+            return true;
+        };
+
+    private static Func<Church, string, bool> Flag(Action<Church, bool> assign) =>
+        (church, value) =>
+        {
+            if (!bool.TryParse(value, out var flag))
+            {
+                return false;
+            }
+
+            assign(church, flag);
+            return true;
         };
 
     private static void AddParam(DbCommand cmd, string name, object? value)

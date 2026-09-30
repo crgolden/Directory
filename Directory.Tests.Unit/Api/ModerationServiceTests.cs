@@ -392,7 +392,7 @@ public sealed class ModerationServiceTests
         var factory = new Mock<IAzureClientFactory<ServiceBusClient>>(MockBehavior.Loose);
         factory.Setup(f => f.CreateClient(ServiceBusNames.Client))
                .Returns(clientMock.Object);
-        return new ModerationService(conn, factory.Object);
+        return new ModerationService(conn, factory.Object, new ChurchService(conn));
     }
 
     private static DataTable BuildCorrectionTable(bool includeTotalCount)

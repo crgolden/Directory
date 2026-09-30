@@ -183,7 +183,7 @@ public sealed class ChurchServiceTests
     {
         // Arrange
         var conn = new FakeDbConnection();
-        conn.Enqueue(FakeDbCommand.WithReader(BuildChurchTable(includeTotalCount: true)));
+        conn.Enqueue(FakeDbCommand.WithReader(ChurchRows.Table(includeTotalCount: true)));
         var service = new ChurchService(conn);
 
         // Act
@@ -201,7 +201,7 @@ public sealed class ChurchServiceTests
     {
         // Arrange
         var expectedTotalCount = Generated.NewRowCount();
-        var table = BuildChurchTable(includeTotalCount: true);
+        var table = ChurchRows.Table(includeTotalCount: true);
         table.Rows.Add(PopulatedRow(expectedTotalCount));
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithReader(table));
@@ -220,7 +220,7 @@ public sealed class ChurchServiceTests
     [Fact]
     public async Task GetBySlugAsync_RowWithNullableNulls_MapsNullsForOptionalColumns()
     {
-        var table = BuildChurchTable(includeTotalCount: false);
+        var table = ChurchRows.Table(includeTotalCount: false);
         table.Rows.Add(NullableNullRow());
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithReader(table));
@@ -241,7 +241,7 @@ public sealed class ChurchServiceTests
     [Fact]
     public async Task GetBySlugAsync_PopulatesServiceSchedules()
     {
-        var churchTable = BuildChurchTable(includeTotalCount: false);
+        var churchTable = ChurchRows.Table(includeTotalCount: false);
         churchTable.Rows.Add(PopulatedRow(totalCount: null));
         var schedulesTable = SchedulesTable();
         var conn = new FakeDbConnection();
@@ -263,7 +263,7 @@ public sealed class ChurchServiceTests
     [Fact]
     public async Task GetBySlugAsync_PopulatesMinistries()
     {
-        var churchTable = BuildChurchTable(includeTotalCount: false);
+        var churchTable = ChurchRows.Table(includeTotalCount: false);
         churchTable.Rows.Add(PopulatedRow(totalCount: null));
         var conn = new FakeDbConnection();
         var ministriesTable = MinistriesTable();
@@ -286,7 +286,7 @@ public sealed class ChurchServiceTests
     [Fact]
     public async Task GetBySlugAsync_PopulatesCampuses()
     {
-        var churchTable = BuildChurchTable(includeTotalCount: false);
+        var churchTable = ChurchRows.Table(includeTotalCount: false);
         churchTable.Rows.Add(PopulatedRow(totalCount: null));
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithReader(churchTable));
@@ -312,7 +312,7 @@ public sealed class ChurchServiceTests
     {
         // Arrange
         var conn = new FakeDbConnection();
-        conn.Enqueue(FakeDbCommand.WithReader(BuildChurchTable(includeTotalCount: false)));
+        conn.Enqueue(FakeDbCommand.WithReader(ChurchRows.Table(includeTotalCount: false)));
         var service = new ChurchService(conn);
         var churchId = Guid.NewGuid();
 
@@ -326,7 +326,7 @@ public sealed class ChurchServiceTests
     [Fact]
     public async Task GetByIdAsync_RowPopulated_MapsAllOptionalColumns()
     {
-        var table = BuildChurchTable(includeTotalCount: false);
+        var table = ChurchRows.Table(includeTotalCount: false);
         table.Rows.Add(PopulatedRow(totalCount: null));
         var conn = new FakeDbConnection();
         await conn.OpenAsync(TestContext.Current.CancellationToken);
@@ -502,7 +502,7 @@ public sealed class ChurchServiceTests
 
     private static DataTable TableWithCreatedAt(DateTimeOffset createdAt)
     {
-        var table = BuildChurchTable(includeTotalCount: false);
+        var table = ChurchRows.Table(includeTotalCount: false);
         var onlyRow = table.Rows.Add(PopulatedRow(totalCount: null));
         onlyRow[nameof(Church.CreatedAt)] = createdAt;
         return table;
@@ -550,41 +550,6 @@ public sealed class ChurchServiceTests
         Zip = Generated.NewZip(),
         PrimaryLanguage = Generated.NewLanguage(),
     };
-
-    private static DataTable BuildChurchTable(bool includeTotalCount)
-    {
-        var t = new DataTable();
-        t.Columns.Add(nameof(Church.Id), typeof(Guid));
-        t.Columns.Add(nameof(Church.CanonicalName), typeof(string));
-        t.Columns.Add(nameof(Church.Slug), typeof(string));
-        t.Columns.Add(nameof(Church.Latitude), typeof(double));
-        t.Columns.Add(nameof(Church.Longitude), typeof(double));
-        t.Columns.Add(nameof(Church.Street), typeof(string));
-        t.Columns.Add(nameof(Church.City), typeof(string));
-        t.Columns.Add(nameof(Church.State), typeof(string));
-        t.Columns.Add(nameof(Church.Zip), typeof(string));
-        t.Columns.Add(nameof(Church.PhoneNumber), typeof(string));
-        t.Columns.Add(nameof(Church.Website), typeof(string));
-        t.Columns.Add(nameof(Church.EmailAddress), typeof(string));
-        t.Columns.Add(nameof(Church.DenominationId), typeof(Guid));
-        t.Columns.Add(nameof(Church.WorshipStyle), typeof(int));
-        t.Columns.Add(nameof(Church.PrimaryLanguage), typeof(string));
-        t.Columns.Add(nameof(Church.AcceptsLGBTQ), typeof(bool));
-        t.Columns.Add(nameof(Church.WheelchairAccessible), typeof(bool));
-        t.Columns.Add(nameof(Church.HasNursery), typeof(bool));
-        t.Columns.Add(nameof(Church.HasYouthProgram), typeof(bool));
-        t.Columns.Add(nameof(Church.ConfidenceScore), typeof(decimal));
-        t.Columns.Add(nameof(Church.LastVerifiedAt), typeof(DateTimeOffset));
-        t.Columns.Add(nameof(Church.CreatedAt), typeof(DateTimeOffset));
-        t.Columns.Add(nameof(Church.UpdatedAt), typeof(DateTimeOffset));
-        t.Columns.Add(nameof(Church.IsActive), typeof(bool));
-        if (includeTotalCount)
-        {
-            t.Columns.Add(nameof(PagedResult<Church>.TotalCount), typeof(int));
-        }
-
-        return t;
-    }
 
     private static DataTable SchedulesTable()
     {

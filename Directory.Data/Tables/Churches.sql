@@ -26,6 +26,7 @@ CREATE TABLE [dbo].[Churches]
     [IsActive]             BIT              NOT NULL DEFAULT (1),
     CONSTRAINT [PK_Churches] PRIMARY KEY CLUSTERED ([Id] ASC),
     CONSTRAINT [UQ_Churches_Slug] UNIQUE ([Slug]),
+    CONSTRAINT [CK_Churches_CanonicalName_NotBlank] CHECK (LEN(TRIM([CanonicalName])) > 0),
     CONSTRAINT [FK_Churches_Denominations] FOREIGN KEY ([DenominationId]) REFERENCES [dbo].[Denominations] ([Id])
 );
 
