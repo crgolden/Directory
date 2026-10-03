@@ -17,8 +17,10 @@ $repo = $PSScriptRoot
 $sarif = (Join-Path $gateOutput 'directory-inspect.sarif')
 $unitTrx = Join-Path $repo 'Directory.Tests.Unit\bin\Release\net10.0\TestResults\unit-tests.trx'
 $integrationTrx = Join-Path $repo 'Directory.Tests.Integration\bin\Release\net10.0\TestResults\integration-tests.trx'
-$testCatalog = 'DirectoryTest'
-$sonarBranch = "branch-local-$($env:COMPUTERNAME.ToLowerInvariant())"
+$testCatalog = $env:SqlConnectionStringBuilder__InitialCatalog ?? 'DirectoryTest'
+$dataSource = $env:SqlConnectionStringBuilder__DataSource ?? 'localhost'
+$sqlAuthentication = if ($env:SqlConnectionStringBuilder__UserID) { "User ID=$env:SqlConnectionStringBuilder__UserID;Password=$env:SqlConnectionStringBuilder__Password;Encrypt=True;TrustServerCertificate=False" } else { 'Integrated Security=True;TrustServerCertificate=True' }
+$sonarBranch = Get-SonarBranchName
 $beginSonar = "Begin Sonar analysis (branch $sonarBranch)"
 $build = 'Build with dotnet (Release, RestoreLockedMode)'
 $endSonar = 'End Sonar analysis (quality gate waited)'
@@ -77,10 +79,10 @@ if (-not (Test-StepCarried 'Install SqlPackage')) {
     if (Get-Command sqlpackage -ErrorAction SilentlyContinue) { Write-Row 'Install SqlPackage' 'PASS' 'present on PATH' }
     else { Stop-Gate 'Install SqlPackage' 'not on PATH' }
 }
-$schemaStep = "Deploy integration test database schema ($testCatalog on localhost)"
+$schemaStep = "Deploy integration test database schema ($testCatalog on $dataSource)"
 if (-not (Test-StepCarried $schemaStep)) {
     $global:LASTEXITCODE = $null
-    sqlpackage /Action:Publish /SourceFile:Directory.Data/bin/Release/Directory.Data.dacpac /TargetConnectionString:"Data Source=localhost;Initial Catalog=$testCatalog;Integrated Security=True;TrustServerCertificate=True"
+    sqlpackage /Action:Publish /SourceFile:Directory.Data/bin/Release/Directory.Data.dacpac /TargetConnectionString:"Data Source=$dataSource;Initial Catalog=$testCatalog;$sqlAuthentication"
     $null = Test-Exit $schemaStep
 }
 

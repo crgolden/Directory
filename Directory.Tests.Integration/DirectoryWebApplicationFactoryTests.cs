@@ -8,7 +8,7 @@ using Microsoft.Extensions.Configuration;
 public sealed class DirectoryWebApplicationFactoryTests
 {
     [Fact]
-    public async Task StartingAgainstACatalogWithoutTheTestSuffix_IsRefusedBeforeAnythingIsWritten()
+    public async Task StartingAgainstACatalogWithoutADisposableSuffix_IsRefusedBeforeAnythingIsWritten()
     {
         var productionLikeCatalog = Generated.NewDatabaseName();
         await using var configuredFactory = new DirectoryWebApplicationFactory();

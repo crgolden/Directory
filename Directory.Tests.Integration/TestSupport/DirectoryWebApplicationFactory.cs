@@ -71,11 +71,11 @@ public sealed class DirectoryWebApplicationFactory : WebApplicationFactory<Progr
         builder.ConfigureServices((context, services) =>
         {
             var catalog = context.Configuration[$"{nameof(SqlConnectionStringBuilder)}:{nameof(SqlConnectionStringBuilder.InitialCatalog)}"];
-            if (catalog is null || !catalog.EndsWith(TestDatabaseContractConstants.TestCatalogSuffix, StringComparison.Ordinal))
+            if (!TestDatabaseContract.IsDisposableCatalog(catalog))
             {
                 RefusedCatalog = catalog;
                 throw new InvalidOperationException(
-                    $"The integration tier writes to the catalog it is given, so it refuses '{catalog}': the catalog must end in '{TestDatabaseContractConstants.TestCatalogSuffix}'.");
+                    $"The integration tier writes to the catalog it is given, so it refuses '{catalog}': the catalog must end in '{TestDatabaseContractConstants.TestCatalogSuffix}' or '{TestDatabaseContractConstants.TriageCatalogSuffix}'.");
             }
 
             services.RemoveAll<ILoggerFactory>();
@@ -101,7 +101,7 @@ public sealed class DirectoryWebApplicationFactory : WebApplicationFactory<Progr
     {
         await using var connection = await OpenTestConnectionAsync();
         var catalog = new SqlConnectionStringBuilder(connection.ConnectionString).InitialCatalog;
-        if (!catalog.EndsWith(TestDatabaseContractConstants.TestCatalogSuffix, StringComparison.Ordinal))
+        if (!TestDatabaseContract.IsDisposableCatalog(catalog))
         {
             return;
         }
