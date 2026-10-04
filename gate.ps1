@@ -49,7 +49,7 @@ else {
     $sonarStartedAt = [DateTimeOffset]::UtcNow
     $env:JAVA_HOME = "$env:SystemDrive\sonar-scanner-8.0.1.6346-windows-x64\jre"
     $global:LASTEXITCODE = $null
-    dotnet-sonarscanner begin /k:"crgolden_Directory" /o:"crgolden" /d:sonar.token="$env:SONAR_TOKEN" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.cs.opencover.reportsPaths="coverage.opencover.xml" /d:sonar.cs.vscoveragexml.reportsPaths="coverage-integration.xml" /d:sonar.exclusions="**/bin/**,**/obj/**" /d:sonar.coverage.exclusions="**/Program.cs" /d:sonar.qualitygate.wait=true /d:sonar.scanner.skipJreProvisioning=true /d:sonar.branch.name="$sonarBranch"
+    dotnet-sonarscanner begin /k:"crgolden_Directory" /o:"crgolden" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.cs.opencover.reportsPaths="coverage.opencover.xml" /d:sonar.cs.vscoveragexml.reportsPaths="coverage-integration.xml" /d:sonar.exclusions="**/bin/**,**/obj/**" /d:sonar.coverage.exclusions="**/Program.cs" /d:sonar.qualitygate.wait=true /d:sonar.scanner.skipJreProvisioning=true /d:sonar.branch.name="$sonarBranch"
     $null = Test-Exit $beginSonar
 
     $global:LASTEXITCODE = $null
@@ -72,7 +72,7 @@ if (-not (Test-StepCarried 'Run unit tests with coverage (Category=Unit)')) {
         --format opencover --output "coverage.opencover.xml" `
         --skipautoprops --exclude-by-attribute GeneratedCodeAttribute --exclude-by-file "**/obj/**" `
         --exclude-by-file "**/Program.cs" --does-not-return-attribute DoesNotReturnAttribute --include "[Directory]*"
-    Test-Trx 'Run unit tests with coverage (Category=Unit)' $unitTrx $global:LASTEXITCODE 1
+    Test-Trx 'Run unit tests with coverage (Category=Unit)' $unitTrx $global:LASTEXITCODE -floor 1
 }
 
 if (-not (Test-StepCarried 'Install SqlPackage')) {
@@ -93,12 +93,12 @@ if (-not (Test-StepCarried 'Run integration tests with coverage (Category=Integr
     dotnet-coverage collect `
         "dotnet test --project Directory.Tests.Integration --no-build --configuration Release -- --filter-trait Category=Integration --stop-on-fail on --report-xunit-trx --report-xunit-trx-filename integration-tests.trx --results-directory=Directory.Tests.Integration/bin/Release/net10.0/TestResults" `
         -f xml -o "coverage-integration.xml" -s "coverage.settings.xml"
-    Test-Trx 'Run integration tests with coverage (Category=Integration)' $integrationTrx $global:LASTEXITCODE 1
+    Test-Trx 'Run integration tests with coverage (Category=Integration)' $integrationTrx $global:LASTEXITCODE -floor 1
 }
 
 if (-not $sonarCarried) {
     $global:LASTEXITCODE = $null
-    dotnet-sonarscanner end /d:sonar.token="$env:SONAR_TOKEN"
+    dotnet-sonarscanner end
     $null = Test-Exit $endSonar
     Test-SonarIssues $sonarIssues 'crgolden_Directory' $sonarBranch $sonarStartedAt
 }
