@@ -1,4 +1,4 @@
-param([string]$Goal)
+param([string]$Goal, [string[]]$Steps)
 
 $ErrorActionPreference = 'Continue'
 $gateCommon = Join-Path $PSScriptRoot '..\Tools\Gates\GateCommon.ps1'
@@ -13,6 +13,19 @@ Register-GateSteps @('Install dotnet-coverage', 'Restore local tools', 'Begin So
     'jb inspectcode', 'Run unit tests with coverage', 'Install SqlPackage', 'Deploy integration test database schema',
     'Run integration tests with coverage', 'End Sonar analysis',
     'Fail on open Sonar issues')
+Register-StepInputs @{
+    'Install dotnet-coverage'                 = @('*')
+    'Restore local tools'                     = @('dotnet-tools.json')
+    'Begin Sonar analysis'                    = @('*')
+    'Build with dotnet'                       = @('*')
+    'jb inspectcode'                          = @('*')
+    'Run unit tests with coverage'            = @('*')
+    'Install SqlPackage'                      = @('*')
+    'Deploy integration test database schema' = @('*')
+    'Run integration tests with coverage'     = @('*')
+    'End Sonar analysis'                      = @('*')
+    'Fail on open Sonar issues'               = @('*')
+}
 $repo = $PSScriptRoot
 $sarif = (Join-Path $gateOutput 'directory-inspect.sarif')
 $unitTrx = Join-Path $repo 'Directory.Tests.Unit\bin\Release\net10.0\TestResults\unit-tests.trx'
@@ -29,6 +42,7 @@ $env:TZ = 'UTC'
 if ($env:TZ -ne 'UTC') { Write-Host 'GATE: FAILED (TZ pin)'; exit 1 }
 Set-Location $repo
 Initialize-GateState 'Directory' $repo
+Assert-RequestedSteps $Steps
 Invoke-CatalogSteps
 
 if (-not (Test-StepCarried 'Install dotnet-coverage')) {
