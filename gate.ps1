@@ -31,8 +31,21 @@ $sarif = (Join-Path $gateOutput 'directory-inspect.sarif')
 $unitTrx = Join-Path $repo 'Directory.Tests.Unit\bin\Release\net10.0\TestResults\unit-tests.trx'
 $integrationTrx = Join-Path $repo 'Directory.Tests.Integration\bin\Release\net10.0\TestResults\integration-tests.trx'
 $testCatalog = $env:SqlConnectionStringBuilder__InitialCatalog ?? 'DirectoryTest'
-$dataSource = $env:SqlConnectionStringBuilder__DataSource ?? 'localhost'
-$sqlAuthentication = if ($env:SqlConnectionStringBuilder__UserID) { "User ID=$env:SqlConnectionStringBuilder__UserID;Password=$env:SqlConnectionStringBuilder__Password;Encrypt=True;TrustServerCertificate=False" } else { 'Integrated Security=True;TrustServerCertificate=True' }
+$developmentSql = (Get-Content -Raw (Join-Path $repo 'Directory\appsettings.Development.json') | ConvertFrom-Json).SqlConnectionStringBuilder
+$dataSource = $env:SqlConnectionStringBuilder__DataSource ?? $developmentSql.DataSource
+$targetConnection = [Data.Common.DbConnectionStringBuilder]::new()
+$targetConnection['Data Source'] = $dataSource
+$targetConnection['Initial Catalog'] = $testCatalog
+if ($env:SqlConnectionStringBuilder__UserID) {
+    $targetConnection['User ID'] = $env:SqlConnectionStringBuilder__UserID
+    $targetConnection['Password'] = $env:SqlConnectionStringBuilder__Password
+    $targetConnection['Encrypt'] = 'True'
+    $targetConnection['TrustServerCertificate'] = 'False'
+}
+else {
+    $targetConnection['Integrated Security'] = [string]$developmentSql.IntegratedSecurity
+    $targetConnection['TrustServerCertificate'] = [string]$developmentSql.TrustServerCertificate
+}
 $sonarBranch = Get-SonarBranchName
 $beginSonar = "Begin Sonar analysis (branch $sonarBranch)"
 $build = 'Build with dotnet (Release, RestoreLockedMode)'
@@ -96,7 +109,7 @@ if (-not (Test-StepCarried 'Install SqlPackage')) {
 $schemaStep = "Deploy integration test database schema ($testCatalog on $dataSource)"
 if (-not (Test-StepCarried $schemaStep)) {
     $global:LASTEXITCODE = $null
-    sqlpackage /Action:Publish /SourceFile:Directory.Data/bin/Release/Directory.Data.dacpac /TargetConnectionString:"Data Source=$dataSource;Initial Catalog=$testCatalog;$sqlAuthentication"
+    sqlpackage /Action:Publish /SourceFile:Directory.Data/bin/Release/Directory.Data.dacpac /TargetConnectionString:"$($targetConnection.ConnectionString)"
     $null = Test-Exit $schemaStep
 }
 
