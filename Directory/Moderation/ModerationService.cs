@@ -288,7 +288,7 @@ public sealed class ModerationService
         }
     }
 
-    private static IReadOnlyList<string> MergeRepointStatements() =>
+    internal static IReadOnlyList<string> MergeRepointStatements() =>
     [
         "UPDATE [dbo].[CrawlSources] SET [ChurchId] = @Surviving WHERE [ChurchId] = @Absorbed",
         "UPDATE [dbo].[ChurchAttributes] SET [ChurchId] = @Surviving WHERE [ChurchId] = @Absorbed",

@@ -20,6 +20,8 @@ public sealed class ModerationServiceTests
 
     private const int OneRowUpdated = 1;
 
+    private const int ChildTablesRepointedOnMerge = 6;
+
     [Fact]
     public async Task ReviewCorrectionAsync_ReturnsFalse_WhenNoRowsUpdated()
     {
@@ -483,6 +485,29 @@ public sealed class ModerationServiceTests
         Assert.Equal(
             ModerationService.MergeWriteCount,
             conn.ExecutedCommands.Count(command => command.Transaction is not null));
+    }
+
+    [Fact]
+    public async Task MergeAsync_BothChurchesActive_RepointsEveryChildTableToTheSurvivor()
+    {
+        // Arrange
+        var survivingChurchId = Guid.NewGuid();
+        var absorbedChurchId = Guid.NewGuid();
+        var mergedBy = Generated.NewUserId();
+        var conn = new FakeDbConnection();
+        conn.Enqueue(SurvivingChurchExists());
+        conn.Enqueue(AbsorbedChurchExists());
+        EnqueueSuccessfulMergeWrites(conn);
+        var service = Create(conn);
+
+        // Act
+        await service.MergeAsync(survivingChurchId, absorbedChurchId, mergedBy, TestContext.Current.CancellationToken);
+
+        // Assert
+        var inTransaction = conn.ExecutedCommands.Where(command => command.Transaction is not null).Select(command => command.CommandText).ToList();
+        var repointStatements = ModerationService.MergeRepointStatements();
+        Assert.Equal(ChildTablesRepointedOnMerge, repointStatements.Count);
+        Assert.All(repointStatements, statement => Assert.Contains(statement, inTransaction));
     }
 
     [Fact]
