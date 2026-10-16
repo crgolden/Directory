@@ -14,6 +14,8 @@ internal sealed class FakeDbCommand : DbCommand
 
     public string? CapturedCommandText { get; private set; }
 
+    public bool Executed { get; private set; }
+
     [AllowNull]
     public override string CommandText
     {
@@ -53,29 +55,61 @@ internal sealed class FakeDbCommand : DbCommand
     {
     }
 
-    public override int ExecuteNonQuery() => _nonQueryResult;
+    public override int ExecuteNonQuery()
+    {
+        EnsureExecutable();
+        return _nonQueryResult;
+    }
 
-    public override Task<int> ExecuteNonQueryAsync(CancellationToken cancellationToken) =>
-        _throwOnExecute is not null
+    public override Task<int> ExecuteNonQueryAsync(CancellationToken cancellationToken)
+    {
+        EnsureExecutable();
+        return _throwOnExecute is not null
             ? Task.FromException<int>(_throwOnExecute)
             : Task.FromResult(_nonQueryResult);
+    }
 
-    public override object? ExecuteScalar() => _scalarResult;
+    public override object? ExecuteScalar()
+    {
+        EnsureExecutable();
+        return _scalarResult;
+    }
 
-    public override Task<object?> ExecuteScalarAsync(CancellationToken cancellationToken) =>
-        _throwOnExecute is not null
+    public override Task<object?> ExecuteScalarAsync(CancellationToken cancellationToken)
+    {
+        EnsureExecutable();
+        return _throwOnExecute is not null
             ? Task.FromException<object?>(_throwOnExecute)
             : Task.FromResult(_scalarResult);
+    }
 
     protected override DbParameter CreateDbParameter() => new FakeDbParameter();
 
-    protected override DbDataReader ExecuteDbDataReader(CommandBehavior behavior) =>
-        new DataTableReader(ReaderTables());
+    protected override DbDataReader ExecuteDbDataReader(CommandBehavior behavior)
+    {
+        EnsureExecutable();
+        return new DataTableReader(ReaderTables());
+    }
 
-    protected override Task<DbDataReader> ExecuteDbDataReaderAsync(CommandBehavior behavior, CancellationToken cancellationToken) =>
-        _throwOnExecute is not null
+    protected override Task<DbDataReader> ExecuteDbDataReaderAsync(CommandBehavior behavior, CancellationToken cancellationToken)
+    {
+        EnsureExecutable();
+        return _throwOnExecute is not null
             ? Task.FromException<DbDataReader>(_throwOnExecute)
             : Task.FromResult<DbDataReader>(new DataTableReader(ReaderTables()));
+    }
+
+    private void EnsureExecutable()
+    {
+        if (DbConnection?.State != ConnectionState.Open
+            || string.IsNullOrWhiteSpace(CapturedCommandText)
+            || FakeDbMember.ParameterReferences(CapturedCommandText).Any(name => !_parameters.Contains(name)))
+        {
+            throw new InvalidOperationException();
+        }
+
+        Executed = true;
+    }
 
     private DataTable[] ReaderTables() => _readerTables.Length > 0 ? _readerTables : [new DataTable()];
 }

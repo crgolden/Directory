@@ -319,4 +319,43 @@ jobs:
           app-name: 'crgolden-directory'
           slot-name: 'Production'
           package: .
+
+  mutation:
+    name: Mutation testing
+    runs-on: ubuntu-latest
+    if: github.actor != 'dependabot[bot]'
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v5
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json', '**/*.csproj') }}
+          restore-keys: ${{ runner.os }}-nuget-
+
+      - name: Set up .NET Core
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.x'
+
+      - name: Restore local tools
+        run: dotnet tool restore
+
+      - name: Run Stryker mutation tests
+        working-directory: Directory
+        env:
+          NuGetPackageSourceCredentials_GitHub: Username=${{ github.actor }};Password=${{ secrets.PACKAGES_READ_TOKEN }}
+        run: dotnet stryker --config-file ../stryker-config.json
+
+      - name: Upload Stryker report
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: stryker-report
+          if-no-files-found: warn
+          path: Directory/StrykerOutput/**/*
           

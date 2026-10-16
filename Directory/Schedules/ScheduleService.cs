@@ -8,6 +8,8 @@ public sealed class ScheduleService
 {
     internal const byte MaxDayOfWeek = 6;
 
+    internal const string DayOfWeekOutOfRange = "DayOfWeek must be 0 (Sunday) through 6 (Saturday).";
+
     private readonly DbConnection _dbConnection;
 
     public ScheduleService(DbConnection dbConnection) => _dbConnection = dbConnection;
@@ -43,7 +45,7 @@ public sealed class ScheduleService
     {
         if (dayOfWeek > MaxDayOfWeek)
         {
-            throw new ArgumentOutOfRangeException(nameof(dayOfWeek), dayOfWeek, "DayOfWeek must be 0 (Sunday) through 6 (Saturday).");
+            throw new ArgumentOutOfRangeException(nameof(dayOfWeek), dayOfWeek, DayOfWeekOutOfRange);
         }
 
         await EnsureOpenAsync(ct);

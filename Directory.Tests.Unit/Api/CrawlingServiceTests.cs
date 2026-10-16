@@ -98,6 +98,27 @@ public sealed class CrawlingServiceTests
         // Assert
         var insert = Assert.Single(conn.ExecutedCommands);
         Assert.Equal(churchId, insert.Parameters[SqlParameters.ChurchId].Value);
+        Assert.True(insert.Executed);
+    }
+
+    [Fact]
+    public async Task CreateAsync_NullUrl_ThrowsNamingTheUrl()
+    {
+        // Arrange
+        var conn = new FakeDbConnection();
+        var service = Create(conn);
+        var createAsync = typeof(CrawlingService).GetMethod(nameof(CrawlingService.CreateAsync));
+        Assert.NotNull(createAsync);
+        var urlParameter = createAsync.GetParameters()[0].Name;
+
+        // Act
+        var pending = Assert.IsType<Task>(createAsync.Invoke(service, [null, null, TestContext.Current.CancellationToken]), exactMatch: false);
+        var exception = await Record.ExceptionAsync(() => pending);
+
+        // Assert
+        var argumentNull = Assert.IsType<ArgumentNullException>(exception);
+        Assert.Equal(urlParameter, argumentNull.ParamName);
+        Assert.Empty(conn.ExecutedCommands);
     }
 
     [Fact]
@@ -192,6 +213,7 @@ public sealed class CrawlingServiceTests
             conn.ExecutedCommands,
             lookup => Assert.Contains("SELECT", lookup.CommandText, StringComparison.Ordinal),
             update => Assert.Contains("UPDATE [dbo].[CrawlSources]", update.CommandText, StringComparison.Ordinal));
+        Assert.True(conn.ExecutedCommands[^1].Executed);
         senderMock.Verify(s => s.SendMessageAsync(It.IsAny<ServiceBusMessage>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 

@@ -14,6 +14,14 @@ public sealed class ModerationService
 {
     internal const string MergeField = "merge";
 
+    internal const string SelfMergeRefusal = "A church cannot be merged into itself.";
+
+    internal const string MergeTargetMissing = "This merge suggestion does not name a church to merge with.";
+
+    internal const string MergeSurvivorMissing = "Choose which church survives the merge.";
+
+    internal const string MergeSurvivorOutsideThePair = "The surviving church must be one of the two in the suggestion.";
+
     private const string SelectCorrection =
         "c.[Id], c.[ChurchId], c.[UserId], c.[Field], c.[OldValue], c.[NewValue], " +
         "c.[Status], c.[ReviewedBy], c.[ReviewedAt], c.[CreatedAt], ch.[CanonicalName], target.[CanonicalName], " +
@@ -74,16 +82,6 @@ public sealed class ModerationService
         [ChurchJsonNames.AcceptsLGBTQ] = Flag(static (church, flag) => church.AcceptsLGBTQ = flag),
     };
 
-    private static readonly string[] MergeRepointStatements =
-    [
-        "UPDATE [dbo].[CrawlSources] SET [ChurchId] = @Surviving WHERE [ChurchId] = @Absorbed",
-        "UPDATE [dbo].[ChurchAttributes] SET [ChurchId] = @Surviving WHERE [ChurchId] = @Absorbed",
-        "UPDATE [dbo].[ServiceSchedules] SET [ChurchId] = @Surviving WHERE [ChurchId] = @Absorbed",
-        "UPDATE [dbo].[Ministries] SET [ChurchId] = @Surviving WHERE [ChurchId] = @Absorbed",
-        "UPDATE [dbo].[Campuses] SET [ChurchId] = @Surviving WHERE [ChurchId] = @Absorbed",
-        "UPDATE [dbo].[UserCorrections] SET [ChurchId] = @Surviving WHERE [ChurchId] = @Absorbed",
-    ];
-
     private readonly DbConnection _dbConnection;
     private readonly ServiceBusClient _serviceBusClient;
     private readonly ChurchService _churches;
@@ -98,7 +96,7 @@ public sealed class ModerationService
         _churches = churches;
     }
 
-    internal static int MergeWriteCount => MergeRepointStatements.Length + SoftDeleteAndAuditWrites;
+    internal static int MergeWriteCount => MergeRepointStatements().Count + SoftDeleteAndAuditWrites;
 
     public async Task<(IReadOnlyList<UserCorrection> Items, int TotalCount)> GetCorrectionsAsync(
         CorrectionStatus? status,
@@ -228,7 +226,7 @@ public sealed class ModerationService
     {
         if (survivingId == absorbedId)
         {
-            throw new ArgumentException("A church cannot be merged into itself.", nameof(absorbedId));
+            throw new ArgumentException(SelfMergeRefusal, nameof(absorbedId));
         }
 
         await EnsureOpenAsync(ct);
@@ -246,7 +244,7 @@ public sealed class ModerationService
         await using var tx = await _dbConnection.BeginTransactionAsync(ct);
         try
         {
-            foreach (var sql in MergeRepointStatements)
+            foreach (var sql in MergeRepointStatements())
             {
                 await using var cmd = _dbConnection.CreateCommand();
                 cmd.Transaction = tx;
@@ -289,6 +287,16 @@ public sealed class ModerationService
             throw;
         }
     }
+
+    private static IReadOnlyList<string> MergeRepointStatements() =>
+    [
+        "UPDATE [dbo].[CrawlSources] SET [ChurchId] = @Surviving WHERE [ChurchId] = @Absorbed",
+        "UPDATE [dbo].[ChurchAttributes] SET [ChurchId] = @Surviving WHERE [ChurchId] = @Absorbed",
+        "UPDATE [dbo].[ServiceSchedules] SET [ChurchId] = @Surviving WHERE [ChurchId] = @Absorbed",
+        "UPDATE [dbo].[Ministries] SET [ChurchId] = @Surviving WHERE [ChurchId] = @Absorbed",
+        "UPDATE [dbo].[Campuses] SET [ChurchId] = @Surviving WHERE [ChurchId] = @Absorbed",
+        "UPDATE [dbo].[UserCorrections] SET [ChurchId] = @Surviving WHERE [ChurchId] = @Absorbed",
+    ];
 
     private static Func<Church, string, bool> Text(Action<Church, string> assign) =>
         (church, value) =>
@@ -343,18 +351,18 @@ public sealed class ModerationService
     {
         if (!Guid.TryParse(correction.NewValue, out var suggestedId))
         {
-            return "This merge suggestion does not name a church to merge with.";
+            return MergeTargetMissing;
         }
 
         if (survivingId is null)
         {
-            return "Choose which church survives the merge.";
+            return MergeSurvivorMissing;
         }
 
         var surviving = survivingId.Value;
         if (surviving != correction.ChurchId && surviving != suggestedId)
         {
-            return "The surviving church must be one of the two in the suggestion.";
+            return MergeSurvivorOutsideThePair;
         }
 
         var absorbed = surviving == correction.ChurchId ? suggestedId : correction.ChurchId;

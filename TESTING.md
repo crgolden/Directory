@@ -122,7 +122,28 @@ The GitHub Actions workflow (`.github/workflows/main_crgolden-directory.yml`) ru
 5. SonarCloud analysis
 6. Publish the web app and upload the app + dacpac artifacts
 
+The `mutation` job runs Stryker.NET (`stryker-config.json`, `dotnet-stryker` pinned in `dotnet-tools.json`)
+over `Directory.Tests.Unit` and uploads the report as `stryker-report`.
+
 The deploy job deploys the dacpac (via `SqlPackage`) and then the app to `crgolden-directory`.
+
+---
+
+## Mutation testing (Stryker)
+
+**Thresholds are 100 (high, low and break).** Every mutant is killed by a unit test, recorded as equivalent
+with `// Stryker disable once <Mutator> : <reason>` on the line above the statement it covers, or excluded
+in `mutate` with its reason below. A surviving or uncovered mutant fails the gate and CI.
+
+| Excluded | Why |
+|---|---|
+| `obj/**/*.cs` | Build-generated sources |
+| `Program.cs` | Startup wiring, excluded from coverage the same way (`sonar.coverage.exclusions`) |
+| `**/*Endpoints.cs` | `[ExcludeFromCodeCoverage]` route wiring that only the integration tier reaches over HTTP; the services it calls are mutated |
+
+Only `Directory.Tests.Unit` runs under Stryker, which cannot filter by trait, so the integration tier stays
+out because it is its own project. The report is local only (`html`, `json`,
+`progress`); this repo has no Stryker dashboard project.
 
 ---
 

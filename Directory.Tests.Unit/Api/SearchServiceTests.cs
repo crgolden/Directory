@@ -3,12 +3,21 @@ namespace Directory.Tests.Unit.Api;
 using System.Data;
 using Directory.Entities;
 using Directory.Enums;
+using Directory.Schedules;
 using Directory.Search;
 using Directory.Tests.Unit.TestSupport;
 
 [Trait("Category", "Unit")]
 public sealed class SearchServiceTests
 {
+    private const string ChurchColumnsSql =
+        "SELECT c.[Id], c.[CanonicalName], c.[Slug], c.[Latitude], c.[Longitude], c.[Street], c.[City], c.[State], " +
+        "c.[Zip], c.[PhoneNumber], c.[Website], c.[EmailAddress], c.[DenominationId], c.[WorshipStyle], " +
+        "c.[PrimaryLanguage], c.[AcceptsLGBTQ], c.[WheelchairAccessible], c.[HasNursery], c.[HasYouthProgram], " +
+        "c.[ConfidenceScore], c.[LastVerifiedAt], c.[CreatedAt], c.[UpdatedAt], c.[IsActive]";
+
+    private const string ActiveChurchesSql = " FROM [dbo].[Churches] c WHERE c.[IsActive] = 1";
+
     [Fact]
     public async Task SearchAsync_IncludesDistanceColumn_WhenGeoFilterProvided()
     {
@@ -536,7 +545,51 @@ public sealed class SearchServiceTests
         // Assert
         Assert.Contains("ORDER BY c.[CanonicalName] ASC", sql, StringComparison.Ordinal);
         Assert.DoesNotContain("fn_HaversineDistance) ASC", sql, StringComparison.Ordinal);
-        Assert.DoesNotContain("ft.[RANK]", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("[RANK]", sql, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BuildQuery_DistanceSortWithKeywordAndGeo_OrdersByDistanceNotRank()
+    {
+        // Arrange
+        var searchKeyword = Generated.NewKeyword();
+        var searchLatitude = Generated.NewLatitude();
+        var searchLongitude = Generated.NewLongitude();
+        var query = UnfilteredQuery() with
+        {
+            Q = searchKeyword,
+            Lat = searchLatitude,
+            Lng = searchLongitude,
+            Sort = SearchService.SortByDistance,
+        };
+
+        // Act
+        var sql = SearchService.BuildQuery(query, out _);
+
+        // Assert
+        Assert.Contains("ORDER BY [dbo].[fn_HaversineDistance]", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("[RANK]", sql, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BuildQuery_RelevanceSortWithGeoButNoUsableKeyword_FallsBackToNameNotDistance()
+    {
+        // Arrange
+        var searchLatitude = Generated.NewLatitude();
+        var searchLongitude = Generated.NewLongitude();
+        var query = UnfilteredQuery() with
+        {
+            Lat = searchLatitude,
+            Lng = searchLongitude,
+            Sort = SearchService.SortByRelevance,
+        };
+
+        // Act
+        var sql = SearchService.BuildQuery(query, out _);
+
+        // Assert
+        Assert.Contains("ORDER BY c.[CanonicalName] ASC", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("ORDER BY [dbo].[fn_HaversineDistance]", sql, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -657,7 +710,7 @@ public sealed class SearchServiceTests
         var invalid = SearchService.DescribeInvalidQuery(query);
 
         // Assert
-        Assert.NotNull(invalid);
+        Assert.Equal(SearchService.QueryHasNoTerms, invalid);
     }
 
     [Fact]
@@ -683,7 +736,7 @@ public sealed class SearchServiceTests
         var invalid = SearchService.DescribeInvalidQuery(query);
 
         // Assert
-        Assert.NotNull(invalid);
+        Assert.Equal(SearchService.WorshipStyleUndefined, invalid);
     }
 
     [Fact]
@@ -711,7 +764,7 @@ public sealed class SearchServiceTests
         var invalid = SearchService.DescribeInvalidQuery(query);
 
         // Assert
-        Assert.NotNull(invalid);
+        Assert.Equal(SearchService.RadiusWithoutCoordinates, invalid);
     }
 
     [Fact]
@@ -729,7 +782,7 @@ public sealed class SearchServiceTests
         var invalid = SearchService.DescribeInvalidQuery(query);
 
         // Assert
-        Assert.NotNull(invalid);
+        Assert.Equal(SearchService.RadiusNotPositive, invalid);
     }
 
     [Fact]
@@ -746,7 +799,7 @@ public sealed class SearchServiceTests
         var invalid = SearchService.DescribeInvalidQuery(query);
 
         // Assert
-        Assert.NotNull(invalid);
+        Assert.Equal(SearchService.CoordinatesOutOfRange, invalid);
     }
 
     [Fact]
@@ -761,7 +814,7 @@ public sealed class SearchServiceTests
         var invalid = SearchService.DescribeInvalidQuery(query);
 
         // Assert
-        Assert.NotNull(invalid);
+        Assert.Equal(SearchService.StartTimeWindowInverted, invalid);
     }
 
     [Fact]
@@ -784,6 +837,446 @@ public sealed class SearchServiceTests
 
         // Assert
         Assert.Null(invalid);
+    }
+
+    [Fact]
+    public async Task SearchAsync_NoFilters_CountsThenPagesActiveChurchesByName()
+    {
+        // Arrange
+        const string unfilteredSql =
+            $"SELECT COUNT(*) AS [TotalCount]{ActiveChurchesSql}; {ChurchColumnsSql}, CAST(NULL AS FLOAT) AS [DistanceMiles]" +
+            $"{ActiveChurchesSql} ORDER BY c.[CanonicalName] ASC OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY";
+        var conn = BuildConn(out var cmd);
+        var service = new SearchService(conn);
+
+        // Act
+        await service.SearchAsync(UnfilteredQuery(), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(unfilteredSql, cmd.CapturedCommandText);
+    }
+
+    [Fact]
+    public async Task SearchAsync_GeoFilter_ScopesBothStatementsToTheRadiusAndOrdersByDistance()
+    {
+        // Arrange
+        const string nearbyScopeSql =
+            " FROM [dbo].[Churches] c WHERE c.[IsActive] = 1 AND [dbo].[fn_HaversineDistance](@Lat, @Lng, c.[Latitude], c.[Longitude]) <= @RadiusMiles";
+        const string nearbySql =
+            $"SELECT COUNT(*) AS [TotalCount]{nearbyScopeSql}; {ChurchColumnsSql}, " +
+            "[dbo].[fn_HaversineDistance](@Lat, @Lng, c.[Latitude], c.[Longitude]) AS [DistanceMiles]" +
+            $"{nearbyScopeSql} ORDER BY [dbo].[fn_HaversineDistance](@Lat, @Lng, c.[Latitude], c.[Longitude]) ASC, " +
+            "c.[CanonicalName] ASC OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY";
+        var searchLatitude = Generated.NewLatitude();
+        var searchLongitude = Generated.NewLongitude();
+        var conn = BuildConn(out var cmd);
+        var service = new SearchService(conn);
+        var query = UnfilteredQuery() with { Lat = searchLatitude, Lng = searchLongitude };
+
+        // Act
+        await service.SearchAsync(query, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(nearbySql, cmd.CapturedCommandText);
+    }
+
+    [Fact]
+    public async Task SearchAsync_TwoKeywords_RanksBySummedTermRankAfterExactAndPrefixMatches()
+    {
+        // Arrange
+        const string keywordScopeSql =
+            " FROM [dbo].[Churches] c INNER JOIN CONTAINSTABLE([dbo].[Churches], ([CanonicalName], [City]), @Q0) AS ft0 ON ft0.[KEY] = c.[Id] INNER JOIN CONTAINSTABLE([dbo].[Churches], ([CanonicalName], [City]), @Q1) AS ft1 ON ft1.[KEY] = c.[Id] WHERE c.[IsActive] = 1";
+        const string keywordSql =
+            $"SELECT COUNT(*) AS [TotalCount]{keywordScopeSql}; {ChurchColumnsSql}, CAST(NULL AS FLOAT) AS [DistanceMiles]" +
+            $"{keywordScopeSql} ORDER BY CASE WHEN c.[CanonicalName] = @ExactQ THEN 0 WHEN c.[CanonicalName] LIKE @PrefixQ " +
+            "ESCAPE '\\' THEN 1 ELSE 2 END ASC, ft0.[RANK] + ft1.[RANK] DESC, " +
+            "c.[CanonicalName] ASC OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY";
+        var nameWord = Generated.NewKeyword();
+        var cityWord = Generated.NewKeyword();
+        var conn = BuildConn(out var cmd);
+        var service = new SearchService(conn);
+        var query = UnfilteredQuery() with { Q = $"{nameWord} {cityWord}" };
+
+        // Act
+        await service.SearchAsync(query, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(keywordSql, cmd.CapturedCommandText);
+    }
+
+    [Fact]
+    public async Task SearchAsync_DayOfWeekFilter_ScopesBothStatementsToMatchingSchedules()
+    {
+        // Arrange
+        const string scheduleScopeSql =
+            " FROM [dbo].[Churches] c WHERE c.[IsActive] = 1 AND EXISTS (SELECT 1 FROM [dbo].[ServiceSchedules] ss WHERE ss.[ChurchId] = c.[Id] AND ss.[DayOfWeek] = @DayOfWeek)";
+        const string scheduleSql =
+            $"SELECT COUNT(*) AS [TotalCount]{scheduleScopeSql}; {ChurchColumnsSql}, CAST(NULL AS FLOAT) AS [DistanceMiles]" +
+            $"{scheduleScopeSql} ORDER BY c.[CanonicalName] ASC OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY";
+        var filteredDayOfWeek = Generated.NewDayOfWeek();
+        var conn = BuildConn(out var cmd);
+        var service = new SearchService(conn);
+        var query = UnfilteredQuery() with { DayOfWeek = filteredDayOfWeek };
+
+        // Act
+        await service.SearchAsync(query, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(scheduleSql, cmd.CapturedCommandText);
+    }
+
+    [Fact]
+    public void BindParams_PunctuationOnlyQueryWithDefaultSort_DoesNotBindExactOrPrefixParams()
+    {
+        // Arrange
+        var cmd = new FakeDbCommand();
+        var punctuationOnlyQuery = Generated.NewPunctuationOnlyQuery();
+        var query = UnfilteredQuery() with { Q = punctuationOnlyQuery };
+
+        // Act
+        SearchService.BindParams(cmd, query);
+
+        // Assert
+        Assert.False(cmd.Parameters.Contains(SqlParameters.ExactQ));
+        Assert.False(cmd.Parameters.Contains(SqlParameters.PrefixQ));
+    }
+
+    [Fact]
+    public void BindParams_LaterPage_BindsTheRowsOnEverySkippedPageAsTheOffset()
+    {
+        // Arrange
+        var cmd = new FakeDbCommand();
+        var requestedPage = Generated.NewPage() + 1;
+        var pageSizeLargerThanThePage = requestedPage + Generated.NewPageSize() + 1;
+        var expectedOffset = (requestedPage - 1) * pageSizeLargerThanThePage;
+        var query = UnfilteredQuery() with { Page = requestedPage, PageSize = pageSizeLargerThanThePage };
+
+        // Act
+        SearchService.BindParams(cmd, query);
+
+        // Assert
+        Assert.Equal(expectedOffset, cmd.Parameters[SqlParameters.Offset].Value);
+    }
+
+    [Fact]
+    public void BindParams_RelevanceQueryWithLikeMetacharacters_EscapesEachInThePrefix()
+    {
+        // Arrange
+        var cmd = new FakeDbCommand();
+        var searchKeyword = Generated.NewKeyword();
+        var query = UnfilteredQuery() with
+        {
+            Q = $"{searchKeyword}{SearchService.LikeEscape}{SearchService.LikeAnyRun}{SearchService.LikeAnyCharacter}{SearchService.LikeCharacterSet}",
+        };
+
+        // Act
+        SearchService.BindParams(cmd, query);
+
+        // Assert
+        Assert.Equal(
+            $"{searchKeyword}{SearchService.LikeEscape}{SearchService.LikeEscape}{SearchService.LikeEscape}{SearchService.LikeAnyRun}{SearchService.LikeEscape}{SearchService.LikeAnyCharacter}{SearchService.LikeEscape}{SearchService.LikeCharacterSet}{SearchService.LikeAnyRun}",
+            cmd.Parameters[SqlParameters.PrefixQ].Value);
+    }
+
+    [Fact]
+    public async Task SearchAsync_RowWithEveryOptionalColumnSet_MapsEachValue()
+    {
+        // Arrange
+        var rowStreet = Generated.NewStreet();
+        var expectedPhoneNumber = Generated.NewPhoneNumber();
+        var expectedWebsite = Generated.NewWebsite();
+        var expectedEmailAddress = Generated.NewEmailAddress();
+        var expectedDenominationId = Guid.NewGuid();
+        var expectedLastVerifiedAt = Generated.NewUtcTimestamp();
+        var rowTotalCount = Generated.NewRowCount();
+        var table = BuildSearchTable();
+        table.Rows.Add(SearchRow(
+            rowStreet,
+            DBNull.Value,
+            expectedPhoneNumber,
+            expectedWebsite,
+            expectedEmailAddress,
+            expectedDenominationId,
+            expectedLastVerifiedAt));
+        var conn = new FakeDbConnection();
+        conn.Enqueue(FakeDbCommand.WithReaders(BuildCountTable(rowTotalCount), table));
+        var service = new SearchService(conn);
+
+        // Act
+        var (items, _) = await service.SearchAsync(UnfilteredQuery(), TestContext.Current.CancellationToken);
+
+        // Assert
+        var church = Assert.Single(items).Church;
+        Assert.Equal(expectedPhoneNumber, church.PhoneNumber);
+        Assert.Equal(expectedWebsite, church.Website);
+        Assert.Equal(expectedEmailAddress, church.EmailAddress);
+        Assert.Equal(expectedDenominationId, church.DenominationId);
+        Assert.True(church.AcceptsLGBTQ);
+        Assert.True(church.WheelchairAccessible);
+        Assert.True(church.HasNursery);
+        Assert.True(church.HasYouthProgram);
+        Assert.Equal(expectedLastVerifiedAt, church.LastVerifiedAt);
+    }
+
+    [Fact]
+    public async Task SearchAsync_RowWithUnrecognizedStateCode_IsDropped()
+    {
+        // Arrange
+        var unrecognizedState = Generated.NewUnrecognizedStateCode();
+        var rowTotalCount = Generated.NewRowCount();
+        var table = BuildSearchTable();
+        table.Rows.Add(SearchRowNullableInState(unrecognizedState));
+        var conn = new FakeDbConnection();
+        conn.Enqueue(FakeDbCommand.WithReaders(BuildCountTable(rowTotalCount), table));
+        var service = new SearchService(conn);
+
+        // Act
+        var (items, _) = await service.SearchAsync(UnfilteredQuery(), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Empty(items);
+    }
+
+    [Fact]
+    public void DescribeInvalidQuery_Sunday_IsAccepted()
+    {
+        // Arrange
+        var query = UnfilteredQuery() with { DayOfWeek = 0 };
+
+        // Act
+        var invalid = SearchService.DescribeInvalidQuery(query);
+
+        // Assert
+        Assert.Null(invalid);
+    }
+
+    [Fact]
+    public void DescribeInvalidQuery_Saturday_IsAccepted()
+    {
+        // Arrange
+        var query = UnfilteredQuery() with { DayOfWeek = ScheduleService.MaxDayOfWeek };
+
+        // Act
+        var invalid = SearchService.DescribeInvalidQuery(query);
+
+        // Assert
+        Assert.Null(invalid);
+    }
+
+    [Fact]
+    public void DescribeInvalidQuery_DayOfWeekBeforeSunday_IsRejected()
+    {
+        // Arrange
+        var query = UnfilteredQuery() with { DayOfWeek = -1 };
+
+        // Act
+        var invalid = SearchService.DescribeInvalidQuery(query);
+
+        // Assert
+        Assert.Equal(SearchService.DayOfWeekOutOfRange, invalid);
+    }
+
+    [Fact]
+    public void DescribeInvalidQuery_DayOfWeekAfterSaturday_IsRejected()
+    {
+        // Arrange
+        var query = UnfilteredQuery() with { DayOfWeek = ScheduleService.MaxDayOfWeek + 1 };
+
+        // Act
+        var invalid = SearchService.DescribeInvalidQuery(query);
+
+        // Assert
+        Assert.Equal(SearchService.DayOfWeekOutOfRange, invalid);
+    }
+
+    [Fact]
+    public void DescribeInvalidQuery_LatitudeWithoutLongitude_IsRejected()
+    {
+        // Arrange
+        var searchLatitude = Generated.NewLatitude();
+        var query = UnfilteredQuery() with { Lat = searchLatitude };
+
+        // Act
+        var invalid = SearchService.DescribeInvalidQuery(query);
+
+        // Assert
+        Assert.Equal(SearchService.CoordinatesUnpaired, invalid);
+    }
+
+    [Fact]
+    public void DescribeInvalidQuery_SouthWestCornerOfTheRange_IsAccepted()
+    {
+        // Arrange
+        var query = UnfilteredQuery() with
+        {
+            Lat = Shared.Domain.CampusBuilder.MinLatitude,
+            Lng = Shared.Domain.CampusBuilder.MinLongitude,
+        };
+
+        // Act
+        var invalid = SearchService.DescribeInvalidQuery(query);
+
+        // Assert
+        Assert.Null(invalid);
+    }
+
+    [Fact]
+    public void DescribeInvalidQuery_NorthEastCornerOfTheRange_IsAccepted()
+    {
+        // Arrange
+        var query = UnfilteredQuery() with
+        {
+            Lat = Shared.Domain.CampusBuilder.MaxLatitude,
+            Lng = Shared.Domain.CampusBuilder.MaxLongitude,
+        };
+
+        // Act
+        var invalid = SearchService.DescribeInvalidQuery(query);
+
+        // Assert
+        Assert.Null(invalid);
+    }
+
+    [Fact]
+    public void DescribeInvalidQuery_LatitudeJustPastTheSouthPole_IsRejected()
+    {
+        // Arrange
+        var searchLongitude = Generated.NewLongitude();
+        var query = UnfilteredQuery() with
+        {
+            Lat = Math.BitDecrement(Shared.Domain.CampusBuilder.MinLatitude),
+            Lng = searchLongitude,
+        };
+
+        // Act
+        var invalid = SearchService.DescribeInvalidQuery(query);
+
+        // Assert
+        Assert.Equal(SearchService.CoordinatesOutOfRange, invalid);
+    }
+
+    [Fact]
+    public void DescribeInvalidQuery_LongitudeJustPastTheEasternLimit_IsRejected()
+    {
+        // Arrange
+        var searchLatitude = Generated.NewLatitude();
+        var query = UnfilteredQuery() with
+        {
+            Lat = searchLatitude,
+            Lng = Math.BitIncrement(Shared.Domain.CampusBuilder.MaxLongitude),
+        };
+
+        // Act
+        var invalid = SearchService.DescribeInvalidQuery(query);
+
+        // Assert
+        Assert.Equal(SearchService.CoordinatesOutOfRange, invalid);
+    }
+
+    [Fact]
+    public void DescribeInvalidQuery_LongitudeJustPastTheWesternLimit_IsRejected()
+    {
+        // Arrange
+        var searchLatitude = Generated.NewLatitude();
+        var query = UnfilteredQuery() with
+        {
+            Lat = searchLatitude,
+            Lng = Math.BitDecrement(Shared.Domain.CampusBuilder.MinLongitude),
+        };
+
+        // Act
+        var invalid = SearchService.DescribeInvalidQuery(query);
+
+        // Assert
+        Assert.Equal(SearchService.CoordinatesOutOfRange, invalid);
+    }
+
+    [Fact]
+    public void DescribeInvalidQuery_ZeroRadius_IsRejected()
+    {
+        // Arrange
+        var searchLatitude = Generated.NewLatitude();
+        var searchLongitude = Generated.NewLongitude();
+        var query = UnfilteredQuery() with { Lat = searchLatitude, Lng = searchLongitude, RadiusMiles = 0 };
+
+        // Act
+        var invalid = SearchService.DescribeInvalidQuery(query);
+
+        // Assert
+        Assert.Equal(SearchService.RadiusNotPositive, invalid);
+    }
+
+    [Fact]
+    public void DescribeInvalidQuery_SmallestPositiveRadius_IsAccepted()
+    {
+        // Arrange
+        var searchLatitude = Generated.NewLatitude();
+        var searchLongitude = Generated.NewLongitude();
+        var query = UnfilteredQuery() with { Lat = searchLatitude, Lng = searchLongitude, RadiusMiles = double.Epsilon };
+
+        // Act
+        var invalid = SearchService.DescribeInvalidQuery(query);
+
+        // Assert
+        Assert.Null(invalid);
+    }
+
+    [Fact]
+    public void DescribeInvalidQuery_StartTimeWindowOfOneInstant_IsAccepted()
+    {
+        // Arrange
+        var onlyStartTime = Generated.NewTimeOfDay();
+        var query = UnfilteredQuery() with { StartTimeAfter = onlyStartTime, StartTimeBefore = onlyStartTime };
+
+        // Act
+        var invalid = SearchService.DescribeInvalidQuery(query);
+
+        // Assert
+        Assert.Null(invalid);
+    }
+
+    [Fact]
+    public void DescribeInvalidQuery_StartTimeAfterAlone_IsAccepted()
+    {
+        // Arrange
+        var earliestStartTime = Generated.NewTimeOfDay();
+        var query = UnfilteredQuery() with { StartTimeAfter = earliestStartTime };
+
+        // Act
+        var invalid = SearchService.DescribeInvalidQuery(query);
+
+        // Assert
+        Assert.Null(invalid);
+    }
+
+    [Fact]
+    public void DescribeInvalidQuery_InvalidFilterAndUnpairedCoordinates_ReportsTheFilter()
+    {
+        // Arrange
+        var searchLatitude = Generated.NewLatitude();
+        var query = UnfilteredQuery() with { DayOfWeek = -1, Lat = searchLatitude };
+
+        // Act
+        var invalid = SearchService.DescribeInvalidQuery(query);
+
+        // Assert
+        Assert.Equal(SearchService.DayOfWeekOutOfRange, invalid);
+    }
+
+    [Fact]
+    public void DescribeInvalidQuery_UnpairedCoordinatesAndInvertedWindow_ReportsTheLocation()
+    {
+        // Arrange
+        var searchLatitude = Generated.NewLatitude();
+        var earlier = Generated.NewTimeOfDayBeforeTheLastHour();
+        var later = earlier.AddHours(1);
+        var query = UnfilteredQuery() with { Lat = searchLatitude, StartTimeAfter = later, StartTimeBefore = earlier };
+
+        // Act
+        var invalid = SearchService.DescribeInvalidQuery(query);
+
+        // Assert
+        Assert.Equal(SearchService.CoordinatesUnpaired, invalid);
     }
 
     private static SearchQuery UnfilteredQuery()
@@ -855,6 +1348,23 @@ public sealed class SearchServiceTests
 
     private static object[] SearchRowPopulated(string street, object distanceMiles)
     {
+        var phoneNumber = Generated.NewPhoneNumber();
+        var website = Generated.NewWebsite();
+        var emailAddress = Generated.NewEmailAddress();
+        var denominationId = Guid.NewGuid();
+        var lastVerifiedAt = Generated.NewUtcTimestamp();
+        return SearchRow(street, distanceMiles, phoneNumber, website, emailAddress, denominationId, lastVerifiedAt);
+    }
+
+    private static object[] SearchRow(
+        string street,
+        object distanceMiles,
+        string phoneNumber,
+        string website,
+        string emailAddress,
+        Guid denominationId,
+        DateTimeOffset lastVerifiedAt)
+    {
         var churchId = Guid.NewGuid();
         var canonicalName = Generated.NewName();
         var slug = Generated.NewSlug();
@@ -863,14 +1373,9 @@ public sealed class SearchServiceTests
         var city = Generated.NewCity();
         var state = Generated.NewStateCodeText();
         var zip = Generated.NewZip();
-        var phoneNumber = Generated.NewPhoneNumber();
-        var website = Generated.NewWebsite();
-        var emailAddress = Generated.NewEmailAddress();
-        var denominationId = Guid.NewGuid();
         var worshipStyle = Generated.NewDefinedValue<WorshipStyle>();
         var primaryLanguage = Generated.NewLanguage();
         var confidenceScore = Generated.NewConfidenceScore();
-        var lastVerifiedAt = Generated.NewUtcTimestamp();
         var createdAt = Generated.NewUtcTimestamp();
         var updatedAt = Generated.NewUtcTimestamp();
         return
@@ -884,13 +1389,18 @@ public sealed class SearchServiceTests
 
     private static object[] SearchRowNullable()
     {
+        var state = Generated.NewStateCodeText();
+        return SearchRowNullableInState(state);
+    }
+
+    private static object[] SearchRowNullableInState(string state)
+    {
         var churchId = Guid.NewGuid();
         var canonicalName = Generated.NewName();
         var slug = Generated.NewSlug();
         var latitude = Generated.NewLatitude();
         var longitude = Generated.NewLongitude();
         var city = Generated.NewCity();
-        var state = Generated.NewStateCodeText();
         var zip = Generated.NewZip();
         var worshipStyle = Generated.NewDefinedValue<WorshipStyle>();
         var primaryLanguage = Generated.NewLanguage();

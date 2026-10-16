@@ -15,6 +15,14 @@ public sealed class AdminService
         "Id,CanonicalName,Slug,Street,City,State,Zip,PhoneNumber,Website,EmailAddress,WorshipStyle," +
         "PrimaryLanguage,AcceptsLGBTQ,WheelchairAccessible,HasNursery,HasYouthProgram,ConfidenceScore,CreatedAt,UpdatedAt";
 
+    internal const char CsvSeparator = ',';
+
+    internal const char CsvQuote = '"';
+
+    private const string CsvQuoteText = "\"";
+
+    private const string EscapedCsvQuote = "\"\"";
+
     private const int ExportColumnCount = 19;
 
     private readonly DbConnection _dbConnection;
@@ -80,7 +88,7 @@ public sealed class AdminService
             yield break;
         }
 
-        var columns = header.Split(',');
+        var columns = header.Split(CsvSeparator);
         var nameIdx = IndexOf(columns, nameof(ImportRow.CanonicalName));
         var streetIdx = IndexOf(columns, nameof(ImportRow.Street));
         var cityIdx = IndexOf(columns, nameof(ImportRow.City));
@@ -93,7 +101,7 @@ public sealed class AdminService
         string? line;
         while ((line = await reader.ReadLineAsync(ct)) is not null)
         {
-            var fields = line.Split(',');
+            var fields = line.Split(CsvSeparator);
             var name = SafeGet(fields, nameIdx);
             if (string.IsNullOrWhiteSpace(name) || !IsImportableStateCode(SafeGet(fields, stateIdx)))
             {
@@ -112,23 +120,11 @@ public sealed class AdminService
         }
     }
 
-    private static string? FormatCsvField(object? value)
+    private static string FormatCsvField(object value)
     {
-        if (value is null or DBNull)
-        {
-            return null;
-        }
-
-        var formatted = value is IFormattable formattable
-            ? formattable.ToString(null, CultureInfo.InvariantCulture)
-            : value.ToString();
-        if (formatted is null)
-        {
-            return null;
-        }
-
-        return formatted.Contains(',', StringComparison.Ordinal) || formatted.Contains('"', StringComparison.Ordinal)
-            ? $"\"{formatted.Replace("\"", "\"\"", StringComparison.Ordinal)}\""
+        var formatted = string.Create(CultureInfo.InvariantCulture, $"{value}");
+        return formatted.Contains(CsvSeparator, StringComparison.Ordinal) || formatted.Contains(CsvQuote, StringComparison.Ordinal)
+            ? $"{CsvQuote}{formatted.Replace(CsvQuoteText, EscapedCsvQuote, StringComparison.Ordinal)}{CsvQuote}"
             : formatted;
     }
 
@@ -136,7 +132,7 @@ public sealed class AdminService
     {
         var fields = new object[ExportColumnCount];
         r.GetValues(fields);
-        return string.Join(",", fields.Select(FormatCsvField));
+        return string.Join(CsvSeparator, fields.Select(FormatCsvField));
     }
 
     private static int IndexOf(string[] columns, string name)

@@ -28,11 +28,102 @@ public sealed class ScheduleServiceTests
             churchId, scheduledDayOfWeek, scheduledStartTime, scheduleDescription, TestContext.Current.CancellationToken);
 
         // Assert
+        var insert = Assert.Single(conn.ExecutedCommands);
         Assert.NotEqual(Guid.Empty, result.Id);
         Assert.Equal(churchId, result.ChurchId);
         Assert.Equal(scheduledStartTime, result.StartTime);
-        Assert.Contains(conn.ExecutedCommands, c =>
-            c.CommandText.Contains("INSERT INTO [dbo].[ServiceSchedules]", StringComparison.Ordinal));
+        Assert.Contains("INSERT INTO [dbo].[ServiceSchedules]", insert.CommandText, StringComparison.Ordinal);
+        Assert.True(insert.Executed);
+        Assert.Equal(scheduleDescription, insert.Parameters[SqlParameters.Desc].Value);
+    }
+
+    [Fact]
+    public async Task CreateAsync_NoDescription_BindsDbNull()
+    {
+        // Arrange
+        var churchId = Guid.NewGuid();
+        var scheduledDayOfWeek = Generated.NewDayOfWeek();
+        var scheduledStartTime = Generated.NewTimeOfDay();
+        var conn = new FakeDbConnection();
+        var service = new ScheduleService(conn);
+
+        // Act
+        await service.CreateAsync(churchId, scheduledDayOfWeek, scheduledStartTime, null, TestContext.Current.CancellationToken);
+
+        // Assert
+        var insert = Assert.Single(conn.ExecutedCommands);
+        Assert.Equal(DBNull.Value, insert.Parameters[SqlParameters.Desc].Value);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_LastDayOfWeek_IsAccepted()
+    {
+        // Arrange
+        var scheduleId = Guid.NewGuid();
+        const byte dayOfWeek = ScheduleService.MaxDayOfWeek;
+        var scheduledStartTime = Generated.NewTimeOfDay();
+        var conn = new FakeDbConnection();
+        conn.Enqueue(FakeDbCommand.WithNonQueryResult(OneRowAffected));
+        var service = new ScheduleService(conn);
+
+        // Act
+        var updated = await service.UpdateAsync(scheduleId, dayOfWeek, scheduledStartTime, null, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(updated);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WithDescription_BindsTheDescription()
+    {
+        // Arrange
+        var scheduleId = Guid.NewGuid();
+        var scheduledDayOfWeek = Generated.NewDayOfWeek();
+        var scheduledStartTime = Generated.NewTimeOfDay();
+        var scheduleDescription = Generated.NewName();
+        var conn = new FakeDbConnection();
+        conn.Enqueue(FakeDbCommand.WithNonQueryResult(OneRowAffected));
+        var service = new ScheduleService(conn);
+
+        // Act
+        await service.UpdateAsync(scheduleId, scheduledDayOfWeek, scheduledStartTime, scheduleDescription, TestContext.Current.CancellationToken);
+
+        // Assert
+        var update = Assert.Single(conn.ExecutedCommands);
+        Assert.Equal(scheduleDescription, update.Parameters[SqlParameters.Desc].Value);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_NoRowAffected_ReturnsFalse()
+    {
+        // Arrange
+        var scheduleId = Guid.NewGuid();
+        var scheduledDayOfWeek = Generated.NewDayOfWeek();
+        var scheduledStartTime = Generated.NewTimeOfDay();
+        var conn = new FakeDbConnection();
+        var service = new ScheduleService(conn);
+
+        // Act
+        var updated = await service.UpdateAsync(scheduleId, scheduledDayOfWeek, scheduledStartTime, null, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.False(updated);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_RowAffected_ReturnsTrue()
+    {
+        // Arrange
+        var scheduleId = Guid.NewGuid();
+        var conn = new FakeDbConnection();
+        conn.Enqueue(FakeDbCommand.WithNonQueryResult(OneRowAffected));
+        var service = new ScheduleService(conn);
+
+        // Act
+        var deleted = await service.DeleteAsync(scheduleId, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(deleted);
     }
 
     [Fact]
@@ -104,6 +195,7 @@ public sealed class ScheduleServiceTests
         // Assert
         var ex = Assert.IsType<ArgumentOutOfRangeException>(exception);
         Assert.Equal(nameof(dayOfWeek), ex.ParamName);
+        Assert.StartsWith(ScheduleService.DayOfWeekOutOfRange, ex.Message, StringComparison.Ordinal);
         Assert.Empty(conn.ExecutedCommands);
     }
 

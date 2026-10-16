@@ -6,6 +6,8 @@ using Directory.Entities;
 
 public sealed class MinistryService
 {
+    internal const string NameRequired = "Name is required.";
+
     private readonly DbConnection _dbConnection;
 
     public MinistryService(DbConnection dbConnection) => _dbConnection = dbConnection;
@@ -34,7 +36,7 @@ public sealed class MinistryService
     {
         if (string.IsNullOrWhiteSpace(name))
         {
-            throw new ArgumentException("Name is required.", nameof(name));
+            throw new ArgumentException(NameRequired, nameof(name));
         }
 
         await EnsureOpenAsync(ct);

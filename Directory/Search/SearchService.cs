@@ -17,6 +17,30 @@ public sealed class SearchService
 
     internal const string SortByDistance = "distance";
 
+    internal const char LikeEscape = '\\';
+
+    internal const char LikeAnyRun = '%';
+
+    internal const char LikeAnyCharacter = '_';
+
+    internal const char LikeCharacterSet = '[';
+
+    internal const string QueryHasNoTerms = "q must contain at least one letter or number.";
+
+    internal const string WorshipStyleUndefined = "worshipStyle must be one of 0-5.";
+
+    internal const string DayOfWeekOutOfRange = "dayOfWeek must be 0 (Sunday) through 6 (Saturday).";
+
+    internal const string CoordinatesUnpaired = "lat and lng must be supplied together.";
+
+    internal const string CoordinatesOutOfRange = "lat must be between -90 and 90, and lng between -180 and 180.";
+
+    internal const string RadiusWithoutCoordinates = "radiusMiles needs lat and lng.";
+
+    internal const string RadiusNotPositive = "radiusMiles must be greater than zero.";
+
+    internal const string StartTimeWindowInverted = "startTimeAfter must be earlier than startTimeBefore.";
+
     private const string BaseColumns =
         "c.[Id], c.[CanonicalName], c.[Slug], c.[Latitude], c.[Longitude], c.[Street], " +
         "c.[City], c.[State], c.[Zip], c.[PhoneNumber], c.[Website], c.[EmailAddress], " +
@@ -153,7 +177,6 @@ public sealed class SearchService
             AddParam(cmd, SqlParameters.WheelchairAccessible, q.WheelchairAccessible.Value);
         }
 
-        var hasDistance = q is { Lat: not null, Lng: not null };
         if (q is { Lat: { } latitude, Lng: { } longitude })
         {
             AddParam(cmd, SqlParameters.Lat, latitude);
@@ -176,10 +199,10 @@ public sealed class SearchService
             AddParam(cmd, SqlParameters.StartTimeBefore, q.StartTimeBefore.Value.ToTimeSpan());
         }
 
-        if (ResolveSortMode(q, hasFullText, hasDistance) == SortMode.Relevance && q.Q is { } relevanceQuery)
+        if (SortsByRelevance(q, hasFullText) && q.Q is { } relevanceQuery)
         {
             AddParam(cmd, SqlParameters.ExactQ, relevanceQuery);
-            AddParam(cmd, SqlParameters.PrefixQ, EscapeLikePrefix(relevanceQuery) + "%");
+            AddParam(cmd, SqlParameters.PrefixQ, EscapeLikePrefix(relevanceQuery) + LikeAnyRun);
         }
 
         AddParam(cmd, SqlParameters.Offset, (q.Page - 1) * q.PageSize);
@@ -190,17 +213,17 @@ public sealed class SearchService
     {
         if (!string.IsNullOrWhiteSpace(q.Q) && BuildTermConditions(q.Q).Count == 0)
         {
-            return "q must contain at least one letter or number.";
+            return QueryHasNoTerms;
         }
 
         if (q.WorshipStyle.HasValue && !Enum.IsDefined(q.WorshipStyle.Value))
         {
-            return "worshipStyle must be one of 0-5.";
+            return WorshipStyleUndefined;
         }
 
         if (q.DayOfWeek is < 0 or > 6)
         {
-            return "dayOfWeek must be 0 (Sunday) through 6 (Saturday).";
+            return DayOfWeekOutOfRange;
         }
 
         if (!string.IsNullOrWhiteSpace(q.State) && !Shared.Domain.StateCodes.TryParse(q.State, out _))
@@ -215,22 +238,22 @@ public sealed class SearchService
     {
         if (q.Lat.HasValue != q.Lng.HasValue)
         {
-            return "lat and lng must be supplied together.";
+            return CoordinatesUnpaired;
         }
 
         if (q.Lat is < -90 or > 90 || q.Lng is < -180 or > 180)
         {
-            return "lat must be between -90 and 90, and lng between -180 and 180.";
+            return CoordinatesOutOfRange;
         }
 
         if (q.RadiusMiles.HasValue && !q.Lat.HasValue)
         {
-            return "radiusMiles needs lat and lng.";
+            return RadiusWithoutCoordinates;
         }
 
         if (q.RadiusMiles is <= 0)
         {
-            return "radiusMiles must be greater than zero.";
+            return RadiusNotPositive;
         }
 
         return null;
@@ -238,9 +261,9 @@ public sealed class SearchService
 
     private static string? DescribeInvalidTimeWindow(SearchQuery q)
     {
-        if (q.StartTimeAfter.HasValue && q.StartTimeBefore.HasValue && q.StartTimeAfter > q.StartTimeBefore)
+        if (q.StartTimeAfter > q.StartTimeBefore)
         {
-            return "startTimeAfter must be earlier than startTimeBefore.";
+            return StartTimeWindowInverted;
         }
 
         return null;
@@ -288,25 +311,19 @@ public sealed class SearchService
         return sb.ToString();
     }
 
+    private static string? RequestedSort(SearchQuery q) => q.Sort?.Trim().ToLowerInvariant();
+
+    private static bool SortsByRelevance(SearchQuery q, bool hasFullText) =>
+        hasFullText && RequestedSort(q) is not (SortByName or SortByDistance);
+
     private static SortMode ResolveSortMode(SearchQuery q, bool hasFullText, bool hasDistance)
     {
-        var requested = q.Sort?.Trim().ToLowerInvariant();
-        switch (requested)
+        if (SortsByRelevance(q, hasFullText))
         {
-            case SortByRelevance:
-                return hasFullText ? SortMode.Relevance : SortMode.Name;
-            case SortByName:
-                return SortMode.Name;
-            case SortByDistance:
-                return hasDistance ? SortMode.Distance : SortMode.Name;
-            default:
-                if (hasFullText)
-                {
-                    return SortMode.Relevance;
-                }
-
-                return hasDistance ? SortMode.Distance : SortMode.Name;
+            return SortMode.Relevance;
         }
+
+        return hasDistance && RequestedSort(q) is not (SortByName or SortByRelevance) ? SortMode.Distance : SortMode.Name;
     }
 
     private static void AppendOrderBy(StringBuilder sb, SearchQuery q, int termCount, bool hasDistance)
@@ -344,9 +361,9 @@ public sealed class SearchService
         var sb = new StringBuilder();
         foreach (var ch in value)
         {
-            if (ch is '\\' or '%' or '_' or '[')
+            if (ch is LikeEscape or LikeAnyRun or LikeAnyCharacter or LikeCharacterSet)
             {
-                sb.Append('\\');
+                sb.Append(LikeEscape);
             }
 
             sb.Append(ch);

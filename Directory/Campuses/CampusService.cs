@@ -6,6 +6,10 @@ using Directory.Entities;
 
 public sealed class CampusService
 {
+    internal const string RequiredColumnsMissing = "Name, City and Zip are required.";
+
+    internal const string StateUndefined = "State must be a defined StateCode.";
+
     private readonly DbConnection _dbConnection;
 
     public CampusService(DbConnection dbConnection) => _dbConnection = dbConnection;
@@ -71,13 +75,12 @@ public sealed class CampusService
         if (string.IsNullOrWhiteSpace(campus.Name) || string.IsNullOrWhiteSpace(campus.City)
             || string.IsNullOrWhiteSpace(campus.Zip))
         {
-            throw new ArgumentException("Name, City and Zip are required.", nameof(campus));
+            throw new ArgumentException(RequiredColumnsMissing, nameof(campus));
         }
 
         if (!Enum.IsDefined(campus.State))
         {
-            throw new ArgumentOutOfRangeException(
-                nameof(campus), campus.State, "State must be a defined StateCode.");
+            throw new ArgumentOutOfRangeException(nameof(campus), campus.State, StateUndefined);
         }
 
         if (campus.Latitude is < Shared.Domain.CampusBuilder.MinLatitude
@@ -86,7 +89,7 @@ public sealed class CampusService
             throw new ArgumentOutOfRangeException(
                 nameof(campus),
                 campus.Latitude,
-                $"Latitude must be between {Shared.Domain.CampusBuilder.MinLatitude} and {Shared.Domain.CampusBuilder.MaxLatitude}.");
+                $"{nameof(campus.Latitude)} must be between {Shared.Domain.CampusBuilder.MinLatitude} and {Shared.Domain.CampusBuilder.MaxLatitude}.");
         }
 
         if (campus.Longitude is < Shared.Domain.CampusBuilder.MinLongitude
@@ -95,7 +98,7 @@ public sealed class CampusService
             throw new ArgumentOutOfRangeException(
                 nameof(campus),
                 campus.Longitude,
-                $"Longitude must be between {Shared.Domain.CampusBuilder.MinLongitude} and {Shared.Domain.CampusBuilder.MaxLongitude}.");
+                $"{nameof(campus.Longitude)} must be between {Shared.Domain.CampusBuilder.MinLongitude} and {Shared.Domain.CampusBuilder.MaxLongitude}.");
         }
     }
 

@@ -10,7 +10,7 @@ if (-not (Test-Path -LiteralPath $gateCommon)) {
 $gateOutput = Join-Path ([IO.Path]::GetTempPath()) "crgolden-gates\$(Split-Path -Leaf $PSScriptRoot)"
 New-Item -ItemType Directory -Force -Path $gateOutput | Out-Null
 Register-GateSteps @('Install dotnet-coverage', 'Restore local tools', 'Begin Sonar analysis', 'Build with dotnet',
-    'jb inspectcode', 'Run unit tests with coverage', 'Install SqlPackage', 'Deploy integration test database schema',
+    'jb inspectcode', 'Run unit tests with coverage', 'Run Stryker mutation tests', 'Install SqlPackage', 'Deploy integration test database schema',
     'Run integration tests with coverage', 'End Sonar analysis',
     'Fail on open Sonar issues')
 Register-StepInputs @{
@@ -20,6 +20,7 @@ Register-StepInputs @{
     'Build with dotnet'                       = @('*')
     'jb inspectcode'                          = @('*')
     'Run unit tests with coverage'            = @('*')
+    'Run Stryker mutation tests'              = @('*')
     'Install SqlPackage'                      = @('*')
     'Deploy integration test database schema' = @('*')
     'Run integration tests with coverage'     = @('*')
@@ -100,6 +101,20 @@ if (-not (Test-StepCarried 'Run unit tests with coverage (Category=Unit)')) {
         --skipautoprops --exclude-by-attribute GeneratedCodeAttribute --exclude-by-file "**/obj/**" `
         --exclude-by-file "**/Program.cs" --does-not-return-attribute DoesNotReturnAttribute --include "[Directory]*"
     Test-Trx 'Run unit tests with coverage (Category=Unit)' $unitTrx $global:LASTEXITCODE -floor 1
+}
+
+$stryker = 'Run Stryker mutation tests (thresholds 100)'
+if (-not (Test-StepCarried $stryker)) {
+    $strykerOutputDir = Join-Path $repo 'Directory\StrykerOutput\gate'
+    if (Test-Path -LiteralPath $strykerOutputDir) { Remove-Item -LiteralPath $strykerOutputDir -Recurse -Force }
+    Push-Location (Join-Path $repo 'Directory')
+    $global:LASTEXITCODE = $null
+    dotnet stryker --config-file ../stryker-config.json --output $strykerOutputDir
+    $strykerExit = $global:LASTEXITCODE
+    Pop-Location
+    if ($null -eq $strykerExit) { Stop-Gate $stryker 'command never ran' }
+    if ($strykerExit -ne 0) { Stop-Gate $stryker "exit $strykerExit" }
+    Write-Row $stryker 'PASS' 'every mutant killed or excluded with its reason'
 }
 
 if (-not (Test-StepCarried 'Install SqlPackage')) {

@@ -1,6 +1,7 @@
 namespace Directory.Tests.Unit.Api;
 
 using System.Data;
+using System.Globalization;
 using System.Text.Json;
 using Azure.Messaging.ServiceBus;
 using Directory.Church;
@@ -370,6 +371,423 @@ public sealed class ModerationServiceTests
         Assert.Equal(expectedChurchName, result.ChurchName);
     }
 
+    [Fact]
+    public async Task GetCorrectionsAsync_PageAfterTheFirst_BindsTheRowsBeforeItAsTheOffset()
+    {
+        // Arrange
+        var pageAfterTheFirst = Generated.NewPage() + 1;
+        var pageSizeAboveAnyPage = Generated.NewCountCeiling();
+        var expectedOffset = (pageAfterTheFirst - 1) * pageSizeAboveAnyPage;
+        var conn = new FakeDbConnection();
+        var cmd = FakeDbCommand.WithReader(BuildCorrectionTable(includeTotalCount: true));
+        conn.Enqueue(cmd);
+        var service = Create(conn);
+
+        // Act
+        await service.GetCorrectionsAsync(
+            null, pageAfterTheFirst, pageSizeAboveAnyPage, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(expectedOffset, cmd.Parameters[SqlParameters.Offset].Value);
+        Assert.Equal(pageSizeAboveAnyPage, cmd.Parameters[SqlParameters.PageSize].Value);
+    }
+
+    [Fact]
+    public async Task GetCorrectionsAsync_AnyPage_SelectsNewestFirstWithATotalCount()
+    {
+        // Arrange
+        var conn = new FakeDbConnection();
+        var cmd = FakeDbCommand.WithReader(BuildCorrectionTable(includeTotalCount: true));
+        conn.Enqueue(cmd);
+        var service = Create(conn);
+
+        // Act
+        await service.GetCorrectionsAsync(
+            null, Generated.NewPage(), Generated.NewPageSize(), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Contains("SELECT c.[Id]", cmd.CapturedCommandText, StringComparison.Ordinal);
+        Assert.Contains(
+            "target.[Slug], COUNT(*) OVER() AS [TotalCount] FROM [dbo].[UserCorrections] c",
+            cmd.CapturedCommandText,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "c.[Status] = @Status) ORDER BY c.[CreatedAt] DESC OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY",
+            cmd.CapturedCommandText,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GetCorrectionByIdAsync_RowWithTargetAndSlugs_MapsThem()
+    {
+        // Arrange
+        var correctionId = Guid.NewGuid();
+        var expectedTargetChurchName = Generated.NewName();
+        var expectedChurchSlug = Generated.NewSlug();
+        var expectedTargetChurchSlug = Generated.NewSlug();
+        var table = BuildCorrectionTable(includeTotalCount: false);
+        table.Rows.Add(CorrectionRowPopulated(
+            totalCount: null,
+            links: new CorrectionLinks(expectedTargetChurchName, expectedChurchSlug, expectedTargetChurchSlug)));
+        var conn = new FakeDbConnection();
+        conn.Enqueue(FakeDbCommand.WithReader(table));
+        var service = Create(conn);
+
+        // Act
+        var result = await service.GetCorrectionByIdAsync(correctionId, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(expectedTargetChurchName, result.TargetChurchName);
+        Assert.Equal(expectedChurchSlug, result.ChurchSlug);
+        Assert.Equal(expectedTargetChurchSlug, result.TargetChurchSlug);
+    }
+
+    [Fact]
+    public async Task MergeAsync_BothChurchesActive_ExecutesEveryCommandItCreates()
+    {
+        // Arrange
+        var survivingChurchId = Guid.NewGuid();
+        var absorbedChurchId = Guid.NewGuid();
+        var mergedBy = Generated.NewUserId();
+        var conn = new FakeDbConnection();
+        conn.Enqueue(SurvivingChurchExists());
+        conn.Enqueue(AbsorbedChurchExists());
+        EnqueueSuccessfulMergeWrites(conn);
+        var service = Create(conn);
+
+        // Act
+        await service.MergeAsync(survivingChurchId, absorbedChurchId, mergedBy, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.All(conn.ExecutedCommands, command => Assert.True(command.Executed));
+    }
+
+    [Fact]
+    public async Task MergeAsync_BothChurchesActive_WritesMergeWriteCountStatementsInsideTheTransaction()
+    {
+        // Arrange
+        var survivingChurchId = Guid.NewGuid();
+        var absorbedChurchId = Guid.NewGuid();
+        var mergedBy = Generated.NewUserId();
+        var conn = new FakeDbConnection();
+        conn.Enqueue(SurvivingChurchExists());
+        conn.Enqueue(AbsorbedChurchExists());
+        EnqueueSuccessfulMergeWrites(conn);
+        var service = Create(conn);
+
+        // Act
+        await service.MergeAsync(survivingChurchId, absorbedChurchId, mergedBy, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(
+            ModerationService.MergeWriteCount,
+            conn.ExecutedCommands.Count(command => command.Transaction is not null));
+    }
+
+    [Fact]
+    public async Task MergeAsync_SameSurvivingAndAbsorbedId_ExplainsTheRefusal()
+    {
+        // Arrange
+        var conn = new FakeDbConnection();
+        var survivingChurchId = Guid.NewGuid();
+        var mergedBy = Generated.NewUserId();
+        var service = Create(conn);
+
+        // Act
+        var exception = await Record.ExceptionAsync(() =>
+            service.MergeAsync(survivingChurchId, survivingChurchId, mergedBy, TestContext.Current.CancellationToken));
+
+        // Assert
+        var ex = Assert.IsType<ArgumentException>(exception);
+        Assert.Contains(ModerationService.SelfMergeRefusal, ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task MergeAsync_SurvivingChurchNotActive_NamesTheSurvivingChurch()
+    {
+        // Arrange
+        var survivingChurchId = Guid.NewGuid();
+        var absorbedChurchId = Guid.NewGuid();
+        var mergedBy = Generated.NewUserId();
+        var conn = new FakeDbConnection();
+        conn.Enqueue(ChurchDoesNotExist());
+        var service = Create(conn);
+
+        // Act
+        var exception = await Record.ExceptionAsync(() =>
+            service.MergeAsync(survivingChurchId, absorbedChurchId, mergedBy, TestContext.Current.CancellationToken));
+
+        // Assert
+        var ex = Assert.IsType<InvalidOperationException>(exception);
+        Assert.Contains(survivingChurchId.ToString(), ex.Message, StringComparison.Ordinal);
+        Assert.Single(conn.ExecutedCommands);
+    }
+
+    [Fact]
+    public async Task MergeAsync_AbsorbedChurchNotActive_NamesTheAbsorbedChurch()
+    {
+        // Arrange
+        var survivingChurchId = Guid.NewGuid();
+        var absorbedChurchId = Guid.NewGuid();
+        var mergedBy = Generated.NewUserId();
+        var conn = new FakeDbConnection();
+        conn.Enqueue(SurvivingChurchExists());
+        conn.Enqueue(ChurchDoesNotExist());
+        var service = Create(conn);
+
+        // Act
+        var exception = await Record.ExceptionAsync(() =>
+            service.MergeAsync(survivingChurchId, absorbedChurchId, mergedBy, TestContext.Current.CancellationToken));
+
+        // Assert
+        var ex = Assert.IsType<InvalidOperationException>(exception);
+        Assert.Contains(absorbedChurchId.ToString(), ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ApplyCorrectionAsync_FieldOutsideTheCorrectableSet_NamesTheField()
+    {
+        // Arrange
+        var field = Generated.NewFieldName();
+        var correction = CorrectionFor(field, Generated.NewName());
+        var conn = new FakeDbConnection();
+        var service = Create(conn);
+
+        // Act
+        var refusal = await service.ApplyCorrectionAsync(correction, Generated.NewUserId(), null, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Contains(field, refusal, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ApplyCorrectionAsync_FlagCorrectionThatIsNotABoolean_NamesTheValueAndWritesNothing()
+    {
+        // Arrange
+        var notABoolean = Generated.NewName();
+        var correction = CorrectionFor(nameof(Church.HasNursery), notABoolean);
+        var conn = new FakeDbConnection();
+        conn.Enqueue(FakeDbCommand.WithReader(ChurchRows.ActiveChurch(correction.ChurchId)));
+        var service = Create(conn);
+
+        // Act
+        var refusal = await service.ApplyCorrectionAsync(correction, Generated.NewUserId(), null, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Contains(notABoolean, refusal, StringComparison.Ordinal);
+        Assert.Single(conn.ExecutedCommands);
+    }
+
+    [Fact]
+    public async Task ApplyCorrectionAsync_CorrectionTheChurchCannotBeSavedWith_NamesTheRejectedParameter()
+    {
+        // Arrange
+        var canonicalName = Generated.NewBlank();
+        var correction = CorrectionFor(nameof(Church.CanonicalName), canonicalName);
+        var conn = new FakeDbConnection();
+        conn.Enqueue(FakeDbCommand.WithReader(ChurchRows.ActiveChurch(correction.ChurchId)));
+        var service = Create(conn);
+
+        // Act
+        var refusal = await service.ApplyCorrectionAsync(correction, Generated.NewUserId(), null, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Contains(nameof(canonicalName), refusal, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ApplyCorrectionAsync_StateCorrectionToAUspsCode_SavesIt()
+    {
+        // Arrange
+        var correction = CorrectionFor(nameof(Church.State), Generated.NewStateCodeText());
+        var conn = new FakeDbConnection();
+        conn.Enqueue(FakeDbCommand.WithReader(ChurchRows.ActiveChurch(correction.ChurchId)));
+        conn.Enqueue(FakeDbCommand.WithNonQueryResult(OneRowUpdated));
+        var service = Create(conn);
+        var reviewedBy = Generated.NewUserId();
+
+        // Act
+        var refusal = await service.ApplyCorrectionAsync(correction, reviewedBy, null, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Null(refusal);
+    }
+
+    [Fact]
+    public async Task ApplyCorrectionAsync_StateCorrectionThatIsNotAUspsCode_NamesTheValueAndWritesNothing()
+    {
+        // Arrange
+        var notAState = Generated.NewUnparseableStateCode();
+        var correction = CorrectionFor(nameof(Church.State), notAState);
+        var conn = new FakeDbConnection();
+        conn.Enqueue(FakeDbCommand.WithReader(ChurchRows.ActiveChurch(correction.ChurchId)));
+        var service = Create(conn);
+        var reviewedBy = Generated.NewUserId();
+
+        // Act
+        var refusal = await service.ApplyCorrectionAsync(correction, reviewedBy, null, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Contains(notAState, refusal, StringComparison.Ordinal);
+        Assert.Single(conn.ExecutedCommands);
+    }
+
+    [Fact]
+    public async Task ApplyCorrectionAsync_WorshipStyleCorrectionToADefinedStyle_SavesIt()
+    {
+        // Arrange
+        var style = Generated.NewDefinedValue<WorshipStyle>();
+        var correction = CorrectionFor(nameof(Church.WorshipStyle), style.ToString());
+        var conn = new FakeDbConnection();
+        conn.Enqueue(FakeDbCommand.WithReader(ChurchRows.ActiveChurch(correction.ChurchId)));
+        conn.Enqueue(FakeDbCommand.WithNonQueryResult(OneRowUpdated));
+        var service = Create(conn);
+        var reviewedBy = Generated.NewUserId();
+
+        // Act
+        var refusal = await service.ApplyCorrectionAsync(correction, reviewedBy, null, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Null(refusal);
+    }
+
+    [Fact]
+    public async Task ApplyCorrectionAsync_WorshipStyleCorrectionToAnUndefinedNumber_NamesTheValueAndWritesNothing()
+    {
+        // Arrange
+        var undefinedStyle = ((int)Generated.NewUndefinedValue<WorshipStyle>()).ToString(CultureInfo.InvariantCulture);
+        var correction = CorrectionFor(nameof(Church.WorshipStyle), undefinedStyle);
+        var conn = new FakeDbConnection();
+        conn.Enqueue(FakeDbCommand.WithReader(ChurchRows.ActiveChurch(correction.ChurchId)));
+        var service = Create(conn);
+        var reviewedBy = Generated.NewUserId();
+
+        // Act
+        var refusal = await service.ApplyCorrectionAsync(correction, reviewedBy, null, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Contains(undefinedStyle, refusal, StringComparison.Ordinal);
+        Assert.Single(conn.ExecutedCommands);
+    }
+
+    [Fact]
+    public async Task ApplyCorrectionAsync_DenominationCorrectionToAnId_SavesIt()
+    {
+        // Arrange
+        var denominationId = Guid.NewGuid();
+        var correction = CorrectionFor(nameof(Church.DenominationId), denominationId.ToString());
+        var conn = new FakeDbConnection();
+        conn.Enqueue(FakeDbCommand.WithReader(ChurchRows.ActiveChurch(correction.ChurchId)));
+        conn.Enqueue(FakeDbCommand.WithNonQueryResult(OneRowUpdated));
+        var service = Create(conn);
+        var reviewedBy = Generated.NewUserId();
+
+        // Act
+        var refusal = await service.ApplyCorrectionAsync(correction, reviewedBy, null, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Null(refusal);
+    }
+
+    [Fact]
+    public async Task ApplyCorrectionAsync_MergeSuggestionWithoutAChurchId_RefusesForTheMissingTarget()
+    {
+        // Arrange
+        var correction = CorrectionFor(ModerationService.MergeField, Generated.NewName());
+        var conn = new FakeDbConnection();
+        var service = Create(conn);
+
+        // Act
+        var refusal = await service.ApplyCorrectionAsync(correction, Generated.NewUserId(), null, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(ModerationService.MergeTargetMissing, refusal);
+        Assert.Empty(conn.ExecutedCommands);
+    }
+
+    [Fact]
+    public async Task ApplyCorrectionAsync_MergeWithNoSurvivorChosen_AsksForTheSurvivor()
+    {
+        // Arrange
+        var correction = CorrectionFor(ModerationService.MergeField, Generated.NewChurchId().ToString());
+        var conn = new FakeDbConnection();
+        var service = Create(conn);
+
+        // Act
+        var refusal = await service.ApplyCorrectionAsync(correction, Generated.NewUserId(), null, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(ModerationService.MergeSurvivorMissing, refusal);
+    }
+
+    [Fact]
+    public async Task ApplyCorrectionAsync_MergeSurvivorOutsideThePair_RefusesTheSurvivor()
+    {
+        // Arrange
+        var correction = CorrectionFor(ModerationService.MergeField, Generated.NewChurchId().ToString());
+        var unrelatedChurchId = Generated.NewChurchId();
+        var conn = new FakeDbConnection();
+        var service = Create(conn);
+
+        // Act
+        var refusal = await service.ApplyCorrectionAsync(correction, Generated.NewUserId(), unrelatedChurchId, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(ModerationService.MergeSurvivorOutsideThePair, refusal);
+    }
+
+    [Fact]
+    public async Task ApplyCorrectionAsync_MergeKeepingTheCorrectedChurch_AbsorbsTheSuggestedChurch()
+    {
+        // Arrange
+        var suggestedId = Generated.NewChurchId();
+        var correction = CorrectionFor(ModerationService.MergeField, suggestedId.ToString());
+        var conn = new FakeDbConnection();
+        conn.Enqueue(SurvivingChurchExists());
+        conn.Enqueue(AbsorbedChurchExists());
+        var service = Create(conn);
+
+        // Act
+        var refusal = await service.ApplyCorrectionAsync(correction, Generated.NewUserId(), correction.ChurchId, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Null(refusal);
+        var absorbedParams = conn.ExecutedCommands
+            .Where(command => command.Parameters.Contains(SqlParameters.Absorbed))
+            .Select(command => command.Parameters[SqlParameters.Absorbed].Value)
+            .ToList();
+        Assert.NotEmpty(absorbedParams);
+        Assert.All(absorbedParams, absorbed => Assert.Equal(suggestedId, absorbed));
+    }
+
+    [Fact]
+    public async Task ApplyCorrectionAsync_MergeApplied_ExecutesTheSuggestionClosure()
+    {
+        // Arrange
+        var suggestedId = Generated.NewChurchId();
+        var correction = CorrectionFor(ModerationService.MergeField, suggestedId.ToString());
+        var conn = new FakeDbConnection();
+        conn.Enqueue(SurvivingChurchExists());
+        conn.Enqueue(AbsorbedChurchExists());
+        var service = Create(conn);
+
+        // Act
+        await service.ApplyCorrectionAsync(correction, Generated.NewUserId(), suggestedId, TestContext.Current.CancellationToken);
+
+        // Assert
+        var closure = conn.ExecutedCommands[^1];
+        Assert.Contains("SET [Status] = @Rejected", closure.CapturedCommandText, StringComparison.Ordinal);
+        Assert.True(closure.Executed);
+    }
+
+    private static UserCorrection CorrectionFor(string field, string newValue) => new UserCorrection
+    {
+        ChurchId = Generated.NewChurchId(),
+        Field = field,
+        NewValue = newValue,
+    };
+
     private static FakeDbCommand SurvivingChurchExists() => FakeDbCommand.WithScalarResult(1);
 
     private static FakeDbCommand AbsorbedChurchExists() => FakeDbCommand.WithScalarResult(1);
@@ -426,7 +844,8 @@ public sealed class ModerationServiceTests
         string? newValue = null,
         Guid? userId = null,
         Guid? reviewedBy = null,
-        string? churchName = null)
+        string? churchName = null,
+        CorrectionLinks? links = null)
     {
         // Arrange
         var correctionId = Guid.NewGuid();
@@ -444,9 +863,9 @@ public sealed class ModerationServiceTests
             Generated.NewUtcTimestamp(),
             Generated.NewUtcTimestamp(),
             churchName ?? Generated.NewName(),
-            DBNull.Value,
-            DBNull.Value,
-            DBNull.Value,
+            (object?)links?.TargetChurchName ?? DBNull.Value,
+            (object?)links?.ChurchSlug ?? DBNull.Value,
+            (object?)links?.TargetChurchSlug ?? DBNull.Value,
         };
         if (totalCount.HasValue)
         {
@@ -479,4 +898,6 @@ public sealed class ModerationServiceTests
             DBNull.Value,
         ];
     }
+
+    private sealed record CorrectionLinks(string TargetChurchName, string ChurchSlug, string TargetChurchSlug);
 }

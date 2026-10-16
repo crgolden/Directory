@@ -23,10 +23,80 @@ public sealed class MinistryServiceTests
             churchId, ministryName, ministryDescription, TestContext.Current.CancellationToken);
 
         // Assert
+        var insert = Assert.Single(conn.ExecutedCommands);
         Assert.Equal(ministryName, result.Name);
         Assert.Equal(ministryDescription, result.Description);
-        Assert.Contains(conn.ExecutedCommands, c =>
-            c.CommandText.Contains("INSERT INTO [dbo].[Ministries]", StringComparison.Ordinal));
+        Assert.Contains("INSERT INTO [dbo].[Ministries]", insert.CommandText, StringComparison.Ordinal);
+        Assert.True(insert.Executed);
+        Assert.Equal(ministryDescription, insert.Parameters[SqlParameters.Desc].Value);
+    }
+
+    [Fact]
+    public async Task CreateAsync_NoDescription_BindsDbNull()
+    {
+        // Arrange
+        var churchId = Guid.NewGuid();
+        var ministryName = Generated.NewName();
+        var conn = new FakeDbConnection();
+        var service = new MinistryService(conn);
+
+        // Act
+        await service.CreateAsync(churchId, ministryName, null, TestContext.Current.CancellationToken);
+
+        // Assert
+        var insert = Assert.Single(conn.ExecutedCommands);
+        Assert.Equal(DBNull.Value, insert.Parameters[SqlParameters.Desc].Value);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WithDescription_BindsTheDescription()
+    {
+        // Arrange
+        var ministryId = Guid.NewGuid();
+        var ministryName = Generated.NewName();
+        var ministryDescription = Generated.NewName();
+        var conn = new FakeDbConnection();
+        conn.Enqueue(FakeDbCommand.WithNonQueryResult(OneRowAffected));
+        var service = new MinistryService(conn);
+
+        // Act
+        await service.UpdateAsync(ministryId, ministryName, ministryDescription, TestContext.Current.CancellationToken);
+
+        // Assert
+        var update = Assert.Single(conn.ExecutedCommands);
+        Assert.Equal(ministryDescription, update.Parameters[SqlParameters.Desc].Value);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_NoRowAffected_ReturnsFalse()
+    {
+        // Arrange
+        var ministryId = Guid.NewGuid();
+        var ministryName = Generated.NewName();
+        var conn = new FakeDbConnection();
+        var service = new MinistryService(conn);
+
+        // Act
+        var updated = await service.UpdateAsync(ministryId, ministryName, null, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.False(updated);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_RowAffected_ReturnsTrue()
+    {
+        // Arrange
+        var ministryId = Guid.NewGuid();
+        var conn = new FakeDbConnection();
+        conn.Enqueue(FakeDbCommand.WithNonQueryResult(OneRowAffected));
+        var service = new MinistryService(conn);
+
+        // Act
+        var deleted = await service.DeleteAsync(ministryId, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(deleted);
     }
 
     [Fact]
@@ -86,6 +156,7 @@ public sealed class MinistryServiceTests
         // Assert
         var ex = Assert.IsType<ArgumentException>(exception);
         Assert.Equal(nameof(name), ex.ParamName);
+        Assert.StartsWith(MinistryService.NameRequired, ex.Message, StringComparison.Ordinal);
         Assert.Empty(conn.ExecutedCommands);
     }
 

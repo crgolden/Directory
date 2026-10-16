@@ -274,6 +274,100 @@ public sealed class AdminServiceTests
             StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task ExportCsvAsync_PlainFields_AreWrittenBareBetweenSeparators()
+    {
+        // Arrange
+        var churchName = Generated.NewName();
+
+        // Act
+        var csv = await ExportCsvUnderCultureAsync(CultureInfo.InvariantCulture, ExportRow(churchName));
+
+        // Assert
+        Assert.Contains($"{AdminService.CsvSeparator}{churchName}{AdminService.CsvSeparator}", csv, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ExportCsvAsync_FieldHoldingTheSeparator_IsQuoted()
+    {
+        // Arrange
+        var churchName = Generated.NewName();
+        var street = $"{Generated.NewStreet()}{AdminService.CsvSeparator}{Generated.NewStreet()}";
+
+        // Act
+        var csv = await ExportCsvUnderCultureAsync(CultureInfo.InvariantCulture, ExportRow(churchName, street));
+
+        // Assert
+        Assert.Contains(
+            $"{AdminService.CsvSeparator}{AdminService.CsvQuote}{street}{AdminService.CsvQuote}{AdminService.CsvSeparator}",
+            csv,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ExportCsvAsync_FieldHoldingAQuote_IsQuotedWithTheQuoteDoubled()
+    {
+        // Arrange
+        var churchName = Generated.NewName();
+        var before = Generated.NewStreet();
+        var after = Generated.NewStreet();
+        var street = $"{before}{AdminService.CsvQuote}{after}";
+
+        // Act
+        var csv = await ExportCsvUnderCultureAsync(CultureInfo.InvariantCulture, ExportRow(churchName, street));
+
+        // Assert
+        Assert.Contains(
+            $"{AdminService.CsvSeparator}{AdminService.CsvQuote}{before}{AdminService.CsvQuote}{AdminService.CsvQuote}{after}{AdminService.CsvQuote}{AdminService.CsvSeparator}",
+            csv,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ParseCsv_ColumnAbsentFromTheHeader_LeavesThatFieldNull()
+    {
+        // Arrange
+        var canonicalName = Generated.NewName();
+        var state = Generated.NewStateCodeText();
+        var csv = string.Join(
+            CsvLineSeparator,
+            MinimalCsvHeader(),
+            string.Join(CsvFieldSeparator, canonicalName, state));
+
+        // Act
+        using var reader = new StringReader(csv);
+        var rows = await AdminService.ParseCsvAsync(reader, TestContext.Current.CancellationToken).ToListAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        var row = Assert.Single(rows);
+        Assert.Null(row.Street);
+        Assert.Null(row.City);
+    }
+
+    [Fact]
+    public async Task ParseCsv_RowShorterThanTheHeader_LeavesTheMissingFieldsNull()
+    {
+        // Arrange
+        var canonicalName = Generated.NewName();
+        var street = Generated.NewStreet();
+        var city = Generated.NewCity();
+        var state = Generated.NewStateCodeText();
+        var csv = string.Join(
+            CsvLineSeparator,
+            FullCsvHeader(),
+            string.Join(CsvFieldSeparator, canonicalName, street, city, state));
+
+        // Act
+        using var reader = new StringReader(csv);
+        var rows = await AdminService.ParseCsvAsync(reader, TestContext.Current.CancellationToken).ToListAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        var row = Assert.Single(rows);
+        Assert.Equal(state, row.State);
+        Assert.Null(row.Zip);
+        Assert.Null(row.EmailAddress);
+    }
+
     private static async Task<string> ExportCsvUnderCultureAsync(CultureInfo culture, object[] exportRow)
     {
         var table = BuildExportTable();
@@ -361,9 +455,12 @@ public sealed class AdminServiceTests
         return t;
     }
 
-    private static object[] ExportRow(string canonicalName) =>
+    private static object[] ExportRow(string canonicalName) => ExportRow(canonicalName, Generated.NewStreet());
+
+    private static object[] ExportRow(string canonicalName, string street) =>
         ExportRow(
             canonicalName,
+            street,
             Generated.NewConfidenceScore(),
             Generated.NewUtcTimestamp(),
             Generated.NewUtcTimestamp());
@@ -372,11 +469,18 @@ public sealed class AdminServiceTests
         string canonicalName,
         decimal confidenceScore,
         DateTimeOffset createdAt,
+        DateTimeOffset updatedAt) =>
+        ExportRow(canonicalName, Generated.NewStreet(), confidenceScore, createdAt, updatedAt);
+
+    private static object[] ExportRow(
+        string canonicalName,
+        string street,
+        decimal confidenceScore,
+        DateTimeOffset createdAt,
         DateTimeOffset updatedAt)
     {
         var churchId = Guid.NewGuid();
         var slug = Generated.NewSlug();
-        var street = Generated.NewStreet();
         var city = Generated.NewCity();
         var state = Generated.NewStateCodeText();
         var zip = Generated.NewZip();

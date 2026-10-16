@@ -116,6 +116,7 @@ public sealed class ChurchService
             throw new ArgumentException($"Unknown state code '{request.State}'.", nameof(request));
         }
 
+        await EnsureOpenAsync(ct);
         var slug = await GenerateUniqueSlugAsync(request.CanonicalName, request.City, state, ct);
         var church = new Church
         {
@@ -140,7 +141,6 @@ public sealed class ChurchService
         };
         var now = DateTimeOffset.UtcNow;
         EnsureValid(church, now, now);
-        await EnsureOpenAsync(ct);
         await using var cmd = _dbConnection.CreateCommand();
         cmd.CommandText = """
             INSERT INTO [dbo].[Churches]
@@ -273,18 +273,15 @@ public sealed class ChurchService
     private static string ToSlug(string value)
     {
         var sb = new StringBuilder();
-        var prevDash = false;
         foreach (var ch in value.ToLowerInvariant())
         {
             if (char.IsLetterOrDigit(ch))
             {
                 sb.Append(ch);
-                prevDash = false;
             }
-            else if (!prevDash && sb.Length > 0)
+            else if (sb.Length > 0 && sb[^1] != '-')
             {
                 sb.Append('-');
-                prevDash = true;
             }
         }
 
@@ -440,7 +437,6 @@ public sealed class ChurchService
 
     private async Task<bool> SlugExistsAsync(string slug, CancellationToken ct)
     {
-        await EnsureOpenAsync(ct);
         await using var cmd = _dbConnection.CreateCommand();
         cmd.CommandText = "SELECT COUNT(1) FROM [dbo].[Churches] WHERE [Slug] = @Slug";
         AddParam(cmd, SqlParameters.Slug, slug);

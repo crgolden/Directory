@@ -98,6 +98,73 @@ public sealed class OptionalPatchTests
         Assert.Null(result);
     }
 
+    [Fact]
+    public void Write_AbsentValue_WritesJsonNull()
+    {
+        // Arrange
+        var absent = default(Optional<string>);
+
+        // Act
+        var json = JsonSerializer.Serialize(absent, Options);
+
+        // Assert
+        Assert.Equal(JsonSerializer.Serialize<string?>(null, Options), json);
+    }
+
+    [Fact]
+    public void Write_SuppliedValue_WritesTheValue()
+    {
+        // Arrange
+        var phoneNumber = Generated.NewPhoneNumber();
+        var supplied = new Optional<string>(phoneNumber);
+
+        // Act
+        var json = JsonSerializer.Serialize(supplied, Options);
+
+        // Assert
+        Assert.Equal(JsonSerializer.Serialize(phoneNumber, Options), json);
+    }
+
+    [Fact]
+    public void CreateConverter_OptionalOfAType_ReturnsTheConverterForThatType()
+    {
+        // Arrange
+        var factory = new OptionalConverterFactory();
+        var options = new JsonSerializerOptions();
+
+        // Act
+        var converter = factory.CreateConverter(typeof(Optional<string>), options);
+
+        // Assert
+        Assert.IsType<OptionalConverter<string>>(converter);
+    }
+
+    [Fact]
+    public void CanConvert_TypeThatIsNotGeneric_IsFalse()
+    {
+        // Arrange
+        var factory = new OptionalConverterFactory();
+
+        // Act
+        var canConvert = factory.CanConvert(typeof(string));
+
+        // Assert
+        Assert.False(canConvert);
+    }
+
+    [Fact]
+    public void CanConvert_GenericTypeOtherThanOptional_IsFalse()
+    {
+        // Arrange
+        var factory = new OptionalConverterFactory();
+
+        // Act
+        var canConvert = factory.CanConvert(typeof(List<string>));
+
+        // Assert
+        Assert.False(canConvert);
+    }
+
     private static JsonSerializerOptions BuildOptions()
     {
         var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
