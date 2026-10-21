@@ -4,139 +4,132 @@
 
 [![Quality gate](https://sonarcloud.io/api/project_badges/quality_gate?project=crgolden_Directory)](https://sonarcloud.io/summary/new_code?id=crgolden_Directory)
 
-ASP.NET Core 10 Minimal API serving a nationwide U.S. church directory, backed by SQL Server through BCL ADO.NET (no EF Core, no Dapper). Public search and church lookup are anonymous; correction submissions require a `directory`-scoped JWT, and moderation/crawl operations require the `churches.mod` claim. Observable via OpenTelemetry (Grafana Alloy) and documented via OpenAPI.
+An ASP.NET Core 10 Minimal API serving a U.S. church directory from SQL Server through plain ADO.NET (no EF Core, no
+Dapper). Search and church lookup are anonymous; submitting a correction needs a JWT whose `scope` includes
+`directory`, and moderation, curation and crawl operations need the `churches.mod` claim. Imports, crawl triggers and
+corrections are handed to a processing pipeline through Azure Service Bus queues.
 
-## Sibling Applications
+How the parts fit together and the rules each keeps: [ARCHITECTURE.md](ARCHITECTURE.md). How to run every test tier:
+[TESTING.md](TESTING.md).
 
-Directory is a **standalone resource server**. It was extracted from the `Churches` repo: the `Church` / `Search` / `Crawling` / `Moderation` / `User` feature slices and the SQL schema now live here, while `Churches` is an Angular SSR app + Node (Express) BFF that proxies to this API.
+## Technologies
 
-The end-to-end platform architecture — how this API, the Churches UI/BFF, and the Functions data pipeline fit together (queue cascade, single-writer invariant, corrections lifecycle, Azure hosting/RBAC) — is documented in [Churches/ARCHITECTURE.md](https://github.com/crgolden/Churches/blob/main/ARCHITECTURE.md). This README is the API-level reference.
+- .NET 10, ASP.NET Core Minimal API in feature folders.
+- SQL Server through ADO.NET (`SqlClientFactory`); the schema is the `Directory.Data` SQL project (`Microsoft.Build.Sql`),
+  published as a `.dacpac` with SqlPackage.
+- JWT Bearer authentication against any OIDC provider; Azure Service Bus (sender only); OpenAPI at `/openapi/v1.json`.
+- In production only: OpenTelemetry (OTLP), Serilog to Elasticsearch, and Azure Blob Storage plus Key Vault for data
+  protection keys.
+- xUnit v3 on Microsoft.Testing.Platform, coverlet, Stryker.NET, ReSharper `jb inspectcode` and SonarCloud.
 
-| Repo | Role | How Directory interacts |
-|---|---|---|
-| [Identity](https://github.com/crgolden/Identity) | OIDC Identity Provider | Issues the access tokens Directory validates (scope `directory`); the `churches.mod` claim authorizes moderators |
-| [Churches](https://github.com/crgolden/Churches) | Angular 21 SSR + Node (Express) BFF | Sole interactive client — the BFF proxies `/directory/api/**` to this API, attaching the user access token when present |
-| [Functions](https://github.com/crgolden/Functions) | Azure Functions isolated worker | The crawl/extract/enrich/dedup processing pipeline writes to the same `Directory` SQL database |
-| [Infrastructure](https://github.com/crgolden/Infrastructure) | Health monitoring dashboard | Not yet — `DirectoryHealthCheck` is planned; currently covered by Uptime Kuma |
-
-## Tech Stack
-
-- **.NET 10** / ASP.NET Core (Minimal API, feature-folder vertical slices)
-- **SQL Server** via BCL ADO.NET — `DbConnection` scoped from `SqlClientFactory.Instance`; schema owned by `Directory.Data` (`Microsoft.Build.Sql` SDK, `Sql150`), deployed as a `.dacpac`
-- **JWT Bearer / OIDC** — authorization policies `Directory` (`scope: directory`) and `ChurchesMod` (claim `churches.mod: true`)
-- **Azure Service Bus** — correction submissions are enqueued for the processing pipeline
-- **OpenAPI** (`Microsoft.AspNetCore.OpenApi`) — contract at `/openapi/v1.json`
-- **Azure** — Key Vault (secrets), Blob Storage (data protection keys)
-- **OpenTelemetry** → Grafana Alloy (OTLP traces & metrics)
-- **Serilog** → Elasticsearch (`logs-app-directory` data stream)
-
-## API Endpoints
+## API
 
 | Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| `GET` | `/search` | Anonymous | Search churches by free text, location (lat/lng/radius), state, denomination, worship style, accessibility |
-| `GET` | `/churches` | Anonymous | Paged church list |
-| `GET` | `/churches/{slug}` | Anonymous | Single church by slug |
-| `POST` | `/churches` | `churches.mod` | Create a church |
-| `PUT` | `/churches/{id:guid}` | `churches.mod` | Replace a church |
-| `PATCH` | `/churches/{id:guid}` | `churches.mod` | Partially update a church |
-| `DELETE` | `/churches/{id:guid}` | `churches.mod` | Soft-delete a church |
-| `POST` | `/churches/{survivingId:guid}/merge/{absorbedId:guid}` | `churches.mod` | Merge two church records (transactional) |
-| `GET` | `/crawl-sources` | `churches.mod` | List crawl sources |
-| `POST` | `/crawl-sources` | `churches.mod` | Register a crawl source |
-| `DELETE` | `/crawl-sources/{id:guid}` | `churches.mod` | Remove a crawl source |
-| `POST` | `/crawl-sources/{id:guid}/trigger` | `churches.mod` | Trigger a crawl run |
-| `GET` | `/corrections` | `churches.mod` | List submitted corrections |
-| `GET` | `/corrections/{id:guid}` | `churches.mod` | Get a single correction |
-| `POST` | `/corrections` | `directory` scope | Submit a user correction (enqueued to Service Bus) |
-| `PATCH` | `/corrections/{id:guid}/approve` | `churches.mod` | Approve a correction |
-| `PATCH` | `/corrections/{id:guid}/reject` | `churches.mod` | Reject a correction |
-| `GET` | `/me` | Anonymous | Current identity (`IsAuthenticated`, `Sub`, `Email`, `Name`) |
+|---|---|---|---|
+| `GET` | `/search` | anonymous | search by text, location and radius, state, denomination, worship style, accessibility, service day and time; paged |
+| `GET` | `/churches`, `/churches/{slug}` | anonymous | paged list; one church by slug, with its schedules, ministries and campuses |
+| `POST`, `PUT`, `PATCH`, `DELETE` | `/churches[/{id}]` | `churches.mod` | create, replace, partially update (an absent member is left alone, an explicit `null` clears it), soft-delete |
+| `POST` | `/churches/{survivingId}/merge/{absorbedId}` | `churches.mod` | merge two church records in one transaction |
+| `POST`, `PUT`, `DELETE` | `/churches/{churchId}/{schedules,ministries,campuses}`, `/{schedules,ministries,campuses}/{id}` | `churches.mod` | curate a church's children |
+| `GET`, `POST`, `DELETE` | `/crawl-sources[/{id}]`, `POST /crawl-sources/{id}/trigger` | `churches.mod` | manage crawl sources and queue a crawl |
+| `GET` | `/corrections[/{id}]` | `churches.mod` | submitted corrections |
+| `POST` | `/corrections` | `directory` scope | submit a correction (queued, not written to SQL) |
+| `PATCH` | `/corrections/{id}/approve`, `/corrections/{id}/reject` | `churches.mod` | moderate a correction |
+| `POST`, `GET` | `/admin/import` (CSV), `/admin/export` | `churches.mod` | bulk import (one queued geocoding request per row) and CSV export |
+| `GET` | `/denominations`, `/me`, `/health` | anonymous | denominations; the caller's identity; a SQL health check |
 
-OIDC tokens are issued by [Identity](https://github.com/crgolden/Identity); the [Churches](https://github.com/crgolden/Churches) BFF forwards the user token (type `UserOrNone`) when proxying `/directory/api/**`.
+## Prerequisites
 
-## Data Model
+- The .NET 10 SDK (`global.json` pins `10.0.201` and rolls forward to the latest feature band).
+- A GitHub personal access token with the `read:packages` scope. The `Shared` package restores from the `crgolden`
+  GitHub Packages feed (`NuGet.Config`), which asks for a token even for a public package. Store it as the `GitHub`
+  source's credentials in your user NuGet configuration, never in this repo:
 
-The schema is owned by `Directory.Data` (SQL Database Project). Core tables:
+  ```powershell
+  dotnet nuget update source GitHub --username <your GitHub user> --password <token> --store-password-in-clear-text --configfile "$env:APPDATA\NuGet\NuGet.Config"
+  ```
 
-| Table | Purpose |
-|-------|---------|
-| `Directory` | Church records (canonical name, slug, address, contact, confidence score, soft-delete) |
-| `Denominations` | Denomination lookup |
-| `Campuses` | Multi-campus church locations |
-| `Ministries` | Per-church ministries |
-| `ServiceSchedules` | Service times |
-| `ChurchAttributes` | Key/value enrichment attributes (feed the confidence score) |
-| `CrawlSources` | Registered crawl sources and run state |
-| `UserCorrections` | Submitted corrections awaiting moderation |
-| `MergeAuditLog` | Audit trail for church merges |
+- A full SQL Server instance (not LocalDB, which lacks the full-text features the schema uses) and SqlPackage
+  (`dotnet tool install --global microsoft.sqlpackage`).
+- An Azure Service Bus namespace's connection string for the queues the API sends to: `geocoding-requests`,
+  `scrape-requests` and `contributions`.
+- An OIDC provider for the authenticated routes.
 
-`Functions/fn_HaversineDistance` powers radius search. Each church's `ConfidenceScore` is computed by the processing pipeline: `ConfidenceScoreCalculator` lives in the [Functions](https://github.com/crgolden/Functions) repo and runs when `ConfidenceWorker` consumes a `confidence-requests` message after every pipeline write.
+## Clone and build
+
+```powershell
+git clone https://github.com/crgolden/Directory.git
+cd Directory
+dotnet tool restore
+dotnet build Directory.slnx
+```
 
 ## Configuration
 
-In production these are sourced from Azure Key Vault and App Service configuration; locally, use [User Secrets](https://learn.microsoft.com/en-us/aspnet/core/security/app-secrets) (ID `61549613-3239-4c31-8300-39334a7c2657`).
+`appsettings.json` names the catalog `Directory`; `appsettings.Development.json` points at SQL Server on `localhost`
+with integrated security and sets `OidcAuthority` to `https://localhost:7261`. Secrets go in User Secrets for the
+`Directory` project:
 
-| Key | Source | Description |
-|-----|--------|-------------|
-| `OidcAuthority` | Config | OIDC authority URL for JWT validation |
-| `SqlConnectionStringBuilder:DataSource` | Config | SQL Server host (catalog defaults to `Directory`) |
-| `SqlConnectionStringBuilder:UserID` | Key Vault secret | SQL Server login user |
-| `SqlConnectionStringBuilder:Password` | Key Vault secret | SQL Server login password |
-| `ServiceBusNamespace` | Config | Service Bus fully-qualified namespace (production) |
-| `ServiceBusConnectionString` | Config | Service Bus connection string (non-production) |
-| `ElasticsearchNode` | Config | Elasticsearch node URL |
-| `ElasticsearchUsername` | Key Vault secret | Elasticsearch username |
-| `ElasticsearchPassword` | Key Vault secret | Elasticsearch password |
-| `BlobUri` | Config | Azure Blob Storage URL for data protection keys (production) |
-| `DataProtectionKeyIdentifier` | Config | Azure Key Vault key URI for data protection (production) |
-
-## Local Development
-
-```bash
-# Prerequisites: User Secrets configured, ASPNETCORE_ENVIRONMENT=Development
-
-# Build
-dotnet build Directory/
-
-# Run (https://localhost:7002)
-dotnet run --project Directory/
-
-# View OpenAPI doc
-curl https://localhost:7002/openapi/v1.json
-
-# Run unit tests (no Azure creds, no live SQL — fully mocked)
-dotnet build Directory.Tests.Unit --configuration Debug
-.\Directory.Tests.Unit\bin\Debug\net10.0\Directory.Tests.Unit.exe -trait "Category=Unit" -showLiveOutput
+```powershell
+dotnet user-secrets set ServiceBusConnectionString "<connection string>" --project Directory
 ```
 
-### Database schema
+| Key | Needed | Purpose |
+|---|---|---|
+| `OidcAuthority` | always | the OIDC authority whose tokens the API accepts |
+| `SqlConnectionStringBuilder:*` | always | `DataSource`, `InitialCatalog`, and `UserID`/`Password` when not using integrated security |
+| `ServiceBusConnectionString` | outside Production | the Service Bus namespace to send to (a secret) |
+| `ServiceBusNamespace` | Production | the namespace, reached with an Azure credential |
+| `BlobUri`, `DataProtectionKeyIdentifier` | Production | Blob container and Key Vault key for data protection |
+| `ElasticsearchNode`, `ElasticsearchUsername`, `ElasticsearchPassword` | Production | log shipping |
+| `AlloyEndpoint` | Production | OTLP endpoint for traces and metrics |
+| `WEBSITE_SITE_NAME` | Production | the service name for logs and telemetry (App Service sets it) |
+| `DefaultAzureCredentialOptions` | Production | which Azure credential to use |
 
-```bash
-# Install sqlpackage once (if not already installed)
-dotnet tool install --global microsoft.sqlpackage
+## Run locally
 
+Publish the schema, then run the API:
+
+```powershell
 dotnet build Directory.Data/Directory.Data.sqlproj --configuration Release
-sqlpackage /Action:Publish /SourceFile:Directory.Data/bin/Release/Directory.Data.dacpac /TargetConnectionString:"<connection-string>"
+sqlpackage /Action:Publish /SourceFile:Directory.Data/bin/Release/Directory.Data.dacpac /TargetConnectionString:"Server=localhost;Database=Directory;Integrated Security=true;TrustServerCertificate=true"
+
+$env:ASPNETCORE_ENVIRONMENT = "Development"
+dotnet run --project Directory
 ```
 
-See [TESTING.md](TESTING.md) for the full testing guide and CI pipeline details.
+It listens on `https://localhost:7002`; the OpenAPI document is at `/openapi/v1.json`. The post-deployment script seeds
+`Denominations`.
 
-## Health Check
+## Tests
 
+```powershell
+dotnet test --project Directory.Tests.Unit --configuration Release -- --filter-trait "Category=Unit"
 ```
-GET /health
+
+The unit tier needs no database or secrets. The integration tier needs the schema published to a catalog named with a
+`Test` suffix; [TESTING.md](TESTING.md) has the setup.
+
+## Gate
+
+`gate.ps1` is the maintainers' gate. It loads a private toolkit from a folder beside this repo, so in a plain clone it
+stops at once with `GATE: FAILED`. To gate your own change, run the checks CI runs, in this order:
+
+```powershell
+dotnet tool restore
+dotnet build --no-incremental --configuration Release /p:RestoreLockedMode=true -warnaserror
+dotnet jb inspectcode Directory.slnx --no-build -e=WARNING --output=inspectcode.sarif
+dotnet test --project Directory.Tests.Unit --no-build --configuration Release -- --filter-trait "Category=Unit"
+dotnet test --project Directory.Tests.Integration --no-build --configuration Release -- --filter-trait "Category=Integration"
+Push-Location Directory
+dotnet stryker --config-file ../stryker-config.json
+Pop-Location
 ```
 
-Returns `Healthy` when the application is running. No authentication required.
+`jb inspectcode` passes only when `inspectcode.sarif` holds no results, and Stryker only at a 100% mutation score.
 
 ## Deployment
 
-The GitHub Actions workflow (`.github/workflows/main_crgolden-directory.yml`) runs on every push and PR:
-
-1. Build solution (`dotnet build --no-incremental --configuration Release`), which compiles `Directory.Data.sqlproj` to a `.dacpac`
-2. Unit tests with coverage (`dotnet coverlet … --filter-trait Category=Unit`, OpenCover → `coverage.opencover.xml`), `ASPNETCORE_ENVIRONMENT=CI`
-3. SonarCloud analysis
-4. Publish the web app and upload both the app and dacpac artifacts
-
-The deploy job (after a successful build) deploys the `.dacpac` to the production SQL Server via `SqlPackage`, then deploys the web app to **Azure App Service** `crgolden-directory` (Production slot) via Azure OIDC. The database schema is always deployed before the app.
+`.github/workflows/main_crgolden-directory.yml` builds, inspects and tests every push and pull request. On a push to
+`main` the deploy job publishes the dacpac to the production catalog with SqlPackage, then deploys the app to Azure
+App Service through OIDC federated credentials; the schema always deploys before the app.

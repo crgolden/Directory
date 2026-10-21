@@ -1,194 +1,136 @@
 # Testing
 
-The Directory test suite uses xUnit v3 (`xunit.v3.mtp-v2`, exe runner), split into two tiers, each in its own
-project: `Unit` in `Directory.Tests.Unit` (service/domain tests against a fake `DbConnection` and mocked Service
-Bus, with no live SQL Server, Key Vault, or Azure credential in the loop) and `Integration` in
-`Directory.Tests.Integration` (the `*EndpointsTests.cs` files, which drive the real `Program.cs` pipeline over
-HTTP through `DirectoryWebApplicationFactory` against a real SQL Server schema deployed via `SqlPackage` in CI).
-No browser is involved, so the endpoint tier is Integration, not E2E ([AGENTS/TESTING.md](../AGENTS/TESTING.md)).
-
-Unit test coding standards (MockBehavior.Strict, argument verification, SetupSequence, no control-flow in
-tests, etc.) are in the workspace-level [Unit Test Standards](../AGENTS/TESTING.md#unit-test-standards).
-
 ## Test tiers
 
-| Tier | Trait | Project | Requires Azure / SQL? | Runs in CI |
-|------|-------|---------|-----------------------|------------|
-| Unit | `Category=Unit` | `Directory.Tests.Unit` | No — fake DB + mocked Service Bus | Every push/PR |
-| Integration | `Category=Integration` | `Directory.Tests.Integration` | Yes — real SQL Server (schema deployed via `SqlPackage`) | Every push/PR |
+| Tier | Trait | Project | Needs | Runs in CI |
+|---|---|---|---|---|
+| Unit | `Category=Unit` | `Directory.Tests.Unit` | nothing: a fake `DbConnection` and a mocked Service Bus | every push and pull request |
+| Integration | `Category=Integration` | `Directory.Tests.Integration` | a SQL Server catalog carrying the `Directory.Data` schema, named with a `Test` suffix | every push and pull request except Dependabot's |
 
-- **Unit — service / domain tests** (`Api/*ServiceTests.cs`, `Domain/ConfidenceScoreCalculatorTests.cs`) — test
-  the feature services and the confidence-score calculator directly with a mocked `DbConnection`.
-- **Integration — endpoint tests** (`Directory.Tests.Integration/*EndpointsTests.cs`) — drive the real
-  `Program.cs` pipeline through `DirectoryWebApplicationFactory`, exercising routing, model binding, and
-  authorization against a real SQL Server database.
-- `TestSupport/TestValues.cs` lives in the unit project and is compiled into the integration project as a
-  linked `<Compile>`; `DirectoryWebApplicationFactory`, `IntegrationAuthHandler` and `TestRequests` live in
-  `Directory.Tests.Integration/TestSupport/`, and `FakeDb` stays with the unit tier.
+Both are xUnit v3 projects on Microsoft.Testing.Platform (`global.json` selects the runner). No browser is involved, so
+the endpoint tests are integration tests, not end-to-end. Test data comes from the `Shared` package's
+`Shared.Testing.Generated`; `Directory.Tests.Unit/TestSupport/TestValues.cs` is compiled into the integration project
+through a linked `<Compile>` item.
 
----
+**What the integration tier alone proves is that each hand-written SQL statement runs against the real schema.** The
+unit tier checks SQL text against a fake connection, so a wrong column, a bad join or a missing
+`fn_HaversineDistance` or full-text dependency passes it. The integration tier also boots `Program.cs`. It does not
+validate real tokens (the factory swaps the authentication scheme) and does not reach Service Bus (mocked).
 
-## Running Tests Locally
+### Unit tier (`Directory.Tests.Unit/Api`)
 
-For running tests (`dotnet test` from the repo root — never the workspace root) and the exe-runner flags,
-see the workspace-level [TESTING.md](../AGENTS/TESTING.md).
+| File | Covers |
+|---|---|
+| `ChurchServiceTests.cs`, `ChurchDefaultsTests.cs` | church CRUD, slug generation, reader mapping including the nested children on get-by-slug |
+| `ScheduleServiceTests.cs`, `MinistryServiceTests.cs`, `CampusServiceTests.cs` | child create, update and delete: SQL and parameters, `TimeOnly` parsing, day-of-week bounds |
+| `SearchServiceTests.cs` | filters, distance ordering, the count-then-page statements, the schedule filters |
+| `DenominationServiceTests.cs`, `AdminServiceTests.cs`, `CrawlingServiceTests.cs` | denominations, CSV import and export, crawl sources and triggers |
+| `ModerationServiceTests.cs`, `ModerationApplyCorrectionTests.cs` | the corrections lifecycle and the transactional merge (commit and rollback) |
+| `OptionalPatchTests.cs` | `PATCH` telling an absent member from an explicit `null` |
+| `EntityJsonTests.cs` | `State` written as its two-letter code and `WorshipStyle` as a number |
+| `AuthorizationPoliciesTests.cs`, `SubjectClaimsTests.cs` | policy and claim names, and `sub` parsed as a `Guid` |
 
-User Secrets ID: `61549613-3239-4c31-8300-39334a7c2657` (not needed for unit tests, which never boot
-`Program.cs`).
+### Integration tier (`Directory.Tests.Integration`)
 
-```powershell
-dotnet build Directory.Tests.Unit --configuration Debug
-.\Directory.Tests.Unit\bin\Debug\net10.0\Directory.Tests.Unit.exe -trait "Category=Unit" -showLiveOutput
-
-dotnet build Directory.Tests.Integration --configuration Debug
-.\Directory.Tests.Integration\bin\Debug\net10.0\Directory.Tests.Integration.exe -trait "Category=Integration" -showLiveOutput
-```
-
----
+One `*EndpointsTests.cs` class per feature (churches, schedules, ministries, campuses, search, denominations,
+crawling, moderation, `/me`) drives the real pipeline over HTTP. `DirectoryWebApplicationFactoryTests.cs` and
+`TestDatabaseContractTests.cs` pin the factory's guards.
 
 ## Test infrastructure
 
 ### `DirectoryWebApplicationFactory`
 
-`WebApplicationFactory<Program>` used by the endpoint tests. It starts the full `Program.cs` (in the
-`Development` environment `WebApplicationFactory` supplies by default), then:
+Starts the full `Program.cs` in the `Development` environment, then replaces logging with console output, replaces the
+Service Bus client with a mock so a correction can be enqueued without a namespace, and registers
+`IntegrationAuthHandler` as the default authentication scheme. Nothing else about authorization changes: the
+`Directory` and `ChurchesMod` policies under test are the ones `Program.cs` declares. The `DbConnection` `Program.cs`
+registers stays, so the tests run against the real database.
 
-- replaces `ILoggerFactory` with console logging;
-- replaces `IAzureClientFactory<ServiceBusClient>` with a Moq-backed `ServiceBusClient` / `ServiceBusSender`
-  (loose) so `SubmitCorrectionAsync` can enqueue without a real namespace;
-- registers `IntegrationAuthHandler` as the default authentication scheme, and nothing else about authorization:
-  the `Directory` and `ChurchesMod` policies under test are the ones `Program.cs` declares.
-
-The `DbConnection` registered by `Program.cs` is left in place, so the endpoint tests run against the real
-SQL Server database it names; `OpenTestConnectionAsync` opens a second connection to that same database for
-seeding and assertions. (`FakeDbConnection` is used only by the service-level unit tests, never by this
-factory.)
+- **It refuses to start unless the catalog name ends in `Test` (or `Triage`)**, checked during service registration,
+  before any test writes, so a production catalog can never be the target.
+- **It sweeps the catalog before each test class and after it**, child tables first (`UserCorrections`,
+  `MergeAuditLog`, `ChurchAttributes`, `ServiceSchedules`, `Ministries`, `Campuses`, `CrawlSources`, `Churches`),
+  never `Denominations`, which the post-deployment script seeds. `CrawlSources` goes before `Churches` because its
+  foreign key declares no `ON DELETE` action. `parallelizeTestCollections: false` makes a per-class sweep safe within
+  one run; two runs against one catalog delete each other's rows.
 
 ### `IntegrationAuthHandler`
 
-An `AuthenticationHandler` registered as the default scheme by the factory. It issues a principal carrying
-`sub`, `scope=directory` and `churches.mod=true`, satisfying both the `Directory` and `ChurchesMod`
-policies. Tests that need the anonymous or unauthorized path assert against the endpoints that don't
-require those claims, or vary the request accordingly.
-
-**The handler issues only claim shapes Identity actually mints.**
-`churches.mod` is an ApiScopeClaim on the `directory` scope (`Tools/Identity/ApiScopes.sql`), so it arrives
-under its own claim type while the `scope` claim carries `directory`; `scope=churches.mod` is a shape the IdP
-cannot produce. A fixture that mints a claim the IdP never issues makes every reader of that claim look
-correct under test, so two readers that disagree about it both pass. Never add a claim here to make a test
-pass.
+Issues a principal with `sub`, `scope=directory` and `churches.mod=true`, the claim shapes the identity provider
+issues: `churches.mod` arrives as its own claim type, never as a `scope` value. Never add a claim here to make a test
+pass; a fixture minting a claim the provider never issues makes every reader of it look correct.
 
 ### `FakeDb`
 
-`FakeDbConnection` (`TestSupport/FakeDbConnection.cs`, with its `FakeDbCommand`, `FakeDbParameter`, `FakeDbParameterCollection` and `FakeDbTransaction` siblings, one type per file) is a hand-rolled `DbConnection` / `DbCommand` / `DbDataReader`
-test double. Because all Directory data access is BCL ADO.NET over an abstract `DbConnection`, the fake lets
-the service tests assert generated SQL/parameters and feed canned reader rows without a database.
+`FakeDbConnection` and its `FakeDbCommand`, `FakeDbParameter`, `FakeDbParameterCollection` and `FakeDbTransaction`
+siblings (`Directory.Tests.Unit/TestSupport/`) are a hand-rolled ADO.NET double. Because all data access goes through
+an abstract `DbConnection`, the unit tests assert the generated SQL and parameters and feed canned reader rows.
+`FakeDbCommand.WithReaders` supplies the second result set the search query reads.
 
----
+## Running tests locally
 
-## Test coverage
+From the repo root.
 
-| Area | File | What it covers |
-|------|------|----------------|
-| Church endpoints | `Directory.Tests.Integration/ChurchEndpointsTests.cs` | Routing + auth for list / get-by-slug / create / update / patch / delete |
-| Church service | `Api/ChurchServiceTests.cs` | CRUD, slug generation, reader mapping (incl. nested `schedules`/`ministries`/`campuses` on get-by-slug), confidence recalculation |
-| Child curation services | `Api/ScheduleServiceTests.cs`, `Api/MinistryServiceTests.cs`, `Api/CampusServiceTests.cs` | `ChurchesMod` create/update/delete for `ServiceSchedules`/`Ministries`/`Campuses` — SQL + parameter generation, `TimeOnly` parse/validation, day-of-week bounds |
-| Search endpoints / service | `Directory.Tests.Integration/SearchEndpointsTests.cs`, `Api/SearchServiceTests.cs` | Filter toggles, Haversine distance ordering, parameter binding, schedule filter SQL generation (`dayOfWeek`, `startTimeBefore`, `startTimeAfter`) |
-| Denomination service | `Api/DenominationServiceTests.cs` | `GetAllAsync` (connection open/closed, empty table, ORDER BY in SQL) |
-| Admin import/export | `Api/AdminServiceTests.cs` | `ParseCsv` (field mapping, skip-on-missing-name/state, empty/header-only, multiple rows); `ImportCsvAsync` (publish count, empty CSV); `ExportCsvAsync` (connection auto-open, row count, ORDER BY clause) |
-| Crawling endpoints / service | `Directory.Tests.Integration/CrawlingEndpointsTests.cs`, `Api/CrawlingServiceTests.cs` | Crawl-source CRUD and trigger |
-| Moderation endpoints / service | `Directory.Tests.Integration/ModerationEndpointsTests.cs`, `Api/ModerationServiceTests.cs` | Corrections lifecycle, transactional merge (commit vs rollback) |
-| User endpoint | `Directory.Tests.Integration/UserEndpointsTests.cs` | `/me` identity projection, and that it carries no moderation flag |
-| Confidence score | `Domain/ConfidenceScoreCalculatorTests.cs` | Score derivation from populated attributes |
+### Unit
 
-See the workspace `COVERAGE/Directory.md` for the demand-driven MC/DC tables behind the service
-test selection.
+```powershell
+dotnet build Directory.slnx --configuration Release
+dotnet test --project Directory.Tests.Unit --no-build --configuration Release -- --filter-trait "Category=Unit"
+```
 
----
+### Integration
+
+Needs a full SQL Server instance; LocalDB lacks the full-text features the schema uses. Publish the schema to a
+catalog whose name ends in `Test`, then point the tier at it:
+
+```powershell
+dotnet tool install --global microsoft.sqlpackage
+dotnet build Directory.Data/Directory.Data.sqlproj --configuration Release
+sqlpackage /Action:Publish /SourceFile:Directory.Data/bin/Release/Directory.Data.dacpac /TargetConnectionString:"Server=localhost;Database=DirectoryTest;Integrated Security=true;TrustServerCertificate=true"
+
+$env:ASPNETCORE_ENVIRONMENT = "Development"
+$env:SqlConnectionStringBuilder__InitialCatalog = "DirectoryTest"
+dotnet test --project Directory.Tests.Integration --no-build --configuration Release -- --filter-trait "Category=Integration"
+```
+
+`appsettings.Development.json` points at `localhost` with integrated security. `Program.cs` also requires
+`ServiceBusConnectionString` outside Production, so set it (a User Secret or an environment variable); the factory
+replaces the Service Bus client, so the tier sends nothing. README.md, "Configuration", lists the rest. A catalog published from an older schema fails every temporal read with
+`InvalidCastException: Unable to cast object of type 'System.DateTime' to type 'System.DateTimeOffset'`; publish the
+current dacpac to a fresh catalog.
 
 ## CI pipeline
 
-The GitHub Actions workflow (`.github/workflows/main_crgolden-directory.yml`) runs on every push and PR:
+The `build` job in `.github/workflows/main_crgolden-directory.yml`:
 
-1. Build solution (`dotnet build --no-incremental --configuration Release`) — also compiles
-   `Directory.Data.sqlproj` to a `.dacpac`
-2. Unit tests with coverage (`dotnet coverlet … --filter-trait Category=Unit`, OpenCover →
-   `coverage.opencover.xml`); TRX written to `TestResults/unit-tests.trx`
-3. Deploy the integration test database schema (`SqlPackage` against the `DB_NAME_E2E` database)
-4. Integration tests with coverage (`dotnet-coverage collect … --project Directory.Tests.Integration
-   --filter-trait Category=Integration`, VS Coverage XML → `coverage-integration.xml`),
-   `ASPNETCORE_ENVIRONMENT=CI` against the real SQL Server; TRX written to
-   `Directory.Tests.Integration/…/TestResults/integration-tests.trx`
-5. SonarCloud analysis
-6. Publish the web app and upload the app + dacpac artifacts
+1. Release build, which also compiles `Directory.Data.sqlproj` to a `.dacpac`; `dotnet jb inspectcode`.
+2. Unit tier under coverlet (`coverage.opencover.xml`).
+3. Publish the schema to the integration catalog (`DB_NAME_E2E`) with `SqlPackage`.
+4. Integration tier under `dotnet-coverage` (`coverage-integration.xml`) with `ASPNETCORE_ENVIRONMENT=CI`.
+5. SonarCloud analysis with the quality gate waited, then publish the app and upload the app and dacpac.
 
-The `mutation` job runs Stryker.NET (`stryker-config.json`, `dotnet-stryker` pinned in `dotnet-tools.json`)
-over `Directory.Tests.Unit` and uploads the report as `stryker-report`.
-
-The deploy job deploys the dacpac (via `SqlPackage`) and then the app to `crgolden-directory`.
-
----
+The job's `concurrency` group (`directory-integration-database`, `queue: max`) runs one build at a time, because every
+run shares the integration catalog. The `mutation` job runs Stryker.NET. The deploy job publishes the dacpac to the
+production catalog, then deploys the app.
 
 ## Mutation testing (Stryker)
 
-**Thresholds are 100 (high, low and break).** Every mutant is killed by a unit test, recorded as equivalent
-with `// Stryker disable once <Mutator> : <reason>` on the line above the statement it covers, or excluded
-in `mutate` with its reason below. A surviving or uncovered mutant fails the gate and CI.
+**Thresholds are 100 (high, low and break).** Every mutant is killed by a unit test, marked equivalent with
+`// Stryker disable once <Mutator> : <reason>` on the line above, or excluded in `stryker-config.json`'s `mutate` list:
 
 | Excluded | Why |
 |---|---|
-| `obj/**/*.cs` | Build-generated sources |
-| `Program.cs` | Startup wiring, excluded from coverage the same way (`sonar.coverage.exclusions`) |
-| `**/*Endpoints.cs` | `[ExcludeFromCodeCoverage]` route wiring that only the integration tier reaches over HTTP; the services it calls are mutated |
+| `obj/**/*.cs` | build-generated sources |
+| `Program.cs` | startup wiring, excluded from coverage the same way |
+| `**/*Endpoints.cs` | `[ExcludeFromCodeCoverage]` route wiring only the integration tier reaches; the services it calls are mutated |
 
-Only `Directory.Tests.Unit` runs under Stryker, which cannot filter by trait, so the integration tier stays
-out because it is its own project. The report is local only (`html`, `json`,
-`progress`); this repo has no Stryker dashboard project.
-
----
+Only `Directory.Tests.Unit` runs under Stryker. Run it from the `Directory` project folder, as CI does:
+`dotnet tool restore`, then `dotnet stryker --config-file ../stryker-config.json`. The report is local (`html`, `json`,
+`progress`).
 
 ## Local SonarCloud analysis
 
-Directory is C#, so the analysis runs through `dotnet-sonarscanner` (the MSBuild integration) with the
-build between `begin` and `end`, exactly as the workflow does. The standalone `sonar-scanner` CLI indexes
-the files but analyses no C#; it uploads an empty analysis that still shows a green gate. Pass the same
-`/d:` arguments as the workflow's "Begin Sonar analysis" step, including `sonar.coverage.exclusions`.
-Unit coverage is OpenCover (branch-bearing, via `coverlet.console` pinned in `dotnet-tools.json`); integration
-coverage is Visual Studio Coverage XML (via `dotnet-coverage` against a real SQL Server), fed to Sonar as
-a second, separate report. Run from `Directory/`.
-
-```powershell
-dotnet tool restore
-dotnet-sonarscanner begin /k:"<project key>" /o:"<organization>" /d:sonar.token="<token>" `
-  /d:sonar.host.url="https://sonarcloud.io" `
-  /d:sonar.cs.opencover.reportsPaths="coverage.opencover.xml" `
-  /d:sonar.cs.vscoveragexml.reportsPaths="coverage-integration.xml" `
-  /d:sonar.exclusions="**/bin/**,**/obj/**" `
-  /d:sonar.coverage.exclusions="**/Program.cs"
-
-dotnet build --no-incremental --configuration Release
-
-dotnet coverlet Directory.Tests.Unit\bin\Release\net10.0 `
-  --target "dotnet" `
-  --targetargs "test --project Directory.Tests.Unit --no-build --configuration Release -- --filter-trait Category=Unit" `
-  --format opencover --output "coverage.opencover.xml" `
-  --skipautoprops --exclude-by-attribute GeneratedCodeAttribute `
-  --exclude-by-file "**/obj/**" --exclude-by-file "**/Program.cs" `
-  --does-not-return-attribute DoesNotReturnAttribute --include "[Directory]*"
-
-dotnet-coverage collect `
-  "dotnet test --project Directory.Tests.Integration --no-build --configuration Release -- --filter-trait Category=Integration" `
-  -f xml -o "coverage-integration.xml" -s "coverage.settings.xml"
-
-dotnet-sonarscanner end /d:sonar.token="<token>"
-```
-
-Required coverage files: `coverage.opencover.xml` (unit, OpenCover). A missing report uploads 0% coverage
-rather than failing, so confirm both files exist before `end`.
-
-### When to build a truth table
-
-The coverage **score is read from SonarCloud, never hand-maintained** here. Build a per-method table in
-the workspace `COVERAGE/Directory.md` only when SonarCloud flags a method with **cognitive complexity > 15 AND uncovered
-conditions > 0**: the table is escalation for the gnarly few, not a per-class deliverable. See
-the workspace `COVERAGE/METHOD.md`.
+The analysis needs the repo's SonarCloud token and project, which only maintainers have. It runs through
+`dotnet-sonarscanner` with the build between `begin` and `end`, as the workflow does; the standalone `sonar-scanner`
+CLI analyzes no C#. It reads the unit report (OpenCover) and the integration report (VS Coverage XML) and excludes
+`Program.cs` from coverage.
