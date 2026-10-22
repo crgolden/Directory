@@ -26,10 +26,19 @@ public sealed class SearchEndpointsTests : IClassFixture<DirectoryWebApplication
 
     private const int OnePerPage = 1;
 
+    private const int Exact = 0;
+
+    private const int Prefixed = 1;
+
+    private const int Contained = 2;
+
+    private readonly DirectoryWebApplicationFactory _factory;
+
     private readonly HttpClient _client;
 
     public SearchEndpointsTests(DirectoryWebApplicationFactory factory)
     {
+        _factory = factory;
         _client = factory.CreateClient();
     }
 
@@ -145,6 +154,24 @@ public sealed class SearchEndpointsTests : IClassFixture<DirectoryWebApplication
 
         Assert.Contains(items, item => item.GetProperty("church").GetProperty("canonicalName").GetString() == scheduled);
         Assert.DoesNotContain(items, item => item.GetProperty("church").GetProperty("canonicalName").GetString() == unscheduled);
+    }
+
+    [Fact]
+    public async Task Search_TwoKeywords_RankExactThenPrefixThenContainedMatches()
+    {
+        var phrase = $"{Generated.NewKeyword()} {Generated.NewKeyword()}";
+        var prefixed = $"{phrase} {Generated.NewName()}";
+        var contained = $"{Generated.NewName()} {phrase} {phrase}";
+        await CreateChurchAsync(contained, Generated.NewStateCode(), Generated.NewLatitude(), Generated.NewLongitude(), wheelchairAccessible: false);
+        await CreateChurchAsync(prefixed, Generated.NewStateCode(), Generated.NewLatitude(), Generated.NewLongitude(), wheelchairAccessible: false);
+        await CreateChurchAsync(phrase, Generated.NewStateCode(), Generated.NewLatitude(), Generated.NewLongitude(), wheelchairAccessible: false);
+        await _factory.WaitForFullTextIndexAsync(TestContext.Current.CancellationToken);
+
+        var items = await SearchAsync($"q={Uri.EscapeDataString(phrase)}");
+
+        Assert.Equal(phrase, items[Exact].GetProperty("church").GetProperty("canonicalName").GetString());
+        Assert.Equal(prefixed, items[Prefixed].GetProperty("church").GetProperty("canonicalName").GetString());
+        Assert.Equal(contained, items[Contained].GetProperty("church").GetProperty("canonicalName").GetString());
     }
 
     [Fact]

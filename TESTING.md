@@ -51,6 +51,9 @@ registers stays, so the tests run against the real database.
 
 - **It refuses to start unless the catalog name ends in `Test` (or `Triage`)**, checked during service registration,
   before any test writes, so a production catalog can never be the target.
+- **A keyword-search test waits for the full-text index with `WaitForFullTextIndexAsync`.** SQL Server indexes new
+  rows asynchronously, so the test polls `TableFulltextPendingChanges` and the catalog's `PopulateStatus` until both
+  are 0, with no deadline: the wait is on the condition itself, bounded only by the runner's whole-test budget.
 - **It sweeps the catalog before each test class and after it**, child tables first (`UserCorrections`,
   `MergeAuditLog`, `ChurchAttributes`, `ServiceSchedules`, `Ministries`, `Campuses`, `CrawlSources`, `Churches`),
   never `Denominations`, which the post-deployment script seeds. `CrawlSources` goes before `Churches` because its

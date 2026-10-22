@@ -1,6 +1,7 @@
 namespace Directory.Tests.Integration.TestSupport;
 
 using System.Data.Common;
+using System.Globalization;
 using Azure.Messaging.ServiceBus;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
@@ -26,6 +27,12 @@ public sealed class DirectoryWebApplicationFactory : WebApplicationFactory<Progr
         DELETE FROM [dbo].[Churches];
         """;
 
+    private const string FullTextCaughtUpSql = """
+        SELECT CASE WHEN OBJECTPROPERTYEX(OBJECT_ID(N'[dbo].[Churches]'), 'TableFulltextPendingChanges') = 0
+                     AND FULLTEXTCATALOGPROPERTY(N'ChurchesFTCatalog', 'PopulateStatus') = 0
+                    THEN 1 ELSE 0 END
+        """;
+
     private bool _hostCreated;
 
     public string? RefusedCatalog { get; private set; }
@@ -42,6 +49,18 @@ public sealed class DirectoryWebApplicationFactory : WebApplicationFactory<Progr
         var conn = new SqlConnection(connectionString);
         await conn.OpenAsync(ct);
         return conn;
+    }
+
+    public async Task WaitForFullTextIndexAsync(CancellationToken ct = default)
+    {
+        await using var conn = await OpenTestConnectionAsync(ct);
+        await using var cmd = new SqlCommand(FullTextCaughtUpSql, conn);
+        int caughtUp;
+        do
+        {
+            caughtUp = Convert.ToInt32(await cmd.ExecuteScalarAsync(ct), CultureInfo.InvariantCulture);
+        }
+        while (caughtUp == 0);
     }
 
     public async ValueTask InitializeAsync()
