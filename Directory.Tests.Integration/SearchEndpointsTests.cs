@@ -159,13 +159,17 @@ public sealed class SearchEndpointsTests : IClassFixture<DirectoryWebApplication
     [Fact]
     public async Task Search_TwoKeywords_RankExactThenPrefixThenContainedMatches()
     {
-        var phrase = $"{Generated.NewKeyword()} {Generated.NewKeyword()}";
+        var firstKeyword = Generated.NewKeyword();
+        var phrase = $"{firstKeyword} {Generated.NewKeyword()}";
         var prefixed = $"{phrase} {Generated.NewName()}";
         var contained = $"{Generated.NewName()} {phrase} {phrase}";
-        await CreateChurchAsync(contained, Generated.NewStateCode(), Generated.NewLatitude(), Generated.NewLongitude(), wheelchairAccessible: false);
-        await CreateChurchAsync(prefixed, Generated.NewStateCode(), Generated.NewLatitude(), Generated.NewLongitude(), wheelchairAccessible: false);
-        await CreateChurchAsync(phrase, Generated.NewStateCode(), Generated.NewLatitude(), Generated.NewLongitude(), wheelchairAccessible: false);
-        await _factory.WaitForFullTextIndexAsync(TestContext.Current.CancellationToken);
+        Guid[] seededIds =
+        [
+            await _factory.SeedChurchAsync(contained, TestContext.Current.CancellationToken),
+            await _factory.SeedChurchAsync(prefixed, TestContext.Current.CancellationToken),
+            await _factory.SeedChurchAsync(phrase, TestContext.Current.CancellationToken),
+        ];
+        await _factory.WaitForKeywordIndexedAsync(firstKeyword, seededIds, TestContext.Current.CancellationToken);
 
         var items = await SearchAsync($"q={Uri.EscapeDataString(phrase)}");
 

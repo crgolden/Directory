@@ -51,9 +51,12 @@ registers stays, so the tests run against the real database.
 
 - **It refuses to start unless the catalog name ends in `Test` (or `Triage`)**, checked during service registration,
   before any test writes, so a production catalog can never be the target.
-- **A keyword-search test waits for the full-text index with `WaitForFullTextIndexAsync`.** SQL Server indexes new
-  rows asynchronously, so the test polls `TableFulltextPendingChanges` and the catalog's `PopulateStatus` until both
-  are 0, with no deadline: the wait is on the condition itself, bounded only by the runner's whole-test budget.
+- **A keyword-search test seeds its rows with `SeedChurchAsync` and waits with `WaitForKeywordIndexedAsync`.** SQL
+  Server indexes new rows asynchronously, so the test polls `CONTAINSTABLE` for its own keyword until every row it
+  seeded is returned, with no deadline: the wait is on the condition itself, bounded only by the runner's whole-test
+  budget. Both choices keep mutation testing fast. Stryker reruns a test for every mutant it covers: a direct `INSERT`
+  keeps church creation out of the keyword test's coverage, and waiting on the seeded rows alone never waits out
+  other tests' inserts and deletes.
 - **It sweeps the catalog before each test class and after it**, child tables first (`UserCorrections`,
   `MergeAuditLog`, `ChurchAttributes`, `ServiceSchedules`, `Ministries`, `Campuses`, `CrawlSources`, `Churches`),
   never `Denominations`, which the post-deployment script seeds. `CrawlSources` goes before `Churches` because its
