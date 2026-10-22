@@ -14,12 +14,6 @@ using Shared.Domain;
 [Trait("Category", "Integration")]
 public sealed class SearchEndpointsTests : IClassFixture<DirectoryWebApplicationFactory>
 {
-    private const double InsideTheDefaultRadiusDegrees = 0.01;
-
-    private const double OutsideTheDefaultRadiusDegrees = 2.0;
-
-    private const int HalvedToStayOffThePoles = 2;
-
     private const int Nearest = 0;
 
     private const int SecondNearest = 1;
@@ -80,11 +74,11 @@ public sealed class SearchEndpointsTests : IClassFixture<DirectoryWebApplication
         await CreateChurchAsync(inState, StateCode.AK, Generated.NewLatitude(), Generated.NewLongitude(), wheelchairAccessible: false);
         await CreateChurchAsync(outOfState, StateCode.WY, Generated.NewLatitude(), Generated.NewLongitude(), wheelchairAccessible: false);
 
-        var items = await SearchAsync($"state={StateCode.AK}");
+        var items = await SearchAsync($"{nameof(SearchRequest.State)}={StateCode.AK}");
 
-        Assert.All(items, item => Assert.Equal(nameof(StateCode.AK), item.GetProperty("church").GetProperty("state").GetString()));
-        Assert.Contains(items, item => item.GetProperty("church").GetProperty("canonicalName").GetString() == inState);
-        Assert.DoesNotContain(items, item => item.GetProperty("church").GetProperty("canonicalName").GetString() == outOfState);
+        Assert.All(items, item => Assert.Equal(StateCode.AK, item.Church.State));
+        Assert.Contains(inState, CanonicalNames(items));
+        Assert.DoesNotContain(outOfState, CanonicalNames(items));
     }
 
     [Fact]
@@ -95,31 +89,32 @@ public sealed class SearchEndpointsTests : IClassFixture<DirectoryWebApplication
         await CreateChurchAsync(accessible, Generated.NewStateCode(), Generated.NewLatitude(), Generated.NewLongitude(), wheelchairAccessible: true);
         await CreateChurchAsync(inaccessible, Generated.NewStateCode(), Generated.NewLatitude(), Generated.NewLongitude(), wheelchairAccessible: false);
 
-        var items = await SearchAsync("wheelchairAccessible=true");
+        var items = await SearchAsync($"{nameof(SearchRequest.WheelchairAccessible)}={true}");
 
-        Assert.All(items, item => Assert.True(item.GetProperty("church").GetProperty("wheelchairAccessible").GetBoolean()));
-        Assert.Contains(items, item => item.GetProperty("church").GetProperty("canonicalName").GetString() == accessible);
-        Assert.DoesNotContain(items, item => item.GetProperty("church").GetProperty("canonicalName").GetString() == inaccessible);
+        Assert.All(items, item => Assert.True(item.Church.WheelchairAccessible));
+        Assert.Contains(accessible, CanonicalNames(items));
+        Assert.DoesNotContain(inaccessible, CanonicalNames(items));
     }
 
     [Fact]
     public async Task Search_SearchPoint_ReturnsChurchesInsideTheRadiusNearestFirst()
     {
-        var latitude = Generated.NewLatitude() / HalvedToStayOffThePoles;
+        var latitude = Generated.NewLatitude();
         var longitude = Generated.NewLongitude();
+        var radiusFraction = Generated.NewFractionAboveHalf();
         var atThePoint = Generated.NewName();
         var nearby = Generated.NewName();
         var faraway = Generated.NewName();
-        await CreateChurchAsync(nearby, Generated.NewStateCode(), latitude + InsideTheDefaultRadiusDegrees, longitude, wheelchairAccessible: false);
-        await CreateChurchAsync(faraway, Generated.NewStateCode(), latitude + OutsideTheDefaultRadiusDegrees, longitude, wheelchairAccessible: false);
+        await CreateChurchAsync(nearby, Generated.NewStateCode(), TowardTheEquator(latitude, SearchService.DefaultRadiusMiles * radiusFraction), longitude, wheelchairAccessible: false);
+        await CreateChurchAsync(faraway, Generated.NewStateCode(), TowardTheEquator(latitude, SearchService.DefaultRadiusMiles / radiusFraction), longitude, wheelchairAccessible: false);
         await CreateChurchAsync(atThePoint, Generated.NewStateCode(), latitude, longitude, wheelchairAccessible: false);
 
-        var items = await SearchAsync(string.Create(CultureInfo.InvariantCulture, $"lat={latitude}&lng={longitude}"));
+        var items = await SearchAsync(string.Create(CultureInfo.InvariantCulture, $"{nameof(SearchRequest.Lat)}={latitude}&{nameof(SearchRequest.Lng)}={longitude}"));
 
-        Assert.Equal(atThePoint, items[Nearest].GetProperty("church").GetProperty("canonicalName").GetString());
-        Assert.Equal(nearby, items[SecondNearest].GetProperty("church").GetProperty("canonicalName").GetString());
-        Assert.True(items[Nearest].GetProperty("distanceMiles").GetDouble() < items[SecondNearest].GetProperty("distanceMiles").GetDouble());
-        Assert.DoesNotContain(items, item => item.GetProperty("church").GetProperty("canonicalName").GetString() == faraway);
+        Assert.Equal(atThePoint, items[Nearest].Church.CanonicalName);
+        Assert.Equal(nearby, items[SecondNearest].Church.CanonicalName);
+        Assert.True(items[Nearest].DistanceMiles < items[SecondNearest].DistanceMiles);
+        Assert.DoesNotContain(faraway, CanonicalNames(items));
     }
 
     [Fact]
@@ -141,10 +136,10 @@ public sealed class SearchEndpointsTests : IClassFixture<DirectoryWebApplication
             TestContext.Current.CancellationToken);
         schedule.EnsureSuccessStatusCode();
 
-        var items = await SearchAsync(string.Create(CultureInfo.InvariantCulture, $"dayOfWeek={dayOfWeek}"));
+        var items = await SearchAsync(string.Create(CultureInfo.InvariantCulture, $"{nameof(SearchRequest.DayOfWeek)}={dayOfWeek}"));
 
-        Assert.Contains(items, item => item.GetProperty("church").GetProperty("canonicalName").GetString() == scheduled);
-        Assert.DoesNotContain(items, item => item.GetProperty("church").GetProperty("canonicalName").GetString() == unscheduled);
+        Assert.Contains(scheduled, CanonicalNames(items));
+        Assert.DoesNotContain(unscheduled, CanonicalNames(items));
     }
 
     [Fact]
@@ -153,17 +148,24 @@ public sealed class SearchEndpointsTests : IClassFixture<DirectoryWebApplication
         await CreateChurchAsync(Generated.NewName(), StateCode.HI, Generated.NewLatitude(), Generated.NewLongitude(), wheelchairAccessible: false);
         await CreateChurchAsync(Generated.NewName(), StateCode.HI, Generated.NewLatitude(), Generated.NewLongitude(), wheelchairAccessible: false);
 
-        var body = await SearchBodyAsync($"state={StateCode.HI}&pageSize={OnePerPage}");
+        var body = await SearchBodyAsync($"{nameof(SearchRequest.State)}={StateCode.HI}&{nameof(SearchRequest.PageSize)}={OnePerPage}");
 
-        Assert.Single(body.GetProperty("items").EnumerateArray());
-        Assert.True(body.GetProperty("totalCount").GetInt32() > OnePerPage);
+        Assert.Single(body.Items);
+        Assert.True(body.TotalCount > OnePerPage);
     }
 
-    private async Task<JsonElement[]> SearchAsync(string filter) =>
-        [.. (await SearchBodyAsync(filter)).GetProperty("items").EnumerateArray()];
+    private static List<string> CanonicalNames(IEnumerable<SearchResult> items) =>
+        [.. items.Select(item => item.Church.CanonicalName)];
 
-    private Task<JsonElement> SearchBodyAsync(string filter) =>
-        _client.GetFromJsonAsync<JsonElement>($"{SearchEndpoints.Route}?{filter}", TestContext.Current.CancellationToken);
+    private static double TowardTheEquator(double latitude, double miles) =>
+        latitude - Math.CopySign(double.RadiansToDegrees(miles / HaversineConstants.EarthRadiusMiles), latitude);
+
+    private async Task<IReadOnlyList<SearchResult>> SearchAsync(string filter) =>
+        (await SearchBodyAsync(filter)).Items;
+
+    private async Task<SearchPagedResult> SearchBodyAsync(string filter) =>
+        await _client.GetFromJsonAsync<SearchPagedResult>($"{SearchEndpoints.Route}?{filter}", TestContext.Current.CancellationToken)
+        ?? throw new InvalidOperationException($"{SearchEndpoints.Route}?{filter} answered with no body.");
 
     private async Task<Guid> CreateChurchAsync(string canonicalName, StateCode state, double latitude, double longitude, bool wheelchairAccessible)
     {

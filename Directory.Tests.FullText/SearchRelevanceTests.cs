@@ -1,19 +1,12 @@
 namespace Directory.Tests.FullText;
 
 using System.Net.Http.Json;
-using System.Text.Json;
 using Directory.Search;
 using Directory.Tests.Integration.TestSupport;
 
 [Trait("Category", "Integration")]
 public sealed class SearchRelevanceTests : IClassFixture<DirectoryWebApplicationFactory>
 {
-    private const int Exact = 0;
-
-    private const int Prefixed = 1;
-
-    private const int Contained = 2;
-
     private readonly DirectoryWebApplicationFactory _factory;
 
     private readonly HttpClient _client;
@@ -39,12 +32,11 @@ public sealed class SearchRelevanceTests : IClassFixture<DirectoryWebApplication
         ];
         await FullTextSeeding.WaitForKeywordIndexedAsync(_factory, firstKeyword, seededIds, TestContext.Current.CancellationToken);
 
-        var body = await _client.GetFromJsonAsync<JsonElement>(
-            $"{SearchEndpoints.Route}?q={Uri.EscapeDataString(phrase)}", TestContext.Current.CancellationToken);
-        JsonElement[] items = [.. body.GetProperty("items").EnumerateArray()];
+        var body = await _client.GetFromJsonAsync<SearchPagedResult>(
+            $"{SearchEndpoints.Route}?{nameof(SearchRequest.Q)}={Uri.EscapeDataString(phrase)}", TestContext.Current.CancellationToken);
 
-        Assert.Equal(phrase, items[Exact].GetProperty("church").GetProperty("canonicalName").GetString());
-        Assert.Equal(prefixed, items[Prefixed].GetProperty("church").GetProperty("canonicalName").GetString());
-        Assert.Equal(contained, items[Contained].GetProperty("church").GetProperty("canonicalName").GetString());
+        string[] exactThenPrefixedThenContained = [phrase, prefixed, contained];
+        Assert.NotNull(body);
+        Assert.Equal(exactThenPrefixedThenContained, body.Items.Select(item => item.Church.CanonicalName));
     }
 }

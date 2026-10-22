@@ -1,6 +1,7 @@
 namespace Directory.Search;
 
 using System.Diagnostics.CodeAnalysis;
+using Directory.Church;
 
 [ExcludeFromCodeCoverage]
 public static class SearchEndpoints
@@ -15,7 +16,7 @@ public static class SearchEndpoints
             CancellationToken ct) =>
         {
             var page = Math.Max(1, request.Page);
-            var pageSize = Math.Clamp(request.PageSize, 1, 50);
+            var pageSize = Math.Clamp(request.PageSize, PageSizeBounds.Smallest, PageSizeBounds.Largest);
             var query = new SearchQuery(
                 request.Q,
                 request.Lat,

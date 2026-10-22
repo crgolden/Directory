@@ -22,8 +22,6 @@ public sealed class ModerationEndpointsTests : IClassFixture<DirectoryWebApplica
 
     private const int FirstPage = 1;
 
-    private const int PageSizeHoldingEveryCorrection = 50;
-
     private const int OnePerPage = 1;
 
     private static readonly TimeSpan SubmissionGap = TimeSpan.FromDays(1);
@@ -61,7 +59,7 @@ public sealed class ModerationEndpointsTests : IClassFixture<DirectoryWebApplica
         var newer = await SeedCorrectionAsync(churchId, DateTimeOffset.UtcNow + SubmissionGap);
 
         var body = await _client.GetFromJsonAsync<JsonElement>(
-            $"{ModerationEndpoints.Route}?page={FirstPage}&pageSize={PageSizeHoldingEveryCorrection}", TestContext.Current.CancellationToken);
+            CorrectionsUri(PageSizeBounds.Largest), TestContext.Current.CancellationToken);
 
         var ids = body.GetProperty("items").EnumerateArray().Select(item => item.GetProperty("id").GetGuid()).ToList();
         Assert.Contains(older, ids);
@@ -77,7 +75,7 @@ public sealed class ModerationEndpointsTests : IClassFixture<DirectoryWebApplica
         var rejected = await SeedCorrectionAsync(churchId, DateTimeOffset.UtcNow, CorrectionStatus.Rejected);
 
         var body = await _client.GetFromJsonAsync<JsonElement>(
-            $"{ModerationEndpoints.Route}?status={CorrectionStatus.Rejected}&page={FirstPage}&pageSize={PageSizeHoldingEveryCorrection}",
+            $"{CorrectionsUri(PageSizeBounds.Largest)}&{nameof(CorrectionsRequest.Status)}={CorrectionStatus.Rejected}",
             TestContext.Current.CancellationToken);
 
         var items = body.GetProperty("items").EnumerateArray().ToList();
@@ -94,7 +92,7 @@ public sealed class ModerationEndpointsTests : IClassFixture<DirectoryWebApplica
         await SeedCorrectionAsync(churchId);
 
         var body = await _client.GetFromJsonAsync<JsonElement>(
-            $"{ModerationEndpoints.Route}?page={FirstPage}&pageSize={OnePerPage}", TestContext.Current.CancellationToken);
+            CorrectionsUri(OnePerPage), TestContext.Current.CancellationToken);
 
         Assert.Single(body.GetProperty("items").EnumerateArray());
         Assert.True(body.GetProperty("totalCount").GetInt32() > OnePerPage);
@@ -196,6 +194,9 @@ public sealed class ModerationEndpointsTests : IClassFixture<DirectoryWebApplica
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }
+
+    private static string CorrectionsUri(int pageSize) =>
+        $"{ModerationEndpoints.Route}?{nameof(CorrectionsRequest.Page)}={FirstPage}&{nameof(CorrectionsRequest.PageSize)}={pageSize}";
 
     private async Task<Guid> CreateChurchAndGetIdAsync()
     {

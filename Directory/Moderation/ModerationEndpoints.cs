@@ -37,15 +37,13 @@ public static class ModerationEndpoints
     }
 
     private static async Task<IResult> GetCorrectionsAsync(
-        CorrectionStatus? status,
-        int page,
-        int pageSize,
+        [AsParameters] CorrectionsRequest request,
         ModerationService service,
         CancellationToken ct)
     {
-        page = Math.Max(1, page);
-        pageSize = Math.Clamp(pageSize, 1, 50);
-        var (items, total) = await service.GetCorrectionsAsync(status, page, pageSize, ct);
+        var page = Math.Max(1, request.Page);
+        var pageSize = Math.Clamp(request.PageSize, PageSizeBounds.Smallest, PageSizeBounds.Largest);
+        var (items, total) = await service.GetCorrectionsAsync(request.Status, page, pageSize, ct);
         return Results.Ok(new PagedResult<UserCorrection>(items, total, page, pageSize));
     }
 

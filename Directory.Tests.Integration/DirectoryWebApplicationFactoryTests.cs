@@ -20,8 +20,8 @@ public sealed class DirectoryWebApplicationFactoryTests
                         productionLikeCatalog,
                 })));
 
-        Assert.Throws<InvalidOperationException>(() => factory.CreateClient());
+        var refusal = Assert.Throws<InvalidOperationException>(() => factory.CreateClient());
 
-        Assert.Equal(productionLikeCatalog, configuredFactory.RefusedCatalog);
+        Assert.Contains($"'{productionLikeCatalog}'", refusal.Message, StringComparison.Ordinal);
     }
 }

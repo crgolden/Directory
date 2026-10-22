@@ -28,8 +28,6 @@ public sealed class DirectoryWebApplicationFactory : WebApplicationFactory<Progr
 
     private bool _hostCreated;
 
-    public string? RefusedCatalog { get; private set; }
-
     public async Task<SqlConnection> OpenTestConnectionAsync(CancellationToken ct = default)
     {
         string connectionString;
@@ -73,7 +71,6 @@ public sealed class DirectoryWebApplicationFactory : WebApplicationFactory<Progr
             var catalog = context.Configuration[$"{nameof(SqlConnectionStringBuilder)}:{nameof(SqlConnectionStringBuilder.InitialCatalog)}"];
             if (!TestDatabaseContract.IsDisposableCatalog(catalog))
             {
-                RefusedCatalog = catalog;
                 throw new InvalidOperationException(
                     $"The integration tier writes to the catalog it is given, so it refuses '{catalog}': the catalog must end in '{TestDatabaseContractConstants.TestCatalogSuffix}' or '{TestDatabaseContractConstants.TriageCatalogSuffix}'.");
             }
