@@ -13,7 +13,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Moq;
 
-public sealed class DirectoryWebApplicationFactory : WebApplicationFactory<Program>, IAsyncLifetime
+public sealed partial class DirectoryWebApplicationFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
     private const string SweepSql = """
         DELETE FROM [dbo].[UserCorrections];
@@ -71,6 +71,7 @@ public sealed class DirectoryWebApplicationFactory : WebApplicationFactory<Progr
             var catalog = context.Configuration[$"{nameof(SqlConnectionStringBuilder)}:{nameof(SqlConnectionStringBuilder.InitialCatalog)}"];
             if (!TestDatabaseContract.IsDisposableCatalog(catalog))
             {
+                OnCatalogRefused(catalog);
                 throw new InvalidOperationException(
                     $"The integration tier writes to the catalog it is given, so it refuses '{catalog}': the catalog must end in '{TestDatabaseContractConstants.TestCatalogSuffix}' or '{TestDatabaseContractConstants.TriageCatalogSuffix}'.");
             }
@@ -93,6 +94,8 @@ public sealed class DirectoryWebApplicationFactory : WebApplicationFactory<Progr
                 .AddScheme<AuthenticationSchemeOptions, IntegrationAuthHandler>(IntegrationAuthHandler.SchemeName, _ => { });
         });
     }
+
+    partial void OnCatalogRefused(string? catalog);
 
     private async Task DeleteEveryRowInTheTestCatalogAsync()
     {
