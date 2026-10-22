@@ -19,6 +19,8 @@ public sealed class ModerationEndpointsTests : IClassFixture<DirectoryWebApplica
             (@Id, @ChurchId, @UserId, @Field, NULL, @NewValue, 0, @CreatedAt)
         """;
 
+    private static readonly TimeSpan SubmissionGap = TimeSpan.FromDays(1);
+
     private readonly DirectoryWebApplicationFactory _factory;
     private readonly HttpClient _client;
 
@@ -42,6 +44,21 @@ public sealed class ModerationEndpointsTests : IClassFixture<DirectoryWebApplica
         var response = await _client.GetAsync("/corrections?page=0&pageSize=200", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetCorrections_ListsTheNewestFirst()
+    {
+        var churchId = await CreateChurchAndGetIdAsync();
+        var older = await SeedCorrectionAsync(churchId, DateTimeOffset.UtcNow - SubmissionGap);
+        var newer = await SeedCorrectionAsync(churchId, DateTimeOffset.UtcNow + SubmissionGap);
+
+        var body = await _client.GetFromJsonAsync<JsonElement>(ModerationEndpoints.Route, TestContext.Current.CancellationToken);
+
+        var ids = body.GetProperty("items").EnumerateArray().Select(item => item.GetProperty("id").GetGuid()).ToList();
+        Assert.Contains(older, ids);
+        Assert.Contains(newer, ids);
+        Assert.True(ids.IndexOf(newer) < ids.IndexOf(older));
     }
 
     [Fact]
@@ -149,10 +166,11 @@ public sealed class ModerationEndpointsTests : IClassFixture<DirectoryWebApplica
         return body.GetProperty("id").GetGuid();
     }
 
-    private async Task<Guid> SeedCorrectionAsync(Guid churchId)
+    private Task<Guid> SeedCorrectionAsync(Guid churchId) => SeedCorrectionAsync(churchId, DateTimeOffset.UtcNow);
+
+    private async Task<Guid> SeedCorrectionAsync(Guid churchId, DateTimeOffset now)
     {
         var id = Guid.CreateVersion7(DateTimeOffset.UtcNow);
-        var now = DateTimeOffset.UtcNow;
         await using var conn = await _factory.OpenTestConnectionAsync(TestContext.Current.CancellationToken);
         await using var cmd = new SqlCommand(SeedCorrectionSql, conn);
         cmd.Parameters.AddWithValue(SqlParameters.Id, id);

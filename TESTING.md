@@ -12,9 +12,12 @@ the endpoint tests are integration tests, not end-to-end. Test data comes from t
 `Shared.Testing.Generated`; `Directory.Tests.Unit/TestSupport/TestValues.cs` is compiled into the integration project
 through a linked `<Compile>` item.
 
-**What the integration tier alone proves is that each hand-written SQL statement runs against the real schema.** The
-unit tier checks SQL text against a fake connection, so a wrong column, a bad join or a missing
-`fn_HaversineDistance` or full-text dependency passes it. The integration tier also boots `Program.cs`. It does not
+**What the integration tier alone proves is that each hand-written SQL statement runs against the real schema and
+returns the right rows.** The unit tier never asserts SQL text: text pinned against a fake connection passes a wrong
+column, a bad join or a missing `fn_HaversineDistance` dependency, and a copy of the statement in a test only checks
+that the statement is the statement. It asserts what the code decides instead: which parameters are bound with which
+values, and that a command executed (`FakeDbCommand` refuses blank text or an unbound `@parameter`). Filters,
+ordering and joins are proved here, by the rows they return. The integration tier also boots `Program.cs`. It does not
 validate real tokens (the factory swaps the authentication scheme) and does not reach Service Bus (mocked).
 
 ### Unit tier (`Directory.Tests.Unit/Api`)
@@ -22,8 +25,8 @@ validate real tokens (the factory swaps the authentication scheme) and does not 
 | File | Covers |
 |---|---|
 | `ChurchServiceTests.cs`, `ChurchDefaultsTests.cs` | church CRUD, slug generation, reader mapping including the nested children on get-by-slug |
-| `ScheduleServiceTests.cs`, `MinistryServiceTests.cs`, `CampusServiceTests.cs` | child create, update and delete: SQL and parameters, `TimeOnly` parsing, day-of-week bounds |
-| `SearchServiceTests.cs` | filters, distance ordering, the count-then-page statements, the schedule filters |
+| `ScheduleServiceTests.cs`, `MinistryServiceTests.cs`, `CampusServiceTests.cs` | child create, update and delete: bound parameters, `TimeOnly` parsing, day-of-week bounds |
+| `SearchServiceTests.cs` | the parameters each filter binds, query validation, paging, reading the count then the page |
 | `DenominationServiceTests.cs`, `AdminServiceTests.cs`, `CrawlingServiceTests.cs` | denominations, CSV import and export, crawl sources and triggers |
 | `ModerationServiceTests.cs`, `ModerationApplyCorrectionTests.cs` | the corrections lifecycle and the transactional merge (commit and rollback) |
 | `OptionalPatchTests.cs` | `PATCH` telling an absent member from an explicit `null` |
@@ -64,7 +67,7 @@ pass; a fixture minting a claim the provider never issues makes every reader of 
 
 `FakeDbConnection` and its `FakeDbCommand`, `FakeDbParameter`, `FakeDbParameterCollection` and `FakeDbTransaction`
 siblings (`Directory.Tests.Unit/TestSupport/`) are a hand-rolled ADO.NET double. Because all data access goes through
-an abstract `DbConnection`, the unit tests assert the generated SQL and parameters and feed canned reader rows.
+an abstract `DbConnection`, the unit tests assert the bound parameters and feed canned reader rows.
 `FakeDbCommand.WithReaders` supplies the second result set the search query reads.
 
 ## Running tests locally
@@ -115,7 +118,7 @@ production catalog, then deploys the app.
 
 ## Mutation testing (Stryker)
 
-**Thresholds are 100 (high, low and break).** Every mutant is killed by a unit test, marked equivalent with
+**Thresholds are 100 (high, low and break).** Every mutant is killed by a test of either tier, marked equivalent with
 `// Stryker disable once <Mutator> : <reason>` on the line above, or excluded in `stryker-config.json`'s `mutate` list:
 
 | Excluded | Why |
@@ -124,9 +127,13 @@ production catalog, then deploys the app.
 | `Program.cs` | startup wiring, excluded from coverage the same way |
 | `**/*Endpoints.cs` | `[ExcludeFromCodeCoverage]` route wiring only the integration tier reaches; the services it calls are mutated |
 
-Only `Directory.Tests.Unit` runs under Stryker. Run it from the `Directory` project folder, as CI does:
-`dotnet tool restore`, then `dotnet stryker --config-file ../stryker-config.json`. The report is local (`html`, `json`,
-`progress`).
+Both test projects run under Stryker, so a mutant in a SQL statement is killed by the statement failing or returning
+the wrong rows against the real schema. That needs the integration tier's catalog: publish the schema and set
+`SqlConnectionStringBuilder__InitialCatalog` first (Running tests locally, Integration). `concurrency` is `1` because
+the factory sweeps the one catalog per test class, so two test runs at once delete each other's rows; the CI
+`mutation` job shares the build job's `directory-integration-database` concurrency group for the same reason. Run it
+from the `Directory` project folder, as CI does: `dotnet tool restore`, then
+`dotnet stryker --config-file ../stryker-config.json`. The report is local (`html`, `json`, `progress`).
 
 ## Local SonarCloud analysis
 

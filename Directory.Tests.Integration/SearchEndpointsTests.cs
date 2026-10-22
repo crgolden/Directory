@@ -1,12 +1,29 @@
 namespace Directory.Tests.Integration;
 
+using System.Globalization;
 using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
+using Directory.Church;
+using Directory.Enums;
+using Directory.Schedules;
 using Directory.Search;
 using Directory.Tests.Integration.TestSupport;
+using Shared.Domain;
 
 [Trait("Category", "Integration")]
 public sealed class SearchEndpointsTests : IClassFixture<DirectoryWebApplicationFactory>
 {
+    private const double InsideTheDefaultRadiusDegrees = 0.01;
+
+    private const double OutsideTheDefaultRadiusDegrees = 2.0;
+
+    private const int HalvedToStayOffThePoles = 2;
+
+    private const int Nearest = 0;
+
+    private const int SecondNearest = 1;
+
     private readonly HttpClient _client;
 
     public SearchEndpointsTests(DirectoryWebApplicationFactory factory)
@@ -51,5 +68,108 @@ public sealed class SearchEndpointsTests : IClassFixture<DirectoryWebApplication
             $"/search?sort={unrecognizedSort}", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Search_StateFilter_ReturnsThatStatesChurchesOnly()
+    {
+        var inState = Generated.NewName();
+        var outOfState = Generated.NewName();
+        await CreateChurchAsync(inState, StateCode.AK, Generated.NewLatitude(), Generated.NewLongitude(), wheelchairAccessible: false);
+        await CreateChurchAsync(outOfState, StateCode.WY, Generated.NewLatitude(), Generated.NewLongitude(), wheelchairAccessible: false);
+
+        var items = await SearchAsync($"state={StateCode.AK}");
+
+        Assert.All(items, item => Assert.Equal(nameof(StateCode.AK), item.GetProperty("church").GetProperty("state").GetString()));
+        Assert.Contains(items, item => item.GetProperty("church").GetProperty("canonicalName").GetString() == inState);
+        Assert.DoesNotContain(items, item => item.GetProperty("church").GetProperty("canonicalName").GetString() == outOfState);
+    }
+
+    [Fact]
+    public async Task Search_WheelchairFilter_ReturnsAccessibleChurchesOnly()
+    {
+        var accessible = Generated.NewName();
+        var inaccessible = Generated.NewName();
+        await CreateChurchAsync(accessible, Generated.NewStateCode(), Generated.NewLatitude(), Generated.NewLongitude(), wheelchairAccessible: true);
+        await CreateChurchAsync(inaccessible, Generated.NewStateCode(), Generated.NewLatitude(), Generated.NewLongitude(), wheelchairAccessible: false);
+
+        var items = await SearchAsync("wheelchairAccessible=true");
+
+        Assert.All(items, item => Assert.True(item.GetProperty("church").GetProperty("wheelchairAccessible").GetBoolean()));
+        Assert.Contains(items, item => item.GetProperty("church").GetProperty("canonicalName").GetString() == accessible);
+        Assert.DoesNotContain(items, item => item.GetProperty("church").GetProperty("canonicalName").GetString() == inaccessible);
+    }
+
+    [Fact]
+    public async Task Search_SearchPoint_ReturnsChurchesInsideTheRadiusNearestFirst()
+    {
+        var latitude = Generated.NewLatitude() / HalvedToStayOffThePoles;
+        var longitude = Generated.NewLongitude();
+        var atThePoint = Generated.NewName();
+        var nearby = Generated.NewName();
+        var faraway = Generated.NewName();
+        await CreateChurchAsync(nearby, Generated.NewStateCode(), latitude + InsideTheDefaultRadiusDegrees, longitude, wheelchairAccessible: false);
+        await CreateChurchAsync(faraway, Generated.NewStateCode(), latitude + OutsideTheDefaultRadiusDegrees, longitude, wheelchairAccessible: false);
+        await CreateChurchAsync(atThePoint, Generated.NewStateCode(), latitude, longitude, wheelchairAccessible: false);
+
+        var items = await SearchAsync(string.Create(CultureInfo.InvariantCulture, $"lat={latitude}&lng={longitude}"));
+
+        Assert.Equal(atThePoint, items[Nearest].GetProperty("church").GetProperty("canonicalName").GetString());
+        Assert.Equal(nearby, items[SecondNearest].GetProperty("church").GetProperty("canonicalName").GetString());
+        Assert.DoesNotContain(items, item => item.GetProperty("church").GetProperty("canonicalName").GetString() == faraway);
+    }
+
+    [Fact]
+    public async Task Search_DayOfWeekFilter_ReturnsChurchesHoldingAServiceThatDay()
+    {
+        var scheduled = Generated.NewName();
+        var unscheduled = Generated.NewName();
+        var scheduledId = await CreateChurchAsync(scheduled, Generated.NewStateCode(), Generated.NewLatitude(), Generated.NewLongitude(), wheelchairAccessible: false);
+        await CreateChurchAsync(unscheduled, Generated.NewStateCode(), Generated.NewLatitude(), Generated.NewLongitude(), wheelchairAccessible: false);
+        var dayOfWeek = Generated.NewDayOfWeek();
+        var schedule = await _client.PostAsJsonAsync(
+            $"{ChurchEndpoints.Route}/{scheduledId}{ScheduleEndpoints.Route}",
+            new
+            {
+                DayOfWeek = dayOfWeek,
+                StartTime = Generated.NewTimeOfDay().ToString("HH:mm", CultureInfo.InvariantCulture),
+                Description = Generated.NewDescription(),
+            },
+            TestContext.Current.CancellationToken);
+        schedule.EnsureSuccessStatusCode();
+
+        var items = await SearchAsync(string.Create(CultureInfo.InvariantCulture, $"dayOfWeek={dayOfWeek}"));
+
+        Assert.Contains(items, item => item.GetProperty("church").GetProperty("canonicalName").GetString() == scheduled);
+        Assert.DoesNotContain(items, item => item.GetProperty("church").GetProperty("canonicalName").GetString() == unscheduled);
+    }
+
+    private async Task<JsonElement[]> SearchAsync(string filter)
+    {
+        var body = await _client.GetFromJsonAsync<JsonElement>(
+            $"{SearchEndpoints.Route}?{filter}", TestContext.Current.CancellationToken);
+        return [.. body.GetProperty("items").EnumerateArray()];
+    }
+
+    private async Task<Guid> CreateChurchAsync(string canonicalName, StateCode state, double latitude, double longitude, bool wheelchairAccessible)
+    {
+        var response = await _client.PostAsJsonAsync(
+            ChurchEndpoints.Route,
+            new
+            {
+                CanonicalName = canonicalName,
+                Latitude = latitude,
+                Longitude = longitude,
+                City = Generated.NewCity(),
+                State = state.ToString(),
+                Zip = Generated.NewZip(),
+                WorshipStyle = (int)Generated.NewDefinedValue<WorshipStyle>(),
+                PrimaryLanguage = Generated.NewLanguage(),
+                WheelchairAccessible = wheelchairAccessible,
+            },
+            TestContext.Current.CancellationToken);
+        response.EnsureSuccessStatusCode();
+        var created = await response.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
+        return created.GetProperty("id").GetGuid();
     }
 }

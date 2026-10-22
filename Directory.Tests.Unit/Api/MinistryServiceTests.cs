@@ -26,7 +26,6 @@ public sealed class MinistryServiceTests
         var insert = Assert.Single(conn.ExecutedCommands);
         Assert.Equal(ministryName, result.Name);
         Assert.Equal(ministryDescription, result.Description);
-        Assert.Contains("INSERT INTO [dbo].[Ministries]", insert.CommandText, StringComparison.Ordinal);
         Assert.True(insert.Executed);
         Assert.Equal(ministryDescription, insert.Parameters[SqlParameters.Desc].Value);
     }
@@ -135,8 +134,7 @@ public sealed class MinistryServiceTests
 
         // Assert
         Assert.True(updated);
-        Assert.Contains(conn.ExecutedCommands, c =>
-            c.CommandText.Contains("UPDATE [dbo].[Ministries]", StringComparison.Ordinal));
+        Assert.Contains(conn.ExecutedCommands, c => c.Executed);
     }
 
     [Fact]
@@ -173,7 +171,6 @@ public sealed class MinistryServiceTests
 
         // Assert
         Assert.False(deleted);
-        Assert.Contains(conn.ExecutedCommands, c =>
-            c.CommandText.Contains("DELETE FROM [dbo].[Ministries]", StringComparison.Ordinal));
+        Assert.Contains(conn.ExecutedCommands, c => c.Executed);
     }
 }

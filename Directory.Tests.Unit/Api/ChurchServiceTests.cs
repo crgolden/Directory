@@ -104,8 +104,7 @@ public sealed class ChurchServiceTests
         // Assert
         var ex = Assert.IsType<ArgumentException>(exception);
         Assert.Equal(nameof(city), ex.ParamName);
-        Assert.DoesNotContain(conn.ExecutedCommands, c =>
-            c.CommandText.Contains("INSERT INTO [dbo].[Churches]", StringComparison.Ordinal));
+        Assert.Single(conn.ExecutedCommands);
     }
 
     [Fact]

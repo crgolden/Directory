@@ -228,22 +228,6 @@ public sealed class AdminServiceTests
     }
 
     [Fact]
-    public async Task ExportCsvAsync_OrdersByStateThenCanonicalName()
-    {
-        // Arrange
-        var conn = new FakeDbConnection();
-        conn.Enqueue(FakeDbCommand.WithReader(new DataTable()));
-        var (service, _) = BuildService(conn);
-
-        // Act
-        await service.ExportCsvAsync(TestContext.Current.CancellationToken);
-
-        // Assert
-        var cmd = Assert.Single(conn.ExecutedCommands);
-        Assert.Contains("ORDER BY [State] ASC, [CanonicalName] ASC", cmd.CommandText, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public async Task ExportCsvAsync_ServerCultureIsNotInvariant_FormatsNumbersAndTimestampsInvariantly()
     {
         // Arrange

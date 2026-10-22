@@ -10,16 +10,8 @@ using Directory.Tests.Unit.TestSupport;
 [Trait("Category", "Unit")]
 public sealed class SearchServiceTests
 {
-    private const string ChurchColumnsSql =
-        "SELECT c.[Id], c.[CanonicalName], c.[Slug], c.[Latitude], c.[Longitude], c.[Street], c.[City], c.[State], " +
-        "c.[Zip], c.[PhoneNumber], c.[Website], c.[EmailAddress], c.[DenominationId], c.[WorshipStyle], " +
-        "c.[PrimaryLanguage], c.[AcceptsLGBTQ], c.[WheelchairAccessible], c.[HasNursery], c.[HasYouthProgram], " +
-        "c.[ConfidenceScore], c.[LastVerifiedAt], c.[CreatedAt], c.[UpdatedAt], c.[IsActive]";
-
-    private const string ActiveChurchesSql = " FROM [dbo].[Churches] c WHERE c.[IsActive] = 1";
-
     [Fact]
-    public async Task SearchAsync_IncludesDistanceColumn_WhenGeoFilterProvided()
+    public async Task SearchAsync_BindsTheSearchPoint_WhenGeoFilterProvided()
     {
         // Arrange
         var searchLatitude = Generated.NewLatitude();
@@ -32,11 +24,12 @@ public sealed class SearchServiceTests
         await service.SearchAsync(query, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Contains("fn_HaversineDistance", cmd.CapturedCommandText, StringComparison.Ordinal);
+        Assert.Equal(searchLatitude, cmd.Parameters[SqlParameters.Lat].Value);
+        Assert.Equal(searchLongitude, cmd.Parameters[SqlParameters.Lng].Value);
     }
 
     [Fact]
-    public async Task SearchAsync_ExcludesDistanceColumn_WhenNoGeoFilter()
+    public async Task SearchAsync_BindsNoSearchPoint_WhenNoGeoFilter()
     {
         // Arrange
         var conn = BuildConn(out var cmd);
@@ -46,12 +39,11 @@ public sealed class SearchServiceTests
         await service.SearchAsync(UnfilteredQuery(), TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Contains("CAST(NULL AS FLOAT)", cmd.CapturedCommandText, StringComparison.Ordinal);
-        Assert.DoesNotContain("fn_HaversineDistance", cmd.CapturedCommandText, StringComparison.Ordinal);
+        Assert.False(cmd.Parameters.Contains(SqlParameters.Lat));
     }
 
     [Fact]
-    public async Task SearchAsync_IncludesContainsTableJoin_WhenKeywordProvided()
+    public async Task SearchAsync_BindsTheKeywordForRelevance_WhenKeywordProvided()
     {
         // Arrange
         var searchKeyword = Generated.NewKeyword();
@@ -62,12 +54,11 @@ public sealed class SearchServiceTests
         await service.SearchAsync(UnfilteredQuery() with { Q = searchKeyword }, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Contains("CONTAINSTABLE", cmd.CapturedCommandText, StringComparison.Ordinal);
-        Assert.Contains("ft0.[KEY] = c.[Id]", cmd.CapturedCommandText, StringComparison.Ordinal);
+        Assert.Equal(searchKeyword, cmd.Parameters[SqlParameters.ExactQ].Value);
     }
 
     [Fact]
-    public async Task SearchAsync_OmitsContainsTableJoin_WhenNoKeyword()
+    public async Task SearchAsync_BindsNoKeyword_WhenNoKeyword()
     {
         // Arrange
         var conn = BuildConn(out var cmd);
@@ -77,11 +68,11 @@ public sealed class SearchServiceTests
         await service.SearchAsync(UnfilteredQuery(), TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.DoesNotContain("CONTAINSTABLE", cmd.CapturedCommandText, StringComparison.Ordinal);
+        Assert.False(cmd.Parameters.Contains(SqlParameters.ExactQ));
     }
 
     [Fact]
-    public async Task SearchAsync_OmitsContainsTableJoin_WhenKeywordIsJunkOnly()
+    public async Task SearchAsync_BindsNoKeyword_WhenKeywordIsJunkOnly()
     {
         // Arrange
         var punctuationOnlyQuery = Generated.NewPunctuationOnlyQuery();
@@ -93,11 +84,11 @@ public sealed class SearchServiceTests
         await service.SearchAsync(query, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.DoesNotContain("CONTAINSTABLE", cmd.CapturedCommandText, StringComparison.Ordinal);
+        Assert.False(cmd.Parameters.Contains(SqlParameters.ExactQ));
     }
 
     [Fact]
-    public async Task SearchAsync_IncludesStateFilter_WhenStateProvided()
+    public async Task SearchAsync_BindsTheState_WhenStateProvided()
     {
         // Arrange
         var stateFilter = Generated.NewStateCodeText();
@@ -109,11 +100,11 @@ public sealed class SearchServiceTests
         await service.SearchAsync(query, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Contains(SqlParameters.State, cmd.CapturedCommandText, StringComparison.Ordinal);
+        Assert.Equal(stateFilter, cmd.Parameters[SqlParameters.State].Value);
     }
 
     [Fact]
-    public async Task SearchAsync_IncludesWheelchairFilter_WhenFilterProvided()
+    public async Task SearchAsync_BindsTheWheelchairFilter_WhenFilterProvided()
     {
         // Arrange
         var conn = BuildConn(out var cmd);
@@ -124,25 +115,7 @@ public sealed class SearchServiceTests
             UnfilteredQuery() with { WheelchairAccessible = true }, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Contains(SqlParameters.WheelchairAccessible, cmd.CapturedCommandText, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task SearchAsync_OrdersByDistance_WhenGeoFilterProvided()
-    {
-        // Arrange
-        var searchLatitude = Generated.NewLatitude();
-        var searchLongitude = Generated.NewLongitude();
-        var conn = BuildConn(out var cmd);
-        var service = new SearchService(conn);
-        var query = UnfilteredQuery() with { Lat = searchLatitude, Lng = searchLongitude };
-
-        // Act
-        await service.SearchAsync(query, TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.Contains("ORDER BY", cmd.CapturedCommandText, StringComparison.Ordinal);
-        Assert.Contains("fn_HaversineDistance", cmd.CapturedCommandText, StringComparison.Ordinal);
+        Assert.True(Assert.IsType<bool>(cmd.Parameters[SqlParameters.WheelchairAccessible].Value));
     }
 
     [Fact]
@@ -837,92 +810,6 @@ public sealed class SearchServiceTests
 
         // Assert
         Assert.Null(invalid);
-    }
-
-    [Fact]
-    public async Task SearchAsync_NoFilters_CountsThenPagesActiveChurchesByName()
-    {
-        // Arrange
-        const string unfilteredSql =
-            $"SELECT COUNT(*) AS [TotalCount]{ActiveChurchesSql}; {ChurchColumnsSql}, CAST(NULL AS FLOAT) AS [DistanceMiles]" +
-            $"{ActiveChurchesSql} ORDER BY c.[CanonicalName] ASC OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY";
-        var conn = BuildConn(out var cmd);
-        var service = new SearchService(conn);
-
-        // Act
-        await service.SearchAsync(UnfilteredQuery(), TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.Equal(unfilteredSql, cmd.CapturedCommandText);
-    }
-
-    [Fact]
-    public async Task SearchAsync_GeoFilter_ScopesBothStatementsToTheRadiusAndOrdersByDistance()
-    {
-        // Arrange
-        const string nearbyScopeSql =
-            " FROM [dbo].[Churches] c WHERE c.[IsActive] = 1 AND [dbo].[fn_HaversineDistance](@Lat, @Lng, c.[Latitude], c.[Longitude]) <= @RadiusMiles";
-        const string nearbySql =
-            $"SELECT COUNT(*) AS [TotalCount]{nearbyScopeSql}; {ChurchColumnsSql}, " +
-            "[dbo].[fn_HaversineDistance](@Lat, @Lng, c.[Latitude], c.[Longitude]) AS [DistanceMiles]" +
-            $"{nearbyScopeSql} ORDER BY [dbo].[fn_HaversineDistance](@Lat, @Lng, c.[Latitude], c.[Longitude]) ASC, " +
-            "c.[CanonicalName] ASC OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY";
-        var searchLatitude = Generated.NewLatitude();
-        var searchLongitude = Generated.NewLongitude();
-        var conn = BuildConn(out var cmd);
-        var service = new SearchService(conn);
-        var query = UnfilteredQuery() with { Lat = searchLatitude, Lng = searchLongitude };
-
-        // Act
-        await service.SearchAsync(query, TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.Equal(nearbySql, cmd.CapturedCommandText);
-    }
-
-    [Fact]
-    public async Task SearchAsync_TwoKeywords_RanksBySummedTermRankAfterExactAndPrefixMatches()
-    {
-        // Arrange
-        const string keywordScopeSql =
-            " FROM [dbo].[Churches] c INNER JOIN CONTAINSTABLE([dbo].[Churches], ([CanonicalName], [City]), @Q0) AS ft0 ON ft0.[KEY] = c.[Id] INNER JOIN CONTAINSTABLE([dbo].[Churches], ([CanonicalName], [City]), @Q1) AS ft1 ON ft1.[KEY] = c.[Id] WHERE c.[IsActive] = 1";
-        const string keywordSql =
-            $"SELECT COUNT(*) AS [TotalCount]{keywordScopeSql}; {ChurchColumnsSql}, CAST(NULL AS FLOAT) AS [DistanceMiles]" +
-            $"{keywordScopeSql} ORDER BY CASE WHEN c.[CanonicalName] = @ExactQ THEN 0 WHEN c.[CanonicalName] LIKE @PrefixQ " +
-            "ESCAPE '\\' THEN 1 ELSE 2 END ASC, ft0.[RANK] + ft1.[RANK] DESC, " +
-            "c.[CanonicalName] ASC OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY";
-        var nameWord = Generated.NewKeyword();
-        var cityWord = Generated.NewKeyword();
-        var conn = BuildConn(out var cmd);
-        var service = new SearchService(conn);
-        var query = UnfilteredQuery() with { Q = $"{nameWord} {cityWord}" };
-
-        // Act
-        await service.SearchAsync(query, TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.Equal(keywordSql, cmd.CapturedCommandText);
-    }
-
-    [Fact]
-    public async Task SearchAsync_DayOfWeekFilter_ScopesBothStatementsToMatchingSchedules()
-    {
-        // Arrange
-        const string scheduleScopeSql =
-            " FROM [dbo].[Churches] c WHERE c.[IsActive] = 1 AND EXISTS (SELECT 1 FROM [dbo].[ServiceSchedules] ss WHERE ss.[ChurchId] = c.[Id] AND ss.[DayOfWeek] = @DayOfWeek)";
-        const string scheduleSql =
-            $"SELECT COUNT(*) AS [TotalCount]{scheduleScopeSql}; {ChurchColumnsSql}, CAST(NULL AS FLOAT) AS [DistanceMiles]" +
-            $"{scheduleScopeSql} ORDER BY c.[CanonicalName] ASC OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY";
-        var filteredDayOfWeek = Generated.NewDayOfWeek();
-        var conn = BuildConn(out var cmd);
-        var service = new SearchService(conn);
-        var query = UnfilteredQuery() with { DayOfWeek = filteredDayOfWeek };
-
-        // Act
-        await service.SearchAsync(query, TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.Equal(scheduleSql, cmd.CapturedCommandText);
     }
 
     [Fact]

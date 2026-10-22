@@ -10,7 +10,7 @@ if (-not (Test-Path -LiteralPath $gateCommon)) {
 $gateOutput = Join-Path ([IO.Path]::GetTempPath()) "crgolden-gates\$(Split-Path -Leaf $PSScriptRoot)"
 New-Item -ItemType Directory -Force -Path $gateOutput | Out-Null
 Register-GateSteps @('Install dotnet-coverage', 'Restore local tools', 'Begin Sonar analysis', 'Build with dotnet',
-    'jb inspectcode', 'Run unit tests with coverage', 'Run Stryker mutation tests', 'Install SqlPackage', 'Deploy integration test database schema',
+    'jb inspectcode', 'Run unit tests with coverage', 'Install SqlPackage', 'Deploy integration test database schema', 'Run Stryker mutation tests',
     'Run integration tests with coverage', 'End Sonar analysis',
     'Fail on open Sonar issues')
 Register-StepInputs @{
@@ -75,7 +75,7 @@ if ($sonarCarried) {
 }
 else {
     $sonarStartedAt = [DateTimeOffset]::UtcNow
-    $env:JAVA_HOME = "$env:SystemDrive\sonar-scanner-8.0.1.6346-windows-x64\jre"
+    $env:JAVA_HOME = Get-SonarScannerJavaHome $beginSonar
     $global:LASTEXITCODE = $null
     dotnet-sonarscanner begin /k:"crgolden_Directory" /o:"crgolden" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.cs.opencover.reportsPaths="coverage.opencover.xml" /d:sonar.cs.vscoveragexml.reportsPaths="coverage-integration.xml" /d:sonar.exclusions="**/bin/**,**/obj/**" /d:sonar.coverage.exclusions="**/Program.cs,**/gate.ps1" /d:sonar.qualitygate.wait=true /d:sonar.scanner.skipJreProvisioning=true /d:sonar.branch.name="$sonarBranch"
     $null = Test-Exit $beginSonar
@@ -103,6 +103,18 @@ if (-not (Test-StepCarried 'Run unit tests with coverage (Category=Unit)')) {
     Test-Trx 'Run unit tests with coverage (Category=Unit)' $unitTrx $global:LASTEXITCODE -floor 1
 }
 
+if (-not (Test-StepCarried 'Install SqlPackage')) {
+    if (Get-Command sqlpackage -ErrorAction SilentlyContinue) { Write-Row 'Install SqlPackage' 'PASS' 'present on PATH' }
+    else { Stop-Gate 'Install SqlPackage' 'not on PATH' }
+}
+$schemaStep = "Deploy integration test database schema ($testCatalog on $dataSource)"
+if (-not (Test-StepCarried $schemaStep)) {
+    $global:LASTEXITCODE = $null
+    sqlpackage /Action:Publish /SourceFile:Directory.Data/bin/Release/Directory.Data.dacpac /TargetConnectionString:"$($targetConnection.ConnectionString)"
+    $null = Test-Exit $schemaStep
+}
+$env:SqlConnectionStringBuilder__InitialCatalog = $testCatalog
+
 $stryker = 'Run Stryker mutation tests (thresholds 100)'
 if (-not (Test-StepCarried $stryker)) {
     $strykerOutputDir = Join-Path $repo 'Directory\StrykerOutput\gate'
@@ -117,20 +129,8 @@ if (-not (Test-StepCarried $stryker)) {
     Write-Row $stryker 'PASS' 'every mutant killed or excluded with its reason'
 }
 
-if (-not (Test-StepCarried 'Install SqlPackage')) {
-    if (Get-Command sqlpackage -ErrorAction SilentlyContinue) { Write-Row 'Install SqlPackage' 'PASS' 'present on PATH' }
-    else { Stop-Gate 'Install SqlPackage' 'not on PATH' }
-}
-$schemaStep = "Deploy integration test database schema ($testCatalog on $dataSource)"
-if (-not (Test-StepCarried $schemaStep)) {
-    $global:LASTEXITCODE = $null
-    sqlpackage /Action:Publish /SourceFile:Directory.Data/bin/Release/Directory.Data.dacpac /TargetConnectionString:"$($targetConnection.ConnectionString)"
-    $null = Test-Exit $schemaStep
-}
-
 if (-not (Test-StepCarried 'Run integration tests with coverage (Category=Integration)')) {
     if (Test-Path $integrationTrx) { Remove-Item $integrationTrx -Force }
-    $env:SqlConnectionStringBuilder__InitialCatalog = $testCatalog
     $global:LASTEXITCODE = $null
     dotnet-coverage collect `
         "dotnet test --project Directory.Tests.Integration --no-build --configuration Release -- --filter-trait Category=Integration --stop-on-fail on --report-xunit-trx --report-xunit-trx-filename integration-tests.trx --results-directory=Directory.Tests.Integration/bin/Release/net10.0/TestResults" `

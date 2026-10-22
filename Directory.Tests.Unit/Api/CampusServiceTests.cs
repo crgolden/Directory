@@ -244,8 +244,7 @@ public sealed class CampusServiceTests
 
         // Assert
         Assert.Equal(campusName, result.Name);
-        Assert.Contains(conn.ExecutedCommands, c =>
-            c.CommandText.Contains("INSERT INTO [dbo].[Campuses]", StringComparison.Ordinal));
+        Assert.Contains(conn.ExecutedCommands, c => c.Executed);
     }
 
     [Fact]
@@ -282,8 +281,7 @@ public sealed class CampusServiceTests
 
         // Assert
         Assert.True(updated);
-        Assert.Contains(conn.ExecutedCommands, c =>
-            c.CommandText.Contains("UPDATE [dbo].[Campuses]", StringComparison.Ordinal));
+        Assert.Contains(conn.ExecutedCommands, c => c.Executed);
     }
 
     [Fact]
@@ -334,8 +332,7 @@ public sealed class CampusServiceTests
 
         // Assert
         Assert.False(deleted);
-        Assert.Contains(conn.ExecutedCommands, c =>
-            c.CommandText.Contains("DELETE FROM [dbo].[Campuses]", StringComparison.Ordinal));
+        Assert.Contains(conn.ExecutedCommands, c => c.Executed);
     }
 
     private static Campus BuildCampusTheRouteWouldSend(string name) => new Campus

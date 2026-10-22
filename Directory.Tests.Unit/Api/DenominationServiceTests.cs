@@ -75,26 +75,6 @@ public sealed class DenominationServiceTests
     }
 
     [Fact]
-    public async Task GetAllAsync_OrdersByNameAscending()
-    {
-        // Arrange
-        var denominationId = Guid.NewGuid();
-        var table = BuildDenominationTable();
-        table.Rows.Add(denominationId, Generated.NewName(), Generated.NewUtcTimestamp(), Generated.NewUtcTimestamp());
-
-        var conn = new FakeDbConnection();
-        conn.Enqueue(FakeDbCommand.WithReader(table));
-        var service = new DenominationService(conn);
-
-        // Act
-        await service.GetAllAsync(TestContext.Current.CancellationToken);
-
-        // Assert
-        var cmd = Assert.Single(conn.ExecutedCommands);
-        Assert.Contains("ORDER BY [Name] ASC", cmd.CommandText, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public async Task GetAllAsync_ReturnsTheStoredTimestamps_NotTheTimeOfTheRequest()
     {
         // Arrange

@@ -291,7 +291,6 @@ public sealed class ModerationServiceTests
             CorrectionStatus.Pending, requestedPage, requestedPageSize, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Contains("WHERE (@Status IS NULL OR c.[Status] = @Status)", cmd.CapturedCommandText, StringComparison.Ordinal);
         Assert.Equal((int)CorrectionStatus.Pending, cmd.Parameters[SqlParameters.Status].Value);
         Assert.Equal(expectedTotalCount, totalCount);
         Assert.Equal(expectedNewValue, Assert.Single(items).NewValue);
@@ -392,31 +391,6 @@ public sealed class ModerationServiceTests
         // Assert
         Assert.Equal(expectedOffset, cmd.Parameters[SqlParameters.Offset].Value);
         Assert.Equal(pageSizeAboveAnyPage, cmd.Parameters[SqlParameters.PageSize].Value);
-    }
-
-    [Fact]
-    public async Task GetCorrectionsAsync_AnyPage_SelectsNewestFirstWithATotalCount()
-    {
-        // Arrange
-        var conn = new FakeDbConnection();
-        var cmd = FakeDbCommand.WithReader(BuildCorrectionTable(includeTotalCount: true));
-        conn.Enqueue(cmd);
-        var service = Create(conn);
-
-        // Act
-        await service.GetCorrectionsAsync(
-            null, Generated.NewPage(), Generated.NewPageSize(), TestContext.Current.CancellationToken);
-
-        // Assert
-        Assert.Contains("SELECT c.[Id]", cmd.CapturedCommandText, StringComparison.Ordinal);
-        Assert.Contains(
-            "target.[Slug], COUNT(*) OVER() AS [TotalCount] FROM [dbo].[UserCorrections] c",
-            cmd.CapturedCommandText,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            "c.[Status] = @Status) ORDER BY c.[CreatedAt] DESC OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY",
-            cmd.CapturedCommandText,
-            StringComparison.Ordinal);
     }
 
     [Fact]
@@ -802,7 +776,8 @@ public sealed class ModerationServiceTests
 
         // Assert
         var closure = conn.ExecutedCommands[^1];
-        Assert.Contains("SET [Status] = @Rejected", closure.CapturedCommandText, StringComparison.Ordinal);
+        Assert.Equal((int)CorrectionStatus.Rejected, closure.Parameters[SqlParameters.Rejected].Value);
+        Assert.Equal(suggestedId, closure.Parameters[SqlParameters.Absorbed].Value);
         Assert.True(closure.Executed);
     }
 

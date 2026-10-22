@@ -211,9 +211,8 @@ public sealed class CrawlingServiceTests
         Assert.True(result);
         Assert.Collection(
             conn.ExecutedCommands,
-            lookup => Assert.Contains("SELECT", lookup.CommandText, StringComparison.Ordinal),
-            update => Assert.Contains("UPDATE [dbo].[CrawlSources]", update.CommandText, StringComparison.Ordinal));
-        Assert.True(conn.ExecutedCommands[^1].Executed);
+            lookup => Assert.True(lookup.Executed),
+            update => Assert.True(update.Executed));
         senderMock.Verify(s => s.SendMessageAsync(It.IsAny<ServiceBusMessage>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 

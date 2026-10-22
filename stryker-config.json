@@ -2,8 +2,10 @@
   "stryker-config": {
     "project": "Directory.csproj",
     "test-projects": [
-      "../Directory.Tests.Unit/Directory.Tests.Unit.csproj"
+      "../Directory.Tests.Unit/Directory.Tests.Unit.csproj",
+      "../Directory.Tests.Integration/Directory.Tests.Integration.csproj"
     ],
+    "concurrency": 1,
     "reporters": [
       "html",
       "json",

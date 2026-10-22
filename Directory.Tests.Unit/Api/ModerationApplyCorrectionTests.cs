@@ -29,7 +29,6 @@ public sealed class ModerationApplyCorrectionTests
         // Assert
         Assert.Null(refusal);
         var update = conn.ExecutedCommands[^1];
-        Assert.Contains("UPDATE [dbo].[Churches]", update.CapturedCommandText, StringComparison.Ordinal);
         Assert.Equal(newPhoneNumber, update.Parameters[SqlParameters.PhoneNumber].Value);
         Assert.Equal(correction.ChurchId, update.Parameters[SqlParameters.Id].Value);
     }
@@ -281,10 +280,7 @@ public sealed class ModerationApplyCorrectionTests
             .Select(cmd => cmd.Parameters[SqlParameters.Absorbed].Value)
             .ToList();
         Assert.All(absorbedParams, absorbed => Assert.Equal(correction.ChurchId, absorbed));
-        Assert.Contains(
-            conn.ExecutedCommands,
-            cmd => cmd.CapturedCommandText?.Contains("UPDATE [dbo].[UserCorrections]", StringComparison.Ordinal) == true
-                   && cmd.CapturedCommandText.Contains("TRY_CONVERT(UNIQUEIDENTIFIER, [NewValue]) = @Absorbed", StringComparison.Ordinal));
+        Assert.Contains(conn.ExecutedCommands, cmd => cmd.Executed && cmd.Parameters.Contains(SqlParameters.Rejected));
     }
 
     private static ModerationService NewService(FakeDbConnection conn) =>

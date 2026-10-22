@@ -324,6 +324,10 @@ jobs:
     name: Mutation testing
     runs-on: ubuntu-latest
     if: github.actor != 'dependabot[bot]'
+    concurrency:
+      group: directory-integration-database
+      cancel-in-progress: false
+      queue: max
     permissions:
       contents: read
 
@@ -345,10 +349,36 @@ jobs:
       - name: Restore local tools
         run: dotnet tool restore
 
+      - name: Install SqlPackage
+        run: dotnet tool install --global microsoft.sqlpackage
+
+      - name: Build integration test database schema
+        env:
+          NuGetPackageSourceCredentials_GitHub: Username=${{ github.actor }};Password=${{ secrets.PACKAGES_READ_TOKEN }}
+        run: dotnet build Directory.Data/Directory.Data.sqlproj --configuration Release
+
+      - name: Deploy integration test database schema
+        env:
+          DB_SERVER: ${{ vars.DB_SERVER }}
+          DB_USERID: ${{ secrets.DB_USERID }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ vars.DB_NAME_E2E }}
+        run: |
+          $connStr = "Data Source=$env:DB_SERVER;Initial Catalog=$env:DB_NAME;User ID=$env:DB_USERID;Password='$env:DB_PASSWORD';Connect Timeout=30;Encrypt=True;Trust Server Certificate=False;Application Intent=ReadWrite;Multi Subnet Failover=False;Command Timeout=30"
+          sqlpackage /Action:Publish /SourceFile:Directory.Data/bin/Release/Directory.Data.dacpac /TargetConnectionString:"$connStr"
+
       - name: Run Stryker mutation tests
         working-directory: Directory
         env:
           NuGetPackageSourceCredentials_GitHub: Username=${{ github.actor }};Password=${{ secrets.PACKAGES_READ_TOKEN }}
+          ASPNETCORE_ENVIRONMENT: CI
+          OidcAuthority: ${{ vars.OIDC_AUTHORITY }}
+          SqlConnectionStringBuilder__DataSource: ${{ vars.DB_SERVER }}
+          SqlConnectionStringBuilder__InitialCatalog: ${{ vars.DB_NAME_E2E }}
+          SqlConnectionStringBuilder__IntegratedSecurity: false
+          SqlConnectionStringBuilder__UserID: ${{ secrets.DB_USERID }}
+          SqlConnectionStringBuilder__Password: ${{ secrets.DB_PASSWORD }}
+          ServiceBusConnectionString: ${{ secrets.SERVICE_BUS_CONNECTION_STRING }}
         run: dotnet stryker --config-file ../stryker-config.json
 
       - name: Upload Stryker report

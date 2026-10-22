@@ -5,9 +5,11 @@ using System.Diagnostics.CodeAnalysis;
 [ExcludeFromCodeCoverage]
 public static class SearchEndpoints
 {
+    public const string Route = "/search";
+
     public static IEndpointRouteBuilder MapSearchEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/search", async (
+        app.MapGet(Route, async (
             [AsParameters] SearchRequest request,
             SearchService service,
             CancellationToken ct) =>
