@@ -112,8 +112,10 @@ The unit tier needs no database or secrets. The integration tier needs the schem
 
 ## Gate
 
-`gate.ps1` is the maintainers' gate. It loads a private toolkit from a folder beside this repo, so in a plain clone it
-stops at once with `GATE: FAILED`. To gate your own change, run the checks CI runs, in this order:
+`gate.ps1` is the maintainers' gate. It dot-sources the gate library script that the `GATE_LIBRARY` environment
+variable names, which defines the step functions `gate.ps1` calls; unset, as in a plain clone, it stops at once with
+`GATE: FAILED` and records nothing. To gate with a library of your own, set `GATE_LIBRARY` to its path (a library
+whose functions do nothing is a valid no-op gate). To gate your own change without one, run the checks CI runs, in this order:
 
 ```powershell
 dotnet tool restore

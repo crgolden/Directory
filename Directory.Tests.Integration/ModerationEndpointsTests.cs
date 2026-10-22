@@ -19,6 +19,10 @@ public sealed class ModerationEndpointsTests : IClassFixture<DirectoryWebApplica
             (@Id, @ChurchId, @UserId, @Field, NULL, @NewValue, 0, @CreatedAt)
         """;
 
+    private const int FirstPage = 1;
+
+    private const int PageSizeHoldingEveryCorrection = 50;
+
     private static readonly TimeSpan SubmissionGap = TimeSpan.FromDays(1);
 
     private readonly DirectoryWebApplicationFactory _factory;
@@ -53,7 +57,8 @@ public sealed class ModerationEndpointsTests : IClassFixture<DirectoryWebApplica
         var older = await SeedCorrectionAsync(churchId, DateTimeOffset.UtcNow - SubmissionGap);
         var newer = await SeedCorrectionAsync(churchId, DateTimeOffset.UtcNow + SubmissionGap);
 
-        var body = await _client.GetFromJsonAsync<JsonElement>(ModerationEndpoints.Route, TestContext.Current.CancellationToken);
+        var body = await _client.GetFromJsonAsync<JsonElement>(
+            $"{ModerationEndpoints.Route}?page={FirstPage}&pageSize={PageSizeHoldingEveryCorrection}", TestContext.Current.CancellationToken);
 
         var ids = body.GetProperty("items").EnumerateArray().Select(item => item.GetProperty("id").GetGuid()).ToList();
         Assert.Contains(older, ids);

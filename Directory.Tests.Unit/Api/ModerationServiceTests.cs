@@ -777,7 +777,7 @@ public sealed class ModerationServiceTests
         // Assert
         var closure = conn.ExecutedCommands[^1];
         Assert.Equal((int)CorrectionStatus.Rejected, closure.Parameters[SqlParameters.Rejected].Value);
-        Assert.Equal(suggestedId, closure.Parameters[SqlParameters.Absorbed].Value);
+        Assert.Equal(correction.ChurchId, closure.Parameters[SqlParameters.Absorbed].Value);
         Assert.True(closure.Executed);
     }
 

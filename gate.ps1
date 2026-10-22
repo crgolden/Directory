@@ -1,9 +1,9 @@
 param([string]$Goal)
 
 $ErrorActionPreference = 'Continue'
-$gateCommon = Join-Path $PSScriptRoot '..\Tools\Gates\GateCommon.ps1'
-if (-not (Test-Path -LiteralPath $gateCommon)) {
-    Write-Host "GATE: FAILED (the Tools repository must be cloned beside this one: $gateCommon)"
+$gateCommon = $env:GATE_LIBRARY
+if (-not $gateCommon -or -not (Test-Path -LiteralPath $gateCommon -PathType Leaf)) {
+    Write-Host 'GATE: FAILED (GATE_LIBRARY names no gate library script; README.md, section Gate, says how to plug one in or run the steps without one)'
     exit 1
 }
 . $gateCommon
