@@ -106,13 +106,17 @@ public sealed class SearchService
         var sb = new StringBuilder();
         sb.Append("SELECT COUNT(*) AS [TotalCount]");
         sb.Append(scope);
+
+        // Stryker disable once Statement : T-SQL runs the two SELECTs as one batch with or without the terminator
         sb.Append(';');
 
         sb.Append(" SELECT ");
         sb.Append(BaseColumns);
-        sb.Append(hasDistance
-            ? ", [dbo].[fn_HaversineDistance](@Lat, @Lng, c.[Latitude], c.[Longitude]) AS [DistanceMiles]"
-            : ", CAST(NULL AS FLOAT) AS [DistanceMiles]");
+        if (hasDistance)
+        {
+            sb.Append(", [dbo].[fn_HaversineDistance](@Lat, @Lng, c.[Latitude], c.[Longitude]) AS [DistanceMiles]");
+        }
+
         sb.Append(scope);
 
         AppendOrderBy(sb, q, termCount, hasDistance);

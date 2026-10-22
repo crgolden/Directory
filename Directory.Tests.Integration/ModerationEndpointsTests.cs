@@ -5,6 +5,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Directory.Church;
 using Directory.Entities;
+using Directory.Enums;
 using Directory.Moderation;
 using Directory.Tests.Integration.TestSupport;
 using Microsoft.Data.SqlClient;
@@ -16,12 +17,14 @@ public sealed class ModerationEndpointsTests : IClassFixture<DirectoryWebApplica
         INSERT INTO [dbo].[UserCorrections]
             ([Id], [ChurchId], [UserId], [Field], [OldValue], [NewValue], [Status], [CreatedAt])
         VALUES
-            (@Id, @ChurchId, @UserId, @Field, NULL, @NewValue, 0, @CreatedAt)
+            (@Id, @ChurchId, @UserId, @Field, NULL, @NewValue, @Status, @CreatedAt)
         """;
 
     private const int FirstPage = 1;
 
     private const int PageSizeHoldingEveryCorrection = 50;
+
+    private const int OnePerPage = 1;
 
     private static readonly TimeSpan SubmissionGap = TimeSpan.FromDays(1);
 
@@ -64,6 +67,37 @@ public sealed class ModerationEndpointsTests : IClassFixture<DirectoryWebApplica
         Assert.Contains(older, ids);
         Assert.Contains(newer, ids);
         Assert.True(ids.IndexOf(newer) < ids.IndexOf(older));
+    }
+
+    [Fact]
+    public async Task GetCorrections_StatusFilter_ListsThatStatusOnly()
+    {
+        var churchId = await CreateChurchAndGetIdAsync();
+        var pending = await SeedCorrectionAsync(churchId, DateTimeOffset.UtcNow, CorrectionStatus.Pending);
+        var rejected = await SeedCorrectionAsync(churchId, DateTimeOffset.UtcNow, CorrectionStatus.Rejected);
+
+        var body = await _client.GetFromJsonAsync<JsonElement>(
+            $"{ModerationEndpoints.Route}?status={CorrectionStatus.Rejected}&page={FirstPage}&pageSize={PageSizeHoldingEveryCorrection}",
+            TestContext.Current.CancellationToken);
+
+        var items = body.GetProperty("items").EnumerateArray().ToList();
+        Assert.All(items, item => Assert.Equal((int)CorrectionStatus.Rejected, item.GetProperty("status").GetInt32()));
+        Assert.Contains(items, item => item.GetProperty("id").GetGuid() == rejected);
+        Assert.DoesNotContain(items, item => item.GetProperty("id").GetGuid() == pending);
+    }
+
+    [Fact]
+    public async Task GetCorrections_OnePerPage_ReturnsOneAndCountsThemAll()
+    {
+        var churchId = await CreateChurchAndGetIdAsync();
+        await SeedCorrectionAsync(churchId);
+        await SeedCorrectionAsync(churchId);
+
+        var body = await _client.GetFromJsonAsync<JsonElement>(
+            $"{ModerationEndpoints.Route}?page={FirstPage}&pageSize={OnePerPage}", TestContext.Current.CancellationToken);
+
+        Assert.Single(body.GetProperty("items").EnumerateArray());
+        Assert.True(body.GetProperty("totalCount").GetInt32() > OnePerPage);
     }
 
     [Fact]
@@ -173,7 +207,10 @@ public sealed class ModerationEndpointsTests : IClassFixture<DirectoryWebApplica
 
     private Task<Guid> SeedCorrectionAsync(Guid churchId) => SeedCorrectionAsync(churchId, DateTimeOffset.UtcNow);
 
-    private async Task<Guid> SeedCorrectionAsync(Guid churchId, DateTimeOffset now)
+    private Task<Guid> SeedCorrectionAsync(Guid churchId, DateTimeOffset now) =>
+        SeedCorrectionAsync(churchId, now, CorrectionStatus.Pending);
+
+    private async Task<Guid> SeedCorrectionAsync(Guid churchId, DateTimeOffset now, CorrectionStatus status)
     {
         var id = Guid.CreateVersion7(DateTimeOffset.UtcNow);
         await using var conn = await _factory.OpenTestConnectionAsync(TestContext.Current.CancellationToken);
@@ -184,6 +221,7 @@ public sealed class ModerationEndpointsTests : IClassFixture<DirectoryWebApplica
         cmd.Parameters.AddWithValue("@Field", nameof(Church.PhoneNumber));
         cmd.Parameters.AddWithValue(SqlParameters.NewValue, Generated.NewPhoneNumber());
         cmd.Parameters.AddWithValue(SqlParameters.CreatedAt, now);
+        cmd.Parameters.AddWithValue(SqlParameters.Status, (int)status);
         await cmd.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
         return id;
     }

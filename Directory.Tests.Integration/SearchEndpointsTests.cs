@@ -24,6 +24,8 @@ public sealed class SearchEndpointsTests : IClassFixture<DirectoryWebApplication
 
     private const int SecondNearest = 1;
 
+    private const int OnePerPage = 1;
+
     private readonly HttpClient _client;
 
     public SearchEndpointsTests(DirectoryWebApplicationFactory factory)
@@ -116,6 +118,7 @@ public sealed class SearchEndpointsTests : IClassFixture<DirectoryWebApplication
 
         Assert.Equal(atThePoint, items[Nearest].GetProperty("church").GetProperty("canonicalName").GetString());
         Assert.Equal(nearby, items[SecondNearest].GetProperty("church").GetProperty("canonicalName").GetString());
+        Assert.True(items[Nearest].GetProperty("distanceMiles").GetDouble() < items[SecondNearest].GetProperty("distanceMiles").GetDouble());
         Assert.DoesNotContain(items, item => item.GetProperty("church").GetProperty("canonicalName").GetString() == faraway);
     }
 
@@ -144,12 +147,23 @@ public sealed class SearchEndpointsTests : IClassFixture<DirectoryWebApplication
         Assert.DoesNotContain(items, item => item.GetProperty("church").GetProperty("canonicalName").GetString() == unscheduled);
     }
 
-    private async Task<JsonElement[]> SearchAsync(string filter)
+    [Fact]
+    public async Task Search_OnePerPage_ReturnsOneAndCountsEveryMatch()
     {
-        var body = await _client.GetFromJsonAsync<JsonElement>(
-            $"{SearchEndpoints.Route}?{filter}", TestContext.Current.CancellationToken);
-        return [.. body.GetProperty("items").EnumerateArray()];
+        await CreateChurchAsync(Generated.NewName(), StateCode.HI, Generated.NewLatitude(), Generated.NewLongitude(), wheelchairAccessible: false);
+        await CreateChurchAsync(Generated.NewName(), StateCode.HI, Generated.NewLatitude(), Generated.NewLongitude(), wheelchairAccessible: false);
+
+        var body = await SearchBodyAsync($"state={StateCode.HI}&pageSize={OnePerPage}");
+
+        Assert.Single(body.GetProperty("items").EnumerateArray());
+        Assert.True(body.GetProperty("totalCount").GetInt32() > OnePerPage);
     }
+
+    private async Task<JsonElement[]> SearchAsync(string filter) =>
+        [.. (await SearchBodyAsync(filter)).GetProperty("items").EnumerateArray()];
+
+    private Task<JsonElement> SearchBodyAsync(string filter) =>
+        _client.GetFromJsonAsync<JsonElement>($"{SearchEndpoints.Route}?{filter}", TestContext.Current.CancellationToken);
 
     private async Task<Guid> CreateChurchAsync(string canonicalName, StateCode state, double latitude, double longitude, bool wheelchairAccessible)
     {
