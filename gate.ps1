@@ -11,7 +11,7 @@ $gateOutput = Join-Path ([IO.Path]::GetTempPath()) "crgolden-gates\$(Split-Path 
 New-Item -ItemType Directory -Force -Path $gateOutput | Out-Null
 Register-GateSteps @('Install dotnet-coverage', 'Restore local tools', 'Begin Sonar analysis', 'Build with dotnet',
     'jb inspectcode', 'Run unit tests with coverage', 'Install SqlPackage', 'Deploy integration test database schema', 'Run Stryker mutation tests',
-    'Run integration tests with coverage', 'End Sonar analysis',
+    'Run Stryker relevance mutation tests', 'Run integration tests with coverage', 'Run full-text tests with coverage', 'End Sonar analysis',
     'Fail on open Sonar issues')
 Register-StepInputs @{
     'Install dotnet-coverage'                 = @('*')
@@ -21,9 +21,11 @@ Register-StepInputs @{
     'jb inspectcode'                          = @('*')
     'Run unit tests with coverage'            = @('*')
     'Run Stryker mutation tests'              = @('*')
+    'Run Stryker relevance mutation tests'    = @('*')
     'Install SqlPackage'                      = @('*')
     'Deploy integration test database schema' = @('*')
     'Run integration tests with coverage'     = @('*')
+    'Run full-text tests with coverage'       = @('*')
     'End Sonar analysis'                      = @('*')
     'Fail on open Sonar issues'               = @('*')
 }
@@ -31,6 +33,7 @@ $repo = $PSScriptRoot
 $sarif = (Join-Path $gateOutput 'directory-inspect.sarif')
 $unitTrx = Join-Path $repo 'Directory.Tests.Unit\bin\Release\net10.0\TestResults\unit-tests.trx'
 $integrationTrx = Join-Path $repo 'Directory.Tests.Integration\bin\Release\net10.0\TestResults\integration-tests.trx'
+$fullTextTrx = Join-Path $repo 'Directory.Tests.FullText\bin\Release\net10.0\TestResults\fulltext-tests.trx'
 $testCatalog = $env:SqlConnectionStringBuilder__InitialCatalog ?? 'DirectoryTest'
 $developmentSql = (Get-Content -Raw (Join-Path $repo 'Directory\appsettings.Development.json') | ConvertFrom-Json).SqlConnectionStringBuilder
 $dataSource = $env:SqlConnectionStringBuilder__DataSource ?? $developmentSql.DataSource
@@ -77,7 +80,7 @@ else {
     $sonarStartedAt = [DateTimeOffset]::UtcNow
     $env:JAVA_HOME = Get-SonarScannerJavaHome $beginSonar
     $global:LASTEXITCODE = $null
-    dotnet-sonarscanner begin /k:"crgolden_Directory" /o:"crgolden" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.cs.opencover.reportsPaths="coverage.opencover.xml" /d:sonar.cs.vscoveragexml.reportsPaths="coverage-integration.xml" /d:sonar.exclusions="**/bin/**,**/obj/**" /d:sonar.coverage.exclusions="**/Program.cs,**/gate.ps1" /d:sonar.qualitygate.wait=true /d:sonar.scanner.skipJreProvisioning=true /d:sonar.branch.name="$sonarBranch"
+    dotnet-sonarscanner begin /k:"crgolden_Directory" /o:"crgolden" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.cs.opencover.reportsPaths="coverage.opencover.xml" /d:sonar.cs.vscoveragexml.reportsPaths="coverage-integration.xml,coverage-fulltext.xml" /d:sonar.exclusions="**/bin/**,**/obj/**" /d:sonar.coverage.exclusions="**/Program.cs,**/gate.ps1" /d:sonar.qualitygate.wait=true /d:sonar.scanner.skipJreProvisioning=true /d:sonar.branch.name="$sonarBranch"
     $null = Test-Exit $beginSonar
 
     $global:LASTEXITCODE = $null
@@ -129,6 +132,20 @@ if (-not (Test-StepCarried $stryker)) {
     Write-Row $stryker 'PASS' 'every mutant killed or excluded with its reason'
 }
 
+$relevanceStryker = 'Run Stryker relevance mutation tests (thresholds 100)'
+if (-not (Test-StepCarried $relevanceStryker)) {
+    $relevanceOutputDir = Join-Path $repo 'Directory\StrykerOutput\gate-relevance'
+    if (Test-Path -LiteralPath $relevanceOutputDir) { Remove-Item -LiteralPath $relevanceOutputDir -Recurse -Force }
+    Push-Location (Join-Path $repo 'Directory')
+    $global:LASTEXITCODE = $null
+    dotnet stryker --config-file ../stryker-relevance-config.json --output $relevanceOutputDir
+    $relevanceExit = $global:LASTEXITCODE
+    Pop-Location
+    if ($null -eq $relevanceExit) { Stop-Gate $relevanceStryker 'command never ran' }
+    if ($relevanceExit -ne 0) { Stop-Gate $relevanceStryker "exit $relevanceExit" }
+    Write-Row $relevanceStryker 'PASS' 'every relevance-ordering mutant killed'
+}
+
 if (-not (Test-StepCarried 'Run integration tests with coverage (Category=Integration)')) {
     if (Test-Path $integrationTrx) { Remove-Item $integrationTrx -Force }
     $global:LASTEXITCODE = $null
@@ -136,6 +153,15 @@ if (-not (Test-StepCarried 'Run integration tests with coverage (Category=Integr
         "dotnet test --project Directory.Tests.Integration --no-build --configuration Release -- --filter-trait Category=Integration --stop-on-fail on --report-xunit-trx --report-xunit-trx-filename integration-tests.trx --results-directory=Directory.Tests.Integration/bin/Release/net10.0/TestResults" `
         -f xml -o "coverage-integration.xml" -s "coverage.settings.xml"
     Test-Trx 'Run integration tests with coverage (Category=Integration)' $integrationTrx $global:LASTEXITCODE -floor 1
+}
+
+if (-not (Test-StepCarried 'Run full-text tests with coverage (Category=Integration)')) {
+    if (Test-Path $fullTextTrx) { Remove-Item $fullTextTrx -Force }
+    $global:LASTEXITCODE = $null
+    dotnet-coverage collect `
+        "dotnet test --project Directory.Tests.FullText --no-build --configuration Release -- --filter-trait Category=Integration --stop-on-fail on --report-xunit-trx --report-xunit-trx-filename fulltext-tests.trx --results-directory=Directory.Tests.FullText/bin/Release/net10.0/TestResults" `
+        -f xml -o "coverage-fulltext.xml" -s "coverage.settings.xml"
+    Test-Trx 'Run full-text tests with coverage (Category=Integration)' $fullTextTrx $global:LASTEXITCODE -floor 1
 }
 
 if (-not $sonarCarried) {

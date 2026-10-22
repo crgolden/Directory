@@ -52,6 +52,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Directory.Tests.FullText" />
     <InternalsVisibleTo Include="Directory.Tests.Integration" />
     <InternalsVisibleTo Include="Directory.Tests.Unit" />
   </ItemGroup>

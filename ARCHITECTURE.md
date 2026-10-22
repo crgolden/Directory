@@ -13,14 +13,14 @@ Service Bus queue, and a separate processing pipeline consumes it.
 |---|---|
 | `Directory/Program.cs` | configuration, one scoped `DbConnection` from `SqlClientFactory.Instance`, the Service Bus client, JWT authentication and the `Directory` and `ChurchesMod` policies, health checks, the production-only telemetry and data protection |
 | `Directory/Church`, `Schedules`, `Ministries`, `Campuses` | church CRUD and merge, and each child resource; `Church/Optional{T}.cs` carries the `PATCH` absent-versus-null distinction |
-| `Directory/Search` | `/search`: filters bound through `[AsParameters] SearchRequest`, a count statement and a page statement over one shared `FROM`/`WHERE` |
+| `Directory/Search` | `/search`: filters bound through `[AsParameters] SearchRequest`, a count statement and a page statement over one shared `FROM`/`WHERE`; `RelevanceOrder.cs` holds the keyword relevance `ORDER BY` |
 | `Directory/Denomination`, `Admin`, `Crawling`, `Moderation`, `User` | denominations, CSV import and export, crawl sources and triggers, the corrections lifecycle, `/me` |
 | `Directory/Entities`, `Enums`, `Messaging` | the row types, enums, and the queue names (`Messaging/ServiceBusNames.cs`) |
 | `Directory/AuthorizationPolicies.cs`, `SqlParameters.cs`, `Moderation/SubjectClaims.cs` | policy and claim names, every SQL parameter name, and `sub` parsed once as a `Guid` |
 | `Directory.Data` | the schema: tables, indexes, `fn_HaversineDistance`, the full-text catalog, pre- and post-deployment scripts (the post-deployment script seeds `Denominations`) |
-| `Directory.Tests.Unit`, `Directory.Tests.Integration` | the two test tiers ([TESTING.md](TESTING.md)) |
+| `Directory.Tests.Unit`, `Directory.Tests.Integration`, `Directory.Tests.FullText` | the unit tier, the integration tier, and the full-text tier kept apart for mutation testing ([TESTING.md](TESTING.md)) |
 | `.github/workflows/main_crgolden-directory.yml` | build, inspect, test, mutation-test, analyze, then deploy the schema and the app |
-| `stryker-config.json`, `coverage.settings.xml`, `dotnet-tools.json`, `NuGet.Config`, `global.json` | mutation settings, integration coverage settings, pinned tools, package sources (the `Shared` package from GitHub Packages), the SDK |
+| `stryker-config.json`, `stryker-relevance-config.json`, `coverage.settings.xml`, `dotnet-tools.json`, `NuGet.Config`, `global.json` | mutation settings, integration coverage settings, pinned tools, package sources (the `Shared` package from GitHub Packages), the SDK |
 | `gate.ps1` | the maintainers' local gate (README.md, "Gate") |
 
 Each feature folder holds an `*Endpoints.cs` (route wiring, excluded from coverage) and, except `User`, a scoped

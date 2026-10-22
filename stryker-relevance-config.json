@@ -1,0 +1,29 @@
+{
+  "stryker-config": {
+    "project": "Directory.csproj",
+    "test-projects": [
+      "../Directory.Tests.Unit/Directory.Tests.Unit.csproj",
+      "../Directory.Tests.FullText/Directory.Tests.FullText.csproj"
+    ],
+    "concurrency": 1,
+    "reporters": [
+      "html",
+      "json",
+      "progress"
+    ],
+    "mutation-level": "Advanced",
+    "thresholds": {
+      "high": 100,
+      "low": 100,
+      "break": 100
+    },
+    "mutate": [
+      "**/Search/RelevanceOrder.cs"
+    ],
+    "since": {
+      "enabled": false
+    },
+    "test-runner": "mtp",
+    "coverage-analysis": "perTest"
+  }
+}

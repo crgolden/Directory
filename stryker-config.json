@@ -21,7 +21,8 @@
       "**/*.cs",
       "!obj/**/*.cs",
       "!Program.cs",
-      "!**/*Endpoints.cs"
+      "!**/*Endpoints.cs",
+      "!**/Search/RelevanceOrder.cs"
     ],
     "since": {
       "enabled": false

@@ -123,12 +123,15 @@ dotnet build --no-incremental --configuration Release /p:RestoreLockedMode=true 
 dotnet jb inspectcode Directory.slnx --no-build -e=WARNING --output=inspectcode.sarif
 dotnet test --project Directory.Tests.Unit --no-build --configuration Release -- --filter-trait "Category=Unit"
 dotnet test --project Directory.Tests.Integration --no-build --configuration Release -- --filter-trait "Category=Integration"
+dotnet test --project Directory.Tests.FullText --no-build --configuration Release -- --filter-trait "Category=Integration"
 Push-Location Directory
 dotnet stryker --config-file ../stryker-config.json
+dotnet stryker --config-file ../stryker-relevance-config.json
 Pop-Location
 ```
 
-`jb inspectcode` passes only when `inspectcode.sarif` holds no results, and Stryker only at a 100% mutation score.
+`jb inspectcode` passes only when `inspectcode.sarif` holds no results, and each Stryker pass only at a 100% mutation
+score.
 
 ## Deployment
 

@@ -144,7 +144,7 @@ jobs:
             /d:sonar.token="$env:SONAR_TOKEN" `
             /d:sonar.host.url="https://sonarcloud.io" `
             /d:sonar.cs.opencover.reportsPaths="coverage.opencover.xml" `
-            /d:sonar.cs.vscoveragexml.reportsPaths="coverage-integration.xml" `
+            /d:sonar.cs.vscoveragexml.reportsPaths="coverage-integration.xml,coverage-fulltext.xml" `
             /d:sonar.exclusions="**/bin/**,**/obj/**" `
             /d:sonar.coverage.exclusions="**/Program.cs,**/gate.ps1" `
             /d:sonar.qualitygate.wait=true `
@@ -209,6 +209,22 @@ jobs:
             "dotnet test --project Directory.Tests.Integration --no-build --configuration Release -- --filter-trait Category=Integration --stop-on-fail on --report-xunit-trx --report-xunit-trx-filename integration-tests.trx --results-directory=Directory.Tests.Integration/bin/Release/net10.0/TestResults" `
             -f xml -o "coverage-integration.xml" -s "coverage.settings.xml"
 
+      - name: Run full-text tests with coverage
+        if: github.actor != 'dependabot[bot]'
+        env:
+          ASPNETCORE_ENVIRONMENT: CI
+          OidcAuthority: ${{ vars.OIDC_AUTHORITY }}
+          SqlConnectionStringBuilder__DataSource: ${{ vars.DB_SERVER }}
+          SqlConnectionStringBuilder__InitialCatalog: ${{ vars.DB_NAME_E2E }}
+          SqlConnectionStringBuilder__IntegratedSecurity: false
+          SqlConnectionStringBuilder__UserID: ${{ secrets.DB_USERID }}
+          SqlConnectionStringBuilder__Password: ${{ secrets.DB_PASSWORD }}
+          ServiceBusConnectionString: ${{ secrets.SERVICE_BUS_CONNECTION_STRING }}
+        run: |
+          dotnet-coverage collect `
+            "dotnet test --project Directory.Tests.FullText --no-build --configuration Release -- --filter-trait Category=Integration --stop-on-fail on --report-xunit-trx --report-xunit-trx-filename fulltext-tests.trx --results-directory=Directory.Tests.FullText/bin/Release/net10.0/TestResults" `
+            -f xml -o "coverage-fulltext.xml" -s "coverage.settings.xml"
+
       - name: Upload test results
         uses: actions/upload-artifact@v7
         if: always()
@@ -218,6 +234,7 @@ jobs:
           path: |
             Directory.Tests.Unit/bin/Release/net10.0/TestResults/
             Directory.Tests.Integration/bin/Release/net10.0/TestResults/
+            Directory.Tests.FullText/bin/Release/net10.0/TestResults/
 
       - name: dotnet publish
         env:
@@ -380,6 +397,20 @@ jobs:
           SqlConnectionStringBuilder__Password: ${{ secrets.DB_PASSWORD }}
           ServiceBusConnectionString: ${{ secrets.SERVICE_BUS_CONNECTION_STRING }}
         run: dotnet stryker --config-file ../stryker-config.json
+
+      - name: Run Stryker relevance mutation tests
+        working-directory: Directory
+        env:
+          NuGetPackageSourceCredentials_GitHub: Username=${{ github.actor }};Password=${{ secrets.PACKAGES_READ_TOKEN }}
+          ASPNETCORE_ENVIRONMENT: CI
+          OidcAuthority: ${{ vars.OIDC_AUTHORITY }}
+          SqlConnectionStringBuilder__DataSource: ${{ vars.DB_SERVER }}
+          SqlConnectionStringBuilder__InitialCatalog: ${{ vars.DB_NAME_E2E }}
+          SqlConnectionStringBuilder__IntegratedSecurity: false
+          SqlConnectionStringBuilder__UserID: ${{ secrets.DB_USERID }}
+          SqlConnectionStringBuilder__Password: ${{ secrets.DB_PASSWORD }}
+          ServiceBusConnectionString: ${{ secrets.SERVICE_BUS_CONNECTION_STRING }}
+        run: dotnet stryker --config-file ../stryker-relevance-config.json --output StrykerOutput/relevance
 
       - name: Upload Stryker report
         uses: actions/upload-artifact@v7

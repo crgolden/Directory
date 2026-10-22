@@ -6,11 +6,12 @@
 |---|---|---|---|---|
 | Unit | `Category=Unit` | `Directory.Tests.Unit` | nothing: a fake `DbConnection` and a mocked Service Bus | every push and pull request |
 | Integration | `Category=Integration` | `Directory.Tests.Integration` | a SQL Server catalog carrying the `Directory.Data` schema, named with a `Test` suffix | every push and pull request except Dependabot's |
+| Integration, full-text | `Category=Integration` | `Directory.Tests.FullText` | the same catalog, with its full-text index | every push and pull request except Dependabot's |
 
-Both are xUnit v3 projects on Microsoft.Testing.Platform (`global.json` selects the runner). No browser is involved, so
-the endpoint tests are integration tests, not end-to-end. Test data comes from the `Shared` package's
-`Shared.Testing.Generated`; `Directory.Tests.Unit/TestSupport/TestValues.cs` is compiled into the integration project
-through a linked `<Compile>` item.
+All three are xUnit v3 projects on Microsoft.Testing.Platform (`global.json` selects the runner). No browser is
+involved, so the endpoint tests are integration tests, not end-to-end. Test data comes from the `Shared` package's
+`Shared.Testing.Generated`. `Directory.Tests.FullText` compiles the integration project's factory, auth handler and
+catalog contract through linked `<Compile>` items, so both run against one fixture.
 
 **What the integration tier alone proves is that each hand-written SQL statement runs against the real schema and
 returns the right rows.** The unit tier never asserts SQL text: text pinned against a fake connection passes a wrong
@@ -39,6 +40,15 @@ One `*EndpointsTests.cs` class per feature (churches, schedules, ministries, cam
 crawling, moderation, `/me`) drives the real pipeline over HTTP. `DirectoryWebApplicationFactoryTests.cs` and
 `TestDatabaseContractTests.cs` pin the factory's guards.
 
+### Full-text tier (`Directory.Tests.FullText`)
+
+`SearchRelevanceTests.cs` proves keyword relevance order against a populated full-text index: an exact match, then a
+prefix match, then a match that repeats both words. It lives in its own project because every run of it waits for
+SQL Server to index the rows it seeds (`FullTextSeeding.cs`: a direct `INSERT`, then a deadline-free poll of
+`CONTAINSTABLE` until each seeded row is returned, a wait on the condition itself bounded only by the runner's
+whole-test budget). In the integration project, Stryker would rerun it, and pay that wait, for every search mutant it
+covers; kept apart, only the relevance mutants run it (Mutation testing, below).
+
 ## Test infrastructure
 
 ### `DirectoryWebApplicationFactory`
@@ -51,12 +61,6 @@ registers stays, so the tests run against the real database.
 
 - **It refuses to start unless the catalog name ends in `Test` (or `Triage`)**, checked during service registration,
   before any test writes, so a production catalog can never be the target.
-- **A keyword-search test seeds its rows with `SeedChurchAsync` and waits with `WaitForKeywordIndexedAsync`.** SQL
-  Server indexes new rows asynchronously, so the test polls `CONTAINSTABLE` for its own keyword until every row it
-  seeded is returned, with no deadline: the wait is on the condition itself, bounded only by the runner's whole-test
-  budget. Both choices keep mutation testing fast. Stryker reruns a test for every mutant it covers: a direct `INSERT`
-  keeps church creation out of the keyword test's coverage, and waiting on the seeded rows alone never waits out
-  other tests' inserts and deletes.
 - **It sweeps the catalog before each test class and after it**, child tables first (`UserCorrections`,
   `MergeAuditLog`, `ChurchAttributes`, `ServiceSchedules`, `Ministries`, `Campuses`, `CrawlSources`, `Churches`),
   never `Denominations`, which the post-deployment script seeds. `CrawlSources` goes before `Churches` because its
@@ -115,11 +119,12 @@ The `build` job in `.github/workflows/main_crgolden-directory.yml`:
 1. Release build, which also compiles `Directory.Data.sqlproj` to a `.dacpac`; `dotnet jb inspectcode`.
 2. Unit tier under coverlet (`coverage.opencover.xml`).
 3. Publish the schema to the integration catalog (`DB_NAME_E2E`) with `SqlPackage`.
-4. Integration tier under `dotnet-coverage` (`coverage-integration.xml`) with `ASPNETCORE_ENVIRONMENT=CI`.
+4. Integration tier under `dotnet-coverage` (`coverage-integration.xml`) with `ASPNETCORE_ENVIRONMENT=CI`, then the
+   full-text tier the same way (`coverage-fulltext.xml`).
 5. SonarCloud analysis with the quality gate waited, then publish the app and upload the app and dacpac.
 
 The job's `concurrency` group (`directory-integration-database`, `queue: max`) runs one build at a time, because every
-run shares the integration catalog. The `mutation` job runs Stryker.NET. The deploy job publishes the dacpac to the
+run shares the integration catalog. The `mutation` job runs Stryker.NET's two passes. The deploy job publishes the dacpac to the
 production catalog, then deploys the app.
 
 ## Mutation testing (Stryker)
@@ -132,18 +137,27 @@ production catalog, then deploys the app.
 | `obj/**/*.cs` | build-generated sources |
 | `Program.cs` | startup wiring, excluded from coverage the same way |
 | `**/*Endpoints.cs` | `[ExcludeFromCodeCoverage]` route wiring only the integration tier reaches; the services it calls are mutated |
+| `**/Search/RelevanceOrder.cs` | mutated by the second pass instead, below |
 
-Both test projects run under Stryker, so a mutant in a SQL statement is killed by the statement failing or returning
-the wrong rows against the real schema. That needs the integration tier's catalog: publish the schema and set
+**Two passes, so no mutant pays the full-text wait unless it needs to.** Stryker reruns a test for every mutant that
+test covers. The keyword relevance test waits for SQL Server to index its rows on every run, so in the main pass it
+would pay that wait once for each search mutant. `stryker-config.json` runs the unit and integration projects over
+everything but the relevance ordering; `stryker-relevance-config.json` mutates only `Search/RelevanceOrder.cs` and runs
+the unit and full-text projects, so only that file's few mutants rerun the keyword test. Both passes hold
+thresholds of 100.
+
+The integration and full-text projects run under Stryker, so a mutant in a SQL statement is killed by the statement
+failing or returning the wrong rows against the real schema. That needs the integration tier's catalog: publish the schema and set
 `SqlConnectionStringBuilder__InitialCatalog` first (Running tests locally, Integration). `concurrency` is `1` because
 the factory sweeps the one catalog per test class, so two test runs at once delete each other's rows; the CI
 `mutation` job shares the build job's `directory-integration-database` concurrency group for the same reason. Run it
 from the `Directory` project folder, as CI does: `dotnet tool restore`, then
-`dotnet stryker --config-file ../stryker-config.json`. The report is local (`html`, `json`, `progress`).
+`dotnet stryker --config-file ../stryker-config.json`, then `dotnet stryker --config-file ../stryker-relevance-config.json`.
+The report is local (`html`, `json`, `progress`).
 
 ## Local SonarCloud analysis
 
 The analysis needs the repo's SonarCloud token and project, which only maintainers have. It runs through
 `dotnet-sonarscanner` with the build between `begin` and `end`, as the workflow does; the standalone `sonar-scanner`
-CLI analyzes no C#. It reads the unit report (OpenCover) and the integration report (VS Coverage XML) and excludes
+CLI analyzes no C#. It reads the unit report (OpenCover) and the integration and full-text reports (VS Coverage XML) and excludes
 `Program.cs` from coverage.
