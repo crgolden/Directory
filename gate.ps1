@@ -11,7 +11,7 @@ $gateOutput = Join-Path ([IO.Path]::GetTempPath()) "crgolden-gates\$(Split-Path 
 New-Item -ItemType Directory -Force -Path $gateOutput | Out-Null
 Register-GateSteps @('Install dotnet-coverage', 'Restore local tools', 'Begin Sonar analysis', 'Build with dotnet',
     'jb inspectcode', 'Run unit tests with coverage', 'Install SqlPackage', 'Deploy integration test database schema', 'Run Stryker mutation tests',
-    'Run Stryker relevance mutation tests', 'Run integration tests with coverage', 'Run full-text tests with coverage', 'End Sonar analysis',
+    'Run Stryker SQL mutation tests', 'Run Stryker relevance mutation tests', 'Run integration tests with coverage', 'Run full-text tests with coverage', 'End Sonar analysis',
     'Fail on open Sonar issues')
 Register-StepInputs @{
     'Install dotnet-coverage'                 = @('*')
@@ -21,6 +21,7 @@ Register-StepInputs @{
     'jb inspectcode'                          = @('*')
     'Run unit tests with coverage'            = @('*')
     'Run Stryker mutation tests'              = @('*')
+    'Run Stryker SQL mutation tests'          = @('*')
     'Run Stryker relevance mutation tests'    = @('*')
     'Install SqlPackage'                      = @('*')
     'Deploy integration test database schema' = @('*')
@@ -130,6 +131,20 @@ if (-not (Test-StepCarried $stryker)) {
     if ($null -eq $strykerExit) { Stop-Gate $stryker 'command never ran' }
     if ($strykerExit -ne 0) { Stop-Gate $stryker "exit $strykerExit" }
     Write-Row $stryker 'PASS' 'every mutant killed or excluded with its reason'
+}
+
+$sqlStryker = 'Run Stryker SQL mutation tests (thresholds 100)'
+if (-not (Test-StepCarried $sqlStryker)) {
+    $sqlOutputDir = Join-Path $repo 'Directory\StrykerOutput\gate-sql'
+    if (Test-Path -LiteralPath $sqlOutputDir) { Remove-Item -LiteralPath $sqlOutputDir -Recurse -Force }
+    Push-Location (Join-Path $repo 'Directory')
+    $global:LASTEXITCODE = $null
+    dotnet stryker --config-file ../stryker-sql-config.json --output $sqlOutputDir
+    $sqlExit = $global:LASTEXITCODE
+    Pop-Location
+    if ($null -eq $sqlExit) { Stop-Gate $sqlStryker 'command never ran' }
+    if ($sqlExit -ne 0) { Stop-Gate $sqlStryker "exit $sqlExit" }
+    Write-Row $sqlStryker 'PASS' 'every SQL-statement mutant killed'
 }
 
 $relevanceStryker = 'Run Stryker relevance mutation tests (thresholds 100)'

@@ -388,6 +388,12 @@ jobs:
         working-directory: Directory
         env:
           NuGetPackageSourceCredentials_GitHub: Username=${{ github.actor }};Password=${{ secrets.PACKAGES_READ_TOKEN }}
+        run: dotnet stryker --config-file ../stryker-config.json
+
+      - name: Run Stryker SQL mutation tests
+        working-directory: Directory
+        env:
+          NuGetPackageSourceCredentials_GitHub: Username=${{ github.actor }};Password=${{ secrets.PACKAGES_READ_TOKEN }}
           ASPNETCORE_ENVIRONMENT: CI
           OidcAuthority: ${{ vars.OIDC_AUTHORITY }}
           SqlConnectionStringBuilder__DataSource: ${{ vars.DB_SERVER }}
@@ -396,7 +402,7 @@ jobs:
           SqlConnectionStringBuilder__UserID: ${{ secrets.DB_USERID }}
           SqlConnectionStringBuilder__Password: ${{ secrets.DB_PASSWORD }}
           ServiceBusConnectionString: ${{ secrets.SERVICE_BUS_CONNECTION_STRING }}
-        run: dotnet stryker --config-file ../stryker-config.json
+        run: dotnet stryker --config-file ../stryker-sql-config.json --output StrykerOutput/sql
 
       - name: Run Stryker relevance mutation tests
         working-directory: Directory

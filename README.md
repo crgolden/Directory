@@ -126,6 +126,7 @@ dotnet test --project Directory.Tests.Integration --no-build --configuration Rel
 dotnet test --project Directory.Tests.FullText --no-build --configuration Release -- --filter-trait "Category=Integration"
 Push-Location Directory
 dotnet stryker --config-file ../stryker-config.json
+dotnet stryker --config-file ../stryker-sql-config.json
 dotnet stryker --config-file ../stryker-relevance-config.json
 Pop-Location
 ```

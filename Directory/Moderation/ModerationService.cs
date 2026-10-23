@@ -22,12 +22,12 @@ public sealed class ModerationService
 
     internal const string MergeSurvivorOutsideThePair = "The surviving church must be one of the two in the suggestion.";
 
-    private const string SelectCorrection =
+    internal const string SelectCorrection =
         "c.[Id], c.[ChurchId], c.[UserId], c.[Field], c.[OldValue], c.[NewValue], " +
         "c.[Status], c.[ReviewedBy], c.[ReviewedAt], c.[CreatedAt], ch.[CanonicalName], target.[CanonicalName], " +
         "ch.[Slug], target.[Slug]";
 
-    private const string FromCorrection =
+    internal const string FromCorrection =
         " FROM [dbo].[UserCorrections] c" +
         " LEFT JOIN [dbo].[Churches] ch ON c.[ChurchId] = ch.[Id]" +
         " LEFT JOIN [dbo].[Churches] target ON target.[Id] = TRY_CONVERT(UNIQUEIDENTIFIER, c.[NewValue])";
@@ -106,12 +106,7 @@ public sealed class ModerationService
     {
         await EnsureOpenAsync(ct);
         await using var cmd = _dbConnection.CreateCommand();
-        cmd.CommandText =
-            "SELECT " + SelectCorrection + ", COUNT(*) OVER() AS [TotalCount]" +
-            FromCorrection +
-            " WHERE (@Status IS NULL OR c.[Status] = @Status)" +
-            " ORDER BY c.[CreatedAt] DESC" +
-            " OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY";
+        cmd.CommandText = ModerationSql.CorrectionsPage();
         AddParam(cmd, SqlParameters.Status, status.HasValue ? (int)status.Value : DBNull.Value);
         AddParam(cmd, SqlParameters.Offset, (page - 1) * pageSize);
         AddParam(cmd, SqlParameters.PageSize, pageSize);

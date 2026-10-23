@@ -20,7 +20,7 @@ Service Bus queue, and a separate processing pipeline consumes it.
 | `Directory.Data` | the schema: tables, indexes, `fn_HaversineDistance`, the full-text catalog, pre- and post-deployment scripts (the post-deployment script seeds `Denominations`) |
 | `Directory.Tests.Unit`, `Directory.Tests.Integration`, `Directory.Tests.FullText` | the unit tier, the integration tier, and the full-text tier kept apart for mutation testing ([TESTING.md](TESTING.md)) |
 | `.github/workflows/main_crgolden-directory.yml` | build, inspect, test, mutation-test, analyze, then deploy the schema and the app |
-| `stryker-config.json`, `stryker-relevance-config.json`, `coverage.settings.xml`, `dotnet-tools.json`, `NuGet.Config`, `global.json` | mutation settings, integration coverage settings, pinned tools, package sources (the `Shared` package from GitHub Packages), the SDK |
+| `stryker-config.json`, `stryker-sql-config.json`, `stryker-relevance-config.json`, `coverage.settings.xml`, `dotnet-tools.json`, `NuGet.Config`, `global.json` | mutation settings, integration coverage settings, pinned tools, package sources (the `Shared` package from GitHub Packages), the SDK |
 | `gate.ps1` | the maintainers' local gate (README.md, "Gate") |
 
 Each feature folder holds an `*Endpoints.cs` (route wiring, excluded from coverage) and, except `User`, a scoped
@@ -48,7 +48,7 @@ Each feature folder holds an `*Endpoints.cs` (route wiring, excluded from covera
 
 ## Search
 
-`GET /search` (`Search/SearchService.cs`) builds one `FROM`/`WHERE` from the filters present and runs it twice in
+`GET /search` (`Search/SearchService.cs`, its statement built by `Search/SearchSql.cs`) builds one `FROM`/`WHERE` from the filters present and runs it twice in
 one command: `SELECT COUNT(*)`, then the page with `OFFSET`/`FETCH`. `pageSize` is clamped to 1 to 50.
 
 - **Text**: each word becomes a prefix term (`"word*"`) and its own `CONTAINSTABLE` join over
@@ -104,7 +104,7 @@ writes a `MergeAuditLog` row. Everything else is sent to the processing pipeline
 
 ## Cross-cutting concerns
 
-- **Mutation score is 100**: Stryker.NET runs over the unit tier at thresholds of 100 in CI and the gate.
+- **Mutation score is 100**: Stryker.NET runs in three passes at thresholds of 100 in CI and the gate: the unit tier over the code, the integration tier over the statement builders in the `*Sql.cs` files, and the full-text tier over the relevance ordering ([TESTING.md](TESTING.md)).
 - **Telemetry** is production-only: OpenTelemetry over OTLP and Serilog to an Elasticsearch data stream.
 - **Warnings are errors**, and CI also fails on any `jb inspectcode` result and any open SonarCloud issue.
 - **Index builds block writes** on a SQL Server edition without online index operations, so a new index is published

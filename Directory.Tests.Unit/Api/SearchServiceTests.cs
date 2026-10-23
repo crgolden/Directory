@@ -141,7 +141,7 @@ public sealed class SearchServiceTests
         var query = UnfilteredQuery() with { DenominationId = filteredDenominationId };
 
         // Act
-        var sql = SearchService.BuildQuery(query, out _);
+        var sql = SearchSql.BuildQuery(query, out _);
 
         // Assert
         Assert.Contains("c.[DenominationId] = @DenominationId", sql, StringComparison.Ordinal);
@@ -154,7 +154,7 @@ public sealed class SearchServiceTests
         var query = UnfilteredQuery() with { WorshipStyle = filteredWorshipStyle };
 
         // Act
-        var sql = SearchService.BuildQuery(query, out _);
+        var sql = SearchSql.BuildQuery(query, out _);
 
         // Assert
         Assert.Contains("c.[WorshipStyle] = @WorshipStyle", sql, StringComparison.Ordinal);
@@ -168,7 +168,7 @@ public sealed class SearchServiceTests
         var query = UnfilteredQuery() with { DayOfWeek = filteredDayOfWeek };
 
         // Act
-        var sql = SearchService.BuildQuery(query, out _);
+        var sql = SearchSql.BuildQuery(query, out _);
 
         // Assert
         Assert.Contains("[ServiceSchedules]", sql, StringComparison.Ordinal);
@@ -185,7 +185,7 @@ public sealed class SearchServiceTests
         var query = UnfilteredQuery() with { StartTimeAfter = earliestStartTime };
 
         // Act
-        var sql = SearchService.BuildQuery(query, out _);
+        var sql = SearchSql.BuildQuery(query, out _);
 
         // Assert
         Assert.Contains("[ServiceSchedules]", sql, StringComparison.Ordinal);
@@ -201,7 +201,7 @@ public sealed class SearchServiceTests
         var query = UnfilteredQuery() with { StartTimeBefore = latestStartTime };
 
         // Act
-        var sql = SearchService.BuildQuery(query, out _);
+        var sql = SearchSql.BuildQuery(query, out _);
 
         // Assert
         Assert.Contains("[ServiceSchedules]", sql, StringComparison.Ordinal);
@@ -224,7 +224,7 @@ public sealed class SearchServiceTests
         };
 
         // Act
-        var sql = SearchService.BuildQuery(query, out _);
+        var sql = SearchSql.BuildQuery(query, out _);
 
         // Assert
         Assert.Contains("ss.[DayOfWeek] = @DayOfWeek", sql, StringComparison.Ordinal);
@@ -240,7 +240,7 @@ public sealed class SearchServiceTests
         var query = UnfilteredQuery() with { State = stateFilter };
 
         // Act
-        var sql = SearchService.BuildQuery(query, out _);
+        var sql = SearchSql.BuildQuery(query, out _);
 
         // Assert
         Assert.DoesNotContain("[ServiceSchedules]", sql, StringComparison.Ordinal);
@@ -396,7 +396,7 @@ public sealed class SearchServiceTests
         var cityWord = Generated.NewKeyword();
 
         // Act
-        var sql = SearchService.BuildQuery(UnfilteredQuery() with { Q = $"{nameWord} {cityWord}" }, out _);
+        var sql = SearchSql.BuildQuery(UnfilteredQuery() with { Q = $"{nameWord} {cityWord}" }, out _);
 
         // Assert
         Assert.Contains("CONTAINSTABLE([dbo].[Churches], ([CanonicalName], [City]), @Q0) AS ft0", sql, StringComparison.Ordinal);
@@ -476,7 +476,7 @@ public sealed class SearchServiceTests
         var query = UnfilteredQuery() with { Q = searchKeyword, Sort = SearchService.SortByRelevance };
 
         // Act
-        var sql = SearchService.BuildQuery(query, out _);
+        var sql = SearchSql.BuildQuery(query, out _);
 
         // Assert
         Assert.Contains("CASE WHEN c.[CanonicalName] = @ExactQ THEN 0", sql, StringComparison.Ordinal);
@@ -490,7 +490,7 @@ public sealed class SearchServiceTests
         var query = UnfilteredQuery() with { Q = punctuationOnlyQuery, Sort = SearchService.SortByRelevance };
 
         // Act
-        var sql = SearchService.BuildQuery(query, out _);
+        var sql = SearchSql.BuildQuery(query, out _);
 
         // Assert
         Assert.DoesNotContain("[RANK]", sql, StringComparison.Ordinal);
@@ -513,7 +513,7 @@ public sealed class SearchServiceTests
         };
 
         // Act
-        var sql = SearchService.BuildQuery(query, out _);
+        var sql = SearchSql.BuildQuery(query, out _);
 
         // Assert
         Assert.Contains("ORDER BY c.[CanonicalName] ASC", sql, StringComparison.Ordinal);
@@ -537,7 +537,7 @@ public sealed class SearchServiceTests
         };
 
         // Act
-        var sql = SearchService.BuildQuery(query, out _);
+        var sql = SearchSql.BuildQuery(query, out _);
 
         // Assert
         Assert.Contains("ORDER BY [dbo].[fn_HaversineDistance]", sql, StringComparison.Ordinal);
@@ -558,7 +558,7 @@ public sealed class SearchServiceTests
         };
 
         // Act
-        var sql = SearchService.BuildQuery(query, out _);
+        var sql = SearchSql.BuildQuery(query, out _);
 
         // Assert
         Assert.Contains("ORDER BY c.[CanonicalName] ASC", sql, StringComparison.Ordinal);
@@ -579,7 +579,7 @@ public sealed class SearchServiceTests
         };
 
         // Act
-        var sql = SearchService.BuildQuery(query, out _);
+        var sql = SearchSql.BuildQuery(query, out _);
 
         // Assert
         Assert.Contains("ORDER BY [dbo].[fn_HaversineDistance]", sql, StringComparison.Ordinal);
@@ -591,7 +591,7 @@ public sealed class SearchServiceTests
         var query = UnfilteredQuery() with { Sort = SearchService.SortByDistance };
 
         // Act
-        var sql = SearchService.BuildQuery(query, out _);
+        var sql = SearchSql.BuildQuery(query, out _);
 
         // Assert
         Assert.Contains("ORDER BY c.[CanonicalName] ASC", sql, StringComparison.Ordinal);
@@ -607,7 +607,7 @@ public sealed class SearchServiceTests
         var query = UnfilteredQuery() with { Q = searchKeyword, Lat = searchLatitude, Lng = searchLongitude };
 
         // Act
-        var sql = SearchService.BuildQuery(query, out _);
+        var sql = SearchSql.BuildQuery(query, out _);
 
         // Assert
         Assert.Contains("ft0.[RANK] DESC", sql, StringComparison.Ordinal);
@@ -622,7 +622,7 @@ public sealed class SearchServiceTests
         var query = UnfilteredQuery() with { Lat = searchLatitude, Lng = searchLongitude };
 
         // Act
-        var sql = SearchService.BuildQuery(query, out _);
+        var sql = SearchSql.BuildQuery(query, out _);
 
         // Assert
         Assert.Contains("ORDER BY [dbo].[fn_HaversineDistance]", sql, StringComparison.Ordinal);
@@ -634,7 +634,7 @@ public sealed class SearchServiceTests
         var query = UnfilteredQuery();
 
         // Act
-        var sql = SearchService.BuildQuery(query, out _);
+        var sql = SearchSql.BuildQuery(query, out _);
 
         // Assert
         Assert.Contains("ORDER BY c.[CanonicalName] ASC", sql, StringComparison.Ordinal);

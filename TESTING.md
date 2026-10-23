@@ -124,7 +124,7 @@ The `build` job in `.github/workflows/main_crgolden-directory.yml`:
 5. SonarCloud analysis with the quality gate waited, then publish the app and upload the app and dacpac.
 
 The job's `concurrency` group (`directory-integration-database`, `queue: max`) runs one build at a time, because every
-run shares the integration catalog. The `mutation` job runs Stryker.NET's two passes. The deploy job publishes the dacpac to the
+run shares the integration catalog. The `mutation` job runs Stryker.NET's three passes. The deploy job publishes the dacpac to the
 production catalog, then deploys the app.
 
 ## Mutation testing (Stryker)
@@ -137,23 +137,32 @@ production catalog, then deploys the app.
 | `obj/**/*.cs` | build-generated sources |
 | `Program.cs` | startup wiring, excluded from coverage the same way |
 | `**/*Endpoints.cs` | `[ExcludeFromCodeCoverage]` route wiring only the integration tier reaches; the services it calls are mutated |
-| `**/Search/RelevanceOrder.cs` | mutated by the second pass instead, below |
+| `**/*Sql.cs` | mutated by the SQL pass instead, below |
+| `**/Search/RelevanceOrder.cs` | mutated by the relevance pass instead, below |
 
-**Two passes, so no mutant pays the full-text wait unless it needs to.** Stryker reruns a test for every mutant that
-test covers. The keyword relevance test waits for SQL Server to index its rows on every run, so in the main pass it
-would pay that wait once for each search mutant. `stryker-config.json` runs the unit and integration projects over
-everything but the relevance ordering; `stryker-relevance-config.json` mutates only `Search/RelevanceOrder.cs` and runs
-the unit and full-text projects, so only that file's few mutants rerun the keyword test. Both passes hold
-thresholds of 100.
+**Three passes, so no mutant pays for a database it does not need.** Stryker reruns every test that covers a mutant,
+once per mutant. An integration test pays for a host and a real catalog on every run and must run one at a time, so a
+pass that includes it is slow and single-threaded. A unit test does not kill a mutant inside a statement's text,
+because the unit tier never asserts SQL text against a fake connection; the integration tier is what kills it.
 
-The integration and full-text projects run under Stryker, so a mutant in a SQL statement is killed by the statement
-failing or returning the wrong rows against the real schema. That needs the integration tier's catalog: publish the schema and set
-`SqlConnectionStringBuilder__InitialCatalog` first (Running tests locally, Integration). `concurrency` is `1` because
-the factory sweeps the one catalog per test class, so two test runs at once delete each other's rows; the CI
-`mutation` job shares the build job's `directory-integration-database` concurrency group for the same reason. Run it
+- `stryker-config.json` runs the unit project alone, at Stryker's default concurrency, over every file except the
+  statement builders and the relevance ordering.
+- `stryker-sql-config.json` mutates only the statement builders, the `*Sql.cs` files (`Search/SearchSql.cs`,
+  `Moderation/ModerationSql.cs`), and runs the unit and integration projects with `concurrency` `1`.
+- `stryker-relevance-config.json` mutates only `Search/RelevanceOrder.cs` and runs the unit and full-text projects,
+  so only that file's few mutants rerun the keyword test, which waits for SQL Server to index its rows on every run.
+
+All three hold thresholds of 100. **A statement whose text only the integration tier can kill belongs in a `*Sql.cs`
+file of its feature folder**; left in a service file, its mutants survive the unit-only pass and fail it.
+
+The SQL and relevance passes kill a mutant in a statement by the statement failing or returning the wrong rows against
+the real schema. They need the integration tier's catalog: publish the schema and set
+`SqlConnectionStringBuilder__InitialCatalog` first (Running tests locally, Integration). Their `concurrency` is `1`
+because the factory sweeps the one catalog per test class, so two test runs at once delete each other's rows; the CI
+`mutation` job shares the build job's `directory-integration-database` concurrency group for the same reason. Run them
 from the `Directory` project folder, as CI does: `dotnet tool restore`, then
-`dotnet stryker --config-file ../stryker-config.json`, then `dotnet stryker --config-file ../stryker-relevance-config.json`.
-The report is local (`html`, `json`, `progress`).
+`dotnet stryker --config-file ../stryker-config.json`, `dotnet stryker --config-file ../stryker-sql-config.json` and
+`dotnet stryker --config-file ../stryker-relevance-config.json`. The report is local (`html`, `json`, `progress`).
 
 ## Local SonarCloud analysis
 
