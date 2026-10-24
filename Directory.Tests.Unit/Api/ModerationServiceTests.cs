@@ -664,6 +664,7 @@ public sealed class ModerationServiceTests
         var refusal = await service.ApplyCorrectionAsync(correction, reviewedBy, null, TestContext.Current.CancellationToken);
 
         // Assert
+        Assert.Equal(ModerationService.UnacceptedValue(correction), refusal);
         Assert.Contains(undefinedStyle, refusal, StringComparison.Ordinal);
         Assert.Single(conn.ExecutedCommands);
     }

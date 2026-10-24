@@ -36,7 +36,7 @@ public sealed class ModerationService
 
     private const string ChurchNotActive = "That church is no longer active.";
 
-    private static readonly Dictionary<string, Func<Church, string, bool>> CorrectionAppliers = new(StringComparer.OrdinalIgnoreCase)
+    private readonly Dictionary<string, Func<Church, string, bool>> _correctionAppliers = new(StringComparer.OrdinalIgnoreCase)
     {
         [ChurchJsonNames.CanonicalName] = Text(static (church, value) => church.CanonicalName = value),
         [ChurchJsonNames.Street] = Text(static (church, value) => church.Street = value),
@@ -187,7 +187,7 @@ public sealed class ModerationService
             return await ApplyMergeAsync(correction, reviewedBy, survivingId, ct);
         }
 
-        if (!CorrectionAppliers.TryGetValue(correction.Field, out var apply))
+        if (!_correctionAppliers.TryGetValue(correction.Field, out var apply))
         {
             return $"'{correction.Field}' is not a field this app can apply.";
         }
@@ -200,7 +200,7 @@ public sealed class ModerationService
 
         if (!apply(church, correction.NewValue))
         {
-            return $"'{correction.NewValue}' is not a value {correction.Field} accepts.";
+            return UnacceptedValue(correction);
         }
 
         try
@@ -282,6 +282,9 @@ public sealed class ModerationService
             throw;
         }
     }
+
+    internal static string UnacceptedValue(UserCorrection correction) =>
+        $"'{correction.NewValue}' is not a value {correction.Field} accepts.";
 
     internal static IReadOnlyList<string> MergeRepointStatements() =>
     [
