@@ -7,8 +7,11 @@ if (-not $gateCommon -or -not (Test-Path -LiteralPath $gateCommon -PathType Leaf
     exit 1
 }
 . $gateCommon
-$gateOutput = Join-Path ([IO.Path]::GetTempPath()) "crgolden-gates\$(Split-Path -Leaf $PSScriptRoot)"
-New-Item -ItemType Directory -Force -Path $gateOutput | Out-Null
+$gateOutput = if (Get-Command Get-GateOutputDirectory -ErrorAction SilentlyContinue) {
+    Get-GateOutputDirectory (Split-Path -Leaf $PSScriptRoot)
+} else {
+    (New-Item -ItemType Directory -Force -Path (Join-Path ([IO.Path]::GetTempPath()) "claude\crgolden-gates\$(Split-Path -Leaf $PSScriptRoot)")).FullName
+}
 Register-GateSteps @('Install dotnet-coverage', 'Restore local tools', 'Begin Sonar analysis', 'Build with dotnet',
     'jb inspectcode', 'Run unit tests with coverage', 'Install SqlPackage', 'Deploy integration test database schema', 'Run Stryker mutation tests',
     'Run Stryker SQL mutation tests', 'Run Stryker relevance mutation tests', 'Run integration tests with coverage', 'Run full-text tests with coverage', 'End Sonar analysis',
