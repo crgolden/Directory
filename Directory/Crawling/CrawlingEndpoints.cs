@@ -23,6 +23,11 @@ public static class CrawlingEndpoints
             CrawlingService service,
             CancellationToken ct) =>
         {
+            if (!req.Url.IsAbsoluteUri)
+            {
+                return Results.BadRequest("Url must be an absolute URL.");
+            }
+
             var source = await service.CreateAsync(req.Url, req.ChurchId, ct);
             return Results.Created($"{Route}/{source.Id}", source);
         });

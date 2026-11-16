@@ -36,6 +36,17 @@ public sealed class CrawlingEndpointsTests : IClassFixture<DirectoryWebApplicati
     }
 
     [Fact]
+    public async Task CreateCrawlSource_ReturnsBadRequest_WhenTheUrlIsRelative()
+    {
+        var relativeUrl = Generated.NewRequestPath();
+        var body = new { Url = relativeUrl, ChurchId = (Guid?)null };
+
+        var response = await _client.PostAsJsonAsync(CrawlingEndpoints.Route, body, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
     public async Task DeleteCrawlSource_ReturnsNoContent_WhenFound()
     {
         var id = await CreateCrawlSourceAndGetIdAsync();

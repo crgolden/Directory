@@ -151,7 +151,7 @@ public sealed class ModerationService
     {
         var id = Guid.CreateVersion7(DateTimeOffset.UtcNow);
         var payload = JsonSerializer.Serialize(new { ChurchId = churchId, UserId = userId, Field = field, OldValue = oldValue, NewValue = newValue });
-        var serviceBusSender = _serviceBusClient.CreateSender(ServiceBusNames.Contributions);
+        await using var serviceBusSender = _serviceBusClient.CreateSender(ServiceBusNames.Contributions);
         await serviceBusSender.SendMessageAsync(new ServiceBusMessage(payload) { MessageId = id.ToString() }, ct);
         return id;
     }

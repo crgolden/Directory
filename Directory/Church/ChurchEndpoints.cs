@@ -40,6 +40,11 @@ public static class ChurchEndpoints
 
     private static async Task<IResult> CreateAsync(ChurchRequest req, ChurchService service, CancellationToken ct)
     {
+        if (!Shared.Domain.StateCodes.TryParse(req.State, out _))
+        {
+            return Results.BadRequest($"Unknown state code '{req.State}'.");
+        }
+
         var created = await service.CreateAsync(req, ct);
         return Results.Created($"{Route}/{created.Slug}", created);
     }

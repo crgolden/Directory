@@ -1,9 +1,11 @@
 namespace Directory.Tests.Unit.Api;
 
 using System.Globalization;
+using Azure.Messaging.ServiceBus;
 using Directory.Church;
 using Directory.Entities;
 using Directory.Enums;
+using Directory.Messaging;
 using Directory.Moderation;
 using Directory.Tests.Unit.TestSupport;
 using Microsoft.Extensions.Azure;
@@ -283,11 +285,13 @@ public sealed class ModerationApplyCorrectionTests
         Assert.Contains(conn.ExecutedCommands, cmd => cmd.Executed && cmd.Parameters.Contains(SqlParameters.Rejected));
     }
 
-    private static ModerationService NewService(FakeDbConnection conn) =>
-        new ModerationService(
-            conn,
-            Mock.Of<IAzureClientFactory<Azure.Messaging.ServiceBus.ServiceBusClient>>(),
-            new ChurchService(conn));
+    private static ModerationService NewService(FakeDbConnection conn)
+    {
+        var factory = new Mock<IAzureClientFactory<ServiceBusClient>>(MockBehavior.Strict);
+        factory.Setup(f => f.CreateClient(ServiceBusNames.Client))
+               .Returns(new Mock<ServiceBusClient>(MockBehavior.Strict).Object);
+        return new ModerationService(conn, factory.Object, new ChurchService(conn));
+    }
 
     private static UserCorrection CorrectionFor(string field, string newValue) => new UserCorrection
     {

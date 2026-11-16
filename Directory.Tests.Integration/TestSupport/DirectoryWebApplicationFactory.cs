@@ -79,13 +79,14 @@ public sealed partial class DirectoryWebApplicationFactory : WebApplicationFacto
             services.RemoveAll<ILoggerFactory>();
             services.AddLogging(lb => lb.AddConsole());
 
-            var senderMock = new Mock<ServiceBusSender>(MockBehavior.Loose);
+            var senderMock = new Mock<ServiceBusSender>(MockBehavior.Strict);
             senderMock
                 .Setup(s => s.SendMessageAsync(It.IsAny<ServiceBusMessage>(), It.IsAny<CancellationToken>()))
                 .Returns(Task.CompletedTask);
-            var clientMock = new Mock<ServiceBusClient>(MockBehavior.Loose);
+            senderMock.Setup(s => s.DisposeAsync()).Returns(ValueTask.CompletedTask);
+            var clientMock = new Mock<ServiceBusClient>(MockBehavior.Strict);
             clientMock.Setup(c => c.CreateSender(It.IsAny<string>())).Returns(senderMock.Object);
-            var factoryMock = new Mock<IAzureClientFactory<ServiceBusClient>>(MockBehavior.Loose);
+            var factoryMock = new Mock<IAzureClientFactory<ServiceBusClient>>(MockBehavior.Strict);
             factoryMock.Setup(f => f.CreateClient(It.IsAny<string>())).Returns(clientMock.Object);
             services.RemoveAll<IAzureClientFactory<ServiceBusClient>>();
             services.AddSingleton(factoryMock.Object);
@@ -108,6 +109,6 @@ public sealed partial class DirectoryWebApplicationFactory : WebApplicationFacto
 
         await using var command = connection.CreateCommand();
         command.CommandText = SweepSql;
-        await command.ExecuteNonQueryAsync(CancellationToken.None);
+        await command.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
     }
 }

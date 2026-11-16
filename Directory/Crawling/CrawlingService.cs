@@ -85,7 +85,7 @@ public sealed class CrawlingService
         }
 
         var payload = BinaryData.FromObjectAsJson(new { CrawlSourceId = id, Url = url });
-        var serviceBusSender = _serviceBusClient.CreateSender(ServiceBusNames.ScrapeRequests);
+        await using var serviceBusSender = _serviceBusClient.CreateSender(ServiceBusNames.ScrapeRequests);
         await serviceBusSender.SendMessageAsync(new ServiceBusMessage(payload), ct);
 
         await using var updateCmd = _dbConnection.CreateCommand();

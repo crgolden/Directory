@@ -202,6 +202,7 @@ public sealed class CrawlingServiceTests
         senderMock
             .Setup(s => s.SendMessageAsync(It.IsAny<ServiceBusMessage>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
+        senderMock.Setup(s => s.DisposeAsync()).Returns(ValueTask.CompletedTask);
         var service = Create(conn, senderMock);
 
         // Act
@@ -214,14 +215,15 @@ public sealed class CrawlingServiceTests
             lookup => Assert.True(lookup.Executed),
             update => Assert.True(update.Executed));
         senderMock.Verify(s => s.SendMessageAsync(It.IsAny<ServiceBusMessage>(), It.IsAny<CancellationToken>()), Times.Once);
+        senderMock.Verify(s => s.DisposeAsync(), Times.Once);
     }
 
     private static CrawlingService Create(FakeDbConnection conn, Mock<ServiceBusSender>? senderMock = null)
     {
-        var clientMock = new Mock<ServiceBusClient>(MockBehavior.Loose);
+        var clientMock = new Mock<ServiceBusClient>(MockBehavior.Strict);
         clientMock.Setup(c => c.CreateSender(ServiceBusNames.ScrapeRequests))
-                  .Returns(senderMock?.Object ?? new Mock<ServiceBusSender>().Object);
-        var factory = new Mock<IAzureClientFactory<ServiceBusClient>>(MockBehavior.Loose);
+                  .Returns((senderMock ?? new Mock<ServiceBusSender>(MockBehavior.Strict)).Object);
+        var factory = new Mock<IAzureClientFactory<ServiceBusClient>>(MockBehavior.Strict);
         factory.Setup(f => f.CreateClient(ServiceBusNames.Client))
                .Returns(clientMock.Object);
         return new CrawlingService(conn, factory.Object);

@@ -43,6 +43,25 @@ public sealed class ChurchEndpointsTests : IClassFixture<DirectoryWebApplication
     }
 
     [Fact]
+    public async Task CreateChurch_ReturnsBadRequest_WhenTheStateIsNotAUspsCode()
+    {
+        var body = new
+        {
+            CanonicalName = Generated.NewName(),
+            Latitude = Generated.NewLatitude(),
+            Longitude = Generated.NewLongitude(),
+            City = Generated.NewCity(),
+            State = Generated.NewUnrecognizedStateCode(),
+            Zip = Generated.NewZip(),
+            PrimaryLanguage = Generated.NewLanguage(),
+        };
+
+        var response = await _client.PostAsJsonAsync(ChurchEndpoints.Route, body, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
     public async Task GetChurchBySlug_ReturnsOk_WhenFound()
     {
         var slug = await CreateChurchAndGetSlugAsync();

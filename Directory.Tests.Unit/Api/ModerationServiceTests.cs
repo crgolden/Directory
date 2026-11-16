@@ -96,6 +96,7 @@ public sealed class ModerationServiceTests
             .Setup(s => s.SendMessageAsync(It.IsAny<ServiceBusMessage>(), It.IsAny<CancellationToken>()))
             .Callback<ServiceBusMessage, CancellationToken>((message, _) => sent.Add(message))
             .Returns(Task.CompletedTask);
+        senderMock.Setup(s => s.DisposeAsync()).Returns(ValueTask.CompletedTask);
         var service = Create(new FakeDbConnection(), senderMock);
 
         // Act
@@ -124,6 +125,7 @@ public sealed class ModerationServiceTests
         senderMock
             .Setup(s => s.SendMessageAsync(It.IsAny<ServiceBusMessage>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
+        senderMock.Setup(s => s.DisposeAsync()).Returns(ValueTask.CompletedTask);
         var service = Create(new FakeDbConnection(), senderMock);
 
         // Act
@@ -140,6 +142,7 @@ public sealed class ModerationServiceTests
         senderMock.Verify(
             s => s.SendMessageAsync(It.Is<ServiceBusMessage>(m => m.MessageId == id.ToString()), It.IsAny<CancellationToken>()),
             Times.Once);
+        senderMock.Verify(s => s.DisposeAsync(), Times.Once);
     }
 
     [Fact]
@@ -803,10 +806,10 @@ public sealed class ModerationServiceTests
 
     private static ModerationService Create(FakeDbConnection conn, Mock<ServiceBusSender>? senderMock = null)
     {
-        var clientMock = new Mock<ServiceBusClient>(MockBehavior.Loose);
+        var clientMock = new Mock<ServiceBusClient>(MockBehavior.Strict);
         clientMock.Setup(c => c.CreateSender(ServiceBusNames.Contributions))
-                  .Returns(senderMock?.Object ?? new Mock<ServiceBusSender>().Object);
-        var factory = new Mock<IAzureClientFactory<ServiceBusClient>>(MockBehavior.Loose);
+                  .Returns((senderMock ?? new Mock<ServiceBusSender>(MockBehavior.Strict)).Object);
+        var factory = new Mock<IAzureClientFactory<ServiceBusClient>>(MockBehavior.Strict);
         factory.Setup(f => f.CreateClient(ServiceBusNames.Client))
                .Returns(clientMock.Object);
         return new ModerationService(conn, factory.Object, new ChurchService(conn));
