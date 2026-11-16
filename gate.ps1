@@ -35,9 +35,9 @@ Register-StepInputs @{
 }
 $repo = $PSScriptRoot
 $sarif = (Join-Path $gateOutput 'directory-inspect.sarif')
-$unitTrx = Join-Path $repo 'Directory.Tests.Unit\bin\Release\net10.0\TestResults\unit-tests.trx'
-$integrationTrx = Join-Path $repo 'Directory.Tests.Integration\bin\Release\net10.0\TestResults\integration-tests.trx'
-$fullTextTrx = Join-Path $repo 'Directory.Tests.FullText\bin\Release\net10.0\TestResults\fulltext-tests.trx'
+$unitTrx = Join-Path $repo 'Directory.Tests.Unit\bin\Release\net11.0\TestResults\unit-tests.trx'
+$integrationTrx = Join-Path $repo 'Directory.Tests.Integration\bin\Release\net11.0\TestResults\integration-tests.trx'
+$fullTextTrx = Join-Path $repo 'Directory.Tests.FullText\bin\Release\net11.0\TestResults\fulltext-tests.trx'
 $testCatalog = $env:SqlConnectionStringBuilder__InitialCatalog ?? 'DirectoryTest'
 $developmentSql = (Get-Content -Raw (Join-Path $repo 'Directory\appsettings.Development.json') | ConvertFrom-Json).SqlConnectionStringBuilder
 $dataSource = $env:SqlConnectionStringBuilder__DataSource ?? $developmentSql.DataSource
@@ -132,9 +132,9 @@ if (-not (Test-StepCarried 'jb inspectcode')) {
 if (-not (Test-StepCarried 'Run unit tests with coverage (Category=Unit)')) {
     if (Test-Path $unitTrx) { Remove-Item $unitTrx -Force }
     $global:LASTEXITCODE = $null
-    dotnet coverlet Directory.Tests.Unit\bin\Release\net10.0 `
+    dotnet coverlet Directory.Tests.Unit\bin\Release\net11.0 `
         --target "dotnet" `
-        --targetargs "test --project Directory.Tests.Unit --no-build --configuration Release -- --filter-trait Category=Unit --stop-on-fail on --report-xunit-trx --report-xunit-trx-filename unit-tests.trx --results-directory=Directory.Tests.Unit/bin/Release/net10.0/TestResults" `
+        --targetargs "test --project Directory.Tests.Unit --no-build --configuration Release -- --filter-trait Category=Unit --stop-on-fail on --report-xunit-trx --report-xunit-trx-filename unit-tests.trx --results-directory=Directory.Tests.Unit/bin/Release/net11.0/TestResults" `
         --format opencover --output "coverage.opencover.xml" `
         --skipautoprops --exclude-by-attribute GeneratedCodeAttribute --exclude-by-file "**/obj/**" `
         --exclude-by-file "**/Program.cs" --does-not-return-attribute DoesNotReturnAttribute --include "[Directory]*"
@@ -199,7 +199,7 @@ if (-not (Test-StepCarried 'Run integration tests with coverage (Category=Integr
     if (Test-Path $integrationTrx) { Remove-Item $integrationTrx -Force }
     $global:LASTEXITCODE = $null
     dotnet-coverage collect `
-        "dotnet test --project Directory.Tests.Integration --no-build --configuration Release -- --filter-trait Category=Integration --stop-on-fail on --report-xunit-trx --report-xunit-trx-filename integration-tests.trx --results-directory=Directory.Tests.Integration/bin/Release/net10.0/TestResults" `
+        "dotnet test --project Directory.Tests.Integration --no-build --configuration Release -- --filter-trait Category=Integration --stop-on-fail on --report-xunit-trx --report-xunit-trx-filename integration-tests.trx --results-directory=Directory.Tests.Integration/bin/Release/net11.0/TestResults" `
         -f xml -o "coverage-integration.xml" -s "coverage.settings.xml"
     Test-Trx 'Run integration tests with coverage (Category=Integration)' $integrationTrx $global:LASTEXITCODE -floor 1
 }
@@ -208,7 +208,7 @@ if (-not (Test-StepCarried 'Run full-text tests with coverage (Category=Integrat
     if (Test-Path $fullTextTrx) { Remove-Item $fullTextTrx -Force }
     $global:LASTEXITCODE = $null
     dotnet-coverage collect `
-        "dotnet test --project Directory.Tests.FullText --no-build --configuration Release -- --filter-trait Category=Integration --stop-on-fail on --report-xunit-trx --report-xunit-trx-filename fulltext-tests.trx --results-directory=Directory.Tests.FullText/bin/Release/net10.0/TestResults" `
+        "dotnet test --project Directory.Tests.FullText --no-build --configuration Release -- --filter-trait Category=Integration --stop-on-fail on --report-xunit-trx --report-xunit-trx-filename fulltext-tests.trx --results-directory=Directory.Tests.FullText/bin/Release/net11.0/TestResults" `
         -f xml -o "coverage-fulltext.xml" -s "coverage.settings.xml"
     Test-Trx 'Run full-text tests with coverage (Category=Integration)' $fullTextTrx $global:LASTEXITCODE -floor 1
 }

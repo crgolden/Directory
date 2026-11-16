@@ -21,11 +21,7 @@ internal static class SearchSql
         var sb = new StringBuilder();
         sb.Append("SELECT COUNT(*) AS [TotalCount]");
         sb.Append(scope);
-
-        // Stryker disable once Statement : T-SQL runs the two SELECTs as one batch with or without the terminator
-        sb.Append(';');
-
-        sb.Append(" SELECT ");
+        sb.Append("; SELECT ");
         sb.Append(BaseColumns);
         if (hasDistance)
         {

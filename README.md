@@ -14,7 +14,7 @@ How the parts fit together and the rules each keeps: [ARCHITECTURE.md](ARCHITECT
 
 ## Technologies
 
-- .NET 10, ASP.NET Core Minimal API in feature folders.
+- .NET 11, ASP.NET Core Minimal API in feature folders.
 - SQL Server through ADO.NET (`SqlClientFactory`); the schema is the `Directory.Data` SQL project (`Microsoft.Build.Sql`),
   published as a `.dacpac` with SqlPackage.
 - JWT Bearer authentication against any OIDC provider; Azure Service Bus (sender only); OpenAPI at `/openapi/v1.json`.
@@ -40,7 +40,7 @@ How the parts fit together and the rules each keeps: [ARCHITECTURE.md](ARCHITECT
 
 ## Prerequisites
 
-- The .NET 10 SDK (`global.json` pins `10.0.201` and rolls forward to the latest feature band).
+- The .NET 11 SDK (`global.json` pins `11.0.100` and rolls forward to the latest feature band).
 - A GitHub personal access token with the `read:packages` scope. The `Shared` package restores from the `crgolden`
   GitHub Packages feed (`NuGet.Config`), which asks for a token even for a public package. Store it as the `GitHub`
   source's credentials in your user NuGet configuration, never in this repo:
