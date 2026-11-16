@@ -704,10 +704,3 @@ dotnet_diagnostic.xUnit2024.severity = warning
 dotnet_diagnostic.xUnit2025.severity = warning
 dotnet_diagnostic.xUnit2032.severity = warning
 dotnet_diagnostic.xUnit2033.severity = warning
-
-[Directory/Crawling/**.cs]
-dotnet_diagnostic.CA1054.severity = none
-dotnet_diagnostic.CA1056.severity = none
-
-[Directory/Entities/**.cs]
-dotnet_diagnostic.CA1056.severity = none
