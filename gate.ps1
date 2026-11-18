@@ -12,27 +12,25 @@ $gateOutput = if (Get-Command Get-GateOutputDirectory -ErrorAction SilentlyConti
 } else {
     (New-Item -ItemType Directory -Force -Path (Join-Path ([IO.Path]::GetTempPath()) "claude\crgolden-gates\$(Split-Path -Leaf $PSScriptRoot)")).FullName
 }
-Register-GateSteps @('Install dotnet-coverage', 'Restore local tools', 'Begin Sonar analysis', 'Build with dotnet',
+Register-GateStep @('Install dotnet-coverage', 'Restore local tools', 'Begin Sonar analysis', 'Build with dotnet',
     'jb inspectcode', 'Run unit tests with coverage', 'Install SqlPackage', 'Deploy integration test database schema', 'Run Stryker mutation tests',
     'Run Stryker SQL mutation tests', 'Run Stryker relevance mutation tests', 'Run integration tests with coverage', 'Run full-text tests with coverage', 'End Sonar analysis',
     'Fail on open Sonar issues')
-Register-StepInputs @{
-    'Install dotnet-coverage'                 = @('*')
-    'Restore local tools'                     = @('dotnet-tools.json')
-    'Begin Sonar analysis'                    = @('*')
-    'Build with dotnet'                       = @('*')
-    'jb inspectcode'                          = @('*')
-    'Run unit tests with coverage'            = @('*', '!Directory.Tests.Integration/*', '!Directory.Tests.FullText/*')
-    'Run Stryker mutation tests'              = @('*')
-    'Run Stryker SQL mutation tests'          = @('*')
-    'Run Stryker relevance mutation tests'    = @('*')
-    'Install SqlPackage'                      = @('*')
-    'Deploy integration test database schema' = @('*', '!Directory.Tests.Unit/*')
-    'Run integration tests with coverage'     = @('*', '!Directory.Tests.Unit/*')
-    'Run full-text tests with coverage'       = @('*', '!Directory.Tests.Unit/*')
-    'End Sonar analysis'                      = @('*')
-    'Fail on open Sonar issues'               = @('*')
-}
+Register-StepInput 'Install dotnet-coverage' @('*')
+Register-StepInput 'Restore local tools' @('dotnet-tools.json')
+Register-StepInput 'Begin Sonar analysis' @('*')
+Register-StepInput 'Build with dotnet' @('*')
+Register-StepInput 'jb inspectcode' @('*')
+Register-StepInput 'Run unit tests with coverage' @('*', '!Directory.Tests.Integration/*', '!Directory.Tests.FullText/*')
+Register-StepInput 'Run Stryker mutation tests' @('*')
+Register-StepInput 'Run Stryker SQL mutation tests' @('*')
+Register-StepInput 'Run Stryker relevance mutation tests' @('*')
+Register-StepInput 'Install SqlPackage' @('*')
+Register-StepInput 'Deploy integration test database schema' @('*', '!Directory.Tests.Unit/*')
+Register-StepInput 'Run integration tests with coverage' @('*', '!Directory.Tests.Unit/*')
+Register-StepInput 'Run full-text tests with coverage' @('*', '!Directory.Tests.Unit/*')
+Register-StepInput 'End Sonar analysis' @('*')
+Register-StepInput 'Fail on open Sonar issues' @('*')
 $repo = $PSScriptRoot
 $sarif = (Join-Path $gateOutput 'directory-inspect.sarif')
 $unitTrx = Join-Path $repo 'Directory.Tests.Unit\bin\Release\net11.0\TestResults\unit-tests.trx'
@@ -94,8 +92,8 @@ if ($Only) {
 }
 exit (Invoke-Gate {
 Initialize-GateState 'Directory' $repo
-Resolve-OwedSteps
-Invoke-CatalogSteps
+Get-OwedStep | Register-OwedStep
+Invoke-GateLibraryStep
 
 if (-not (Test-StepCarried 'Install dotnet-coverage')) {
     if (Get-Command dotnet-coverage -ErrorAction SilentlyContinue) { Write-Row 'Install dotnet-coverage' 'PASS' 'present on PATH' }
@@ -125,7 +123,7 @@ else {
 
 if (-not (Test-StepCarried 'jb inspectcode')) {
     if (Test-Path $sarif) { Remove-Item $sarif -Force }
-    dotnet jb inspectcode "$repo\Directory.slnx" --no-build -e=WARNING --caches-home="$(New-InspectCodeCaches $gateOutput)" --output="$sarif"
+    dotnet jb inspectcode "$repo\Directory.slnx" --no-build -e=WARNING --caches-home="$(New-InspectCodeCache $gateOutput)" --output="$sarif"
     Test-Sarif $sarif
 }
 
@@ -217,7 +215,7 @@ if (-not $sonarCarried) {
     $global:LASTEXITCODE = $null
     dotnet-sonarscanner end
     Assert-StepExit $endSonar
-    Test-SonarIssues $sonarIssues 'crgolden_Directory' $sonarBranch $sonarStartedAt
+    Assert-NoOpenSonarIssue $sonarIssues 'crgolden_Directory' $sonarBranch $sonarStartedAt
 }
 
 Write-Row 'Upload test results / dotnet publish / uploads / deploy' 'NOT RUN' 'delivery steps, not checks'
