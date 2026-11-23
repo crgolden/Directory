@@ -8,6 +8,7 @@ using Directory.Campuses;
 using Directory.Church;
 using Directory.Crawling;
 using Directory.Denomination;
+using Directory.Logging;
 using Directory.Messaging;
 using Directory.Ministries;
 using Directory.Moderation;
@@ -169,15 +170,19 @@ try
 
     var app = builder.Build();
     app.UseForwardedHeaders();
-    app.UseSerilogRequestLogging(options => options.EnrichDiagnosticContext = (diagnosticContext, _) =>
+    app.UseSerilogRequestLogging(options =>
     {
-        if (Activity.Current is null)
+        options.GetLevel = RequestLogLevel.Of;
+        options.EnrichDiagnosticContext = (diagnosticContext, _) =>
         {
-            return;
-        }
+            if (Activity.Current is null)
+            {
+                return;
+            }
 
-        diagnosticContext.Set(nameof(Activity.TraceId), Activity.Current.TraceId.ToString());
-        diagnosticContext.Set(nameof(Activity.SpanId), Activity.Current.SpanId.ToString());
+            diagnosticContext.Set(nameof(Activity.TraceId), Activity.Current.TraceId.ToString());
+            diagnosticContext.Set(nameof(Activity.SpanId), Activity.Current.SpanId.ToString());
+        };
     });
     if (app.Environment.IsDevelopment())
     {

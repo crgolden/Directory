@@ -4,6 +4,10 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    groups:
+      opentelemetry:
+        patterns:
+          - "OpenTelemetry*"
   - package-ecosystem: npm
     directory: /experience.client
     schedule:

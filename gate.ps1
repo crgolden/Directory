@@ -78,7 +78,7 @@ if ($Only) {
     $env:SqlConnectionStringBuilder__InitialCatalog = $testCatalog
     Write-Host "PROBE: running one test, '$probeTest' of $probeClass in $probeProject; no gate record or verdict is written"
     $global:LASTEXITCODE = $null
-    dotnet test --project $probeProject --no-build --configuration Release -- --filter-query "/*/*/$probeClass/$probeTest" --report-xunit-trx --report-xunit-trx-filename probe.trx --results-directory=$probeResults
+    dotnet test --project $probeProject --configuration Release -- --filter-query "/*/*/$probeClass/$probeTest" --report-xunit-trx --report-xunit-trx-filename probe.trx --results-directory=$probeResults
     $probeExit = $global:LASTEXITCODE
     if (-not (Test-Path -LiteralPath $probeTrx)) { Write-Host "PROBE: FAILED (no TRX, exit $probeExit)"; exit 1 }
     [xml]$probeDoc = Get-Content -LiteralPath $probeTrx -Raw
@@ -95,13 +95,17 @@ Initialize-GateState 'Directory' $repo
 Get-OwedStep | Register-OwedStep
 Invoke-GateLibraryStep
 
-if (-not (Test-StepCarried 'Install dotnet-coverage')) {
-    if (Get-Command dotnet-coverage -ErrorAction SilentlyContinue) { Write-Row 'Install dotnet-coverage' 'PASS' 'present on PATH' }
-    else { Stop-Gate 'Install dotnet-coverage' 'not on PATH' }
+$coverageTool = 'Install dotnet-coverage'
+Invoke-GateStep -Name $coverageTool -Body {
+    if (Get-Command dotnet-coverage -ErrorAction SilentlyContinue) { Write-Row $coverageTool 'PASS' 'present on PATH' }
+    else { Stop-Gate $coverageTool 'not on PATH' }
 }
-$global:LASTEXITCODE = $null
-dotnet tool restore
-Assert-StepExit 'Restore local tools (dotnet tool restore)'
+$restore = 'Restore local tools (dotnet tool restore)'
+Invoke-GateStep -Name $restore -Body {
+    $global:LASTEXITCODE = $null
+    dotnet tool restore
+    Assert-StepExit $restore
+}
 
 $sonarCarried = Test-StepCarried $sonarIssues
 if ($sonarCarried) {
@@ -111,40 +115,46 @@ if ($sonarCarried) {
 }
 else {
     $sonarStartedAt = [DateTimeOffset]::UtcNow
-    $env:JAVA_HOME = Get-SonarScannerJavaHome $beginSonar
-    $global:LASTEXITCODE = $null
-    dotnet-sonarscanner begin /k:"crgolden_Directory" /o:"crgolden" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.cs.opencover.reportsPaths="coverage.opencover.xml" /d:sonar.cs.vscoveragexml.reportsPaths="coverage-integration.xml,coverage-fulltext.xml" /d:sonar.exclusions="**/bin/**,**/obj/**" /d:sonar.coverage.exclusions="**/Program.cs,**/gate.ps1" /d:sonar.qualitygate.wait=true /d:sonar.scanner.skipJreProvisioning=true /d:sonar.scm.use.blame.algorithm=GIT_NATIVE_BLAME /d:sonar.branch.name="$sonarBranch"
-    Assert-StepExit $beginSonar
+    Invoke-GateStep -Name $beginSonar -Needs @($restore) -Always -Body {
+        $env:JAVA_HOME = Get-SonarScannerJavaHome $beginSonar
+        $global:LASTEXITCODE = $null
+        dotnet-sonarscanner begin /k:"crgolden_Directory" /o:"crgolden" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.cs.opencover.reportsPaths="coverage.opencover.xml" /d:sonar.cs.vscoveragexml.reportsPaths="coverage-integration.xml,coverage-fulltext.xml" /d:sonar.exclusions="**/bin/**,**/obj/**" /d:sonar.coverage.exclusions="**/Program.cs,**/gate.ps1" /d:sonar.qualitygate.wait=true /d:sonar.scanner.skipJreProvisioning=true /d:sonar.scm.use.blame.algorithm=GIT_NATIVE_BLAME /d:sonar.branch.name="$sonarBranch"
+        Assert-StepExit $beginSonar
+    }
 
-    $global:LASTEXITCODE = $null
-    dotnet build --no-incremental --configuration Release /p:RestoreLockedMode=true -warnaserror
-    Assert-StepExit $build
+    Invoke-GateStep -Name $build -Needs @($restore) -Always -Body {
+        $global:LASTEXITCODE = $null
+        dotnet build --no-incremental --configuration Release /p:RestoreLockedMode=true -warnaserror
+        Assert-StepExit $build
+    }
 }
 
-if (-not (Test-StepCarried 'jb inspectcode')) {
+Invoke-GateStep -Name 'jb inspectcode' -Needs @($build) -Body {
     if (Test-Path $sarif) { Remove-Item $sarif -Force }
     dotnet jb inspectcode "$repo\Directory.slnx" --no-build -e=WARNING --caches-home="$(New-InspectCodeCache $gateOutput)" --output="$sarif"
     Test-Sarif $sarif
 }
 
-if (-not (Test-StepCarried 'Run unit tests with coverage (Category=Unit)')) {
+$unit = 'Run unit tests with coverage (Category=Unit)'
+Invoke-GateStep -Name $unit -Needs @($build) -Body {
     if (Test-Path $unitTrx) { Remove-Item $unitTrx -Force }
     $global:LASTEXITCODE = $null
     dotnet coverlet Directory.Tests.Unit\bin\Release\net11.0 `
         --target "dotnet" `
-        --targetargs "test --project Directory.Tests.Unit --no-build --configuration Release -- --filter-trait Category=Unit --stop-on-fail on --report-xunit-trx --report-xunit-trx-filename unit-tests.trx --results-directory=Directory.Tests.Unit/bin/Release/net11.0/TestResults" `
+        --targetargs "test --project Directory.Tests.Unit --no-build --configuration Release -- --filter-trait Category=Unit --report-xunit-trx --report-xunit-trx-filename unit-tests.trx --results-directory=Directory.Tests.Unit/bin/Release/net11.0/TestResults" `
         --format opencover --output "coverage.opencover.xml" `
         --skipautoprops --exclude-by-attribute GeneratedCodeAttribute --exclude-by-file "**/obj/**" `
         --exclude-by-file "**/Program.cs" --does-not-return-attribute DoesNotReturnAttribute --include "[Directory]*"
-    Test-Trx 'Run unit tests with coverage (Category=Unit)' $unitTrx $global:LASTEXITCODE -floor 1
+    Test-Trx $unit $unitTrx $global:LASTEXITCODE -floor 1
 }
 
-if (-not (Test-StepCarried 'Install SqlPackage')) {
-    if (Get-Command sqlpackage -ErrorAction SilentlyContinue) { Write-Row 'Install SqlPackage' 'PASS' 'present on PATH' }
-    else { Stop-Gate 'Install SqlPackage' 'not on PATH' }
+$sqlPackageTool = 'Install SqlPackage'
+Invoke-GateStep -Name $sqlPackageTool -Body {
+    if (Get-Command sqlpackage -ErrorAction SilentlyContinue) { Write-Row $sqlPackageTool 'PASS' 'present on PATH' }
+    else { Stop-Gate $sqlPackageTool 'not on PATH' }
 }
 $schemaStep = "Deploy integration test database schema ($testCatalog on $dataSource)"
-if (-not (Test-StepCarried $schemaStep)) {
+Invoke-GateStep -Name $schemaStep -Needs @($build, $sqlPackageTool) -Body {
     $global:LASTEXITCODE = $null
     sqlpackage /Action:Publish /SourceFile:Directory.Data/bin/Release/Directory.Data.dacpac /TargetConnectionString:"$($targetConnection.ConnectionString)"
     Assert-StepExit $schemaStep
@@ -152,7 +162,7 @@ if (-not (Test-StepCarried $schemaStep)) {
 $env:SqlConnectionStringBuilder__InitialCatalog = $testCatalog
 
 $stryker = 'Run Stryker mutation tests (thresholds 100)'
-if (-not (Test-StepCarried $stryker)) {
+Invoke-GateStep -Name $stryker -Needs @($build) -Body {
     $strykerOutputDir = Join-Path $repo 'Directory\StrykerOutput\gate'
     if (Test-Path -LiteralPath $strykerOutputDir) { Remove-Item -LiteralPath $strykerOutputDir -Recurse -Force }
     Push-Location (Join-Path $repo 'Directory')
@@ -166,7 +176,7 @@ if (-not (Test-StepCarried $stryker)) {
 }
 
 $sqlStryker = 'Run Stryker SQL mutation tests (thresholds 100)'
-if (-not (Test-StepCarried $sqlStryker)) {
+Invoke-GateStep -Name $sqlStryker -Needs @($build, $schemaStep) -Body {
     $sqlOutputDir = Join-Path $repo 'Directory\StrykerOutput\gate-sql'
     if (Test-Path -LiteralPath $sqlOutputDir) { Remove-Item -LiteralPath $sqlOutputDir -Recurse -Force }
     Push-Location (Join-Path $repo 'Directory')
@@ -180,7 +190,7 @@ if (-not (Test-StepCarried $sqlStryker)) {
 }
 
 $relevanceStryker = 'Run Stryker relevance mutation tests (thresholds 100)'
-if (-not (Test-StepCarried $relevanceStryker)) {
+Invoke-GateStep -Name $relevanceStryker -Needs @($build, $schemaStep) -Body {
     $relevanceOutputDir = Join-Path $repo 'Directory\StrykerOutput\gate-relevance'
     if (Test-Path -LiteralPath $relevanceOutputDir) { Remove-Item -LiteralPath $relevanceOutputDir -Recurse -Force }
     Push-Location (Join-Path $repo 'Directory')
@@ -193,29 +203,35 @@ if (-not (Test-StepCarried $relevanceStryker)) {
     Write-Row $relevanceStryker 'PASS' 'every relevance-ordering mutant killed'
 }
 
-if (-not (Test-StepCarried 'Run integration tests with coverage (Category=Integration)')) {
+$integration = 'Run integration tests with coverage (Category=Integration)'
+Invoke-GateStep -Name $integration -Needs @($build, $schemaStep, $coverageTool) -Body {
     if (Test-Path $integrationTrx) { Remove-Item $integrationTrx -Force }
     $global:LASTEXITCODE = $null
     dotnet-coverage collect `
-        "dotnet test --project Directory.Tests.Integration --no-build --configuration Release -- --filter-trait Category=Integration --stop-on-fail on --report-xunit-trx --report-xunit-trx-filename integration-tests.trx --results-directory=Directory.Tests.Integration/bin/Release/net11.0/TestResults" `
+        "dotnet test --project Directory.Tests.Integration --no-build --configuration Release -- --filter-trait Category=Integration --report-xunit-trx --report-xunit-trx-filename integration-tests.trx --results-directory=Directory.Tests.Integration/bin/Release/net11.0/TestResults" `
         -f xml -o "coverage-integration.xml" -s "coverage.settings.xml"
-    Test-Trx 'Run integration tests with coverage (Category=Integration)' $integrationTrx $global:LASTEXITCODE -floor 1
+    Test-Trx $integration $integrationTrx $global:LASTEXITCODE -floor 1
 }
 
-if (-not (Test-StepCarried 'Run full-text tests with coverage (Category=Integration)')) {
+$fullText = 'Run full-text tests with coverage (Category=Integration)'
+Invoke-GateStep -Name $fullText -Needs @($build, $schemaStep, $coverageTool) -Body {
     if (Test-Path $fullTextTrx) { Remove-Item $fullTextTrx -Force }
     $global:LASTEXITCODE = $null
     dotnet-coverage collect `
-        "dotnet test --project Directory.Tests.FullText --no-build --configuration Release -- --filter-trait Category=Integration --stop-on-fail on --report-xunit-trx --report-xunit-trx-filename fulltext-tests.trx --results-directory=Directory.Tests.FullText/bin/Release/net11.0/TestResults" `
+        "dotnet test --project Directory.Tests.FullText --no-build --configuration Release -- --filter-trait Category=Integration --report-xunit-trx --report-xunit-trx-filename fulltext-tests.trx --results-directory=Directory.Tests.FullText/bin/Release/net11.0/TestResults" `
         -f xml -o "coverage-fulltext.xml" -s "coverage.settings.xml"
-    Test-Trx 'Run full-text tests with coverage (Category=Integration)' $fullTextTrx $global:LASTEXITCODE -floor 1
+    Test-Trx $fullText $fullTextTrx $global:LASTEXITCODE -floor 1
 }
 
 if (-not $sonarCarried) {
-    $global:LASTEXITCODE = $null
-    dotnet-sonarscanner end
-    Assert-StepExit $endSonar
-    Assert-NoOpenSonarIssue $sonarIssues 'crgolden_Directory' $sonarBranch $sonarStartedAt
+    Invoke-GateStep -Name $endSonar -Needs @($beginSonar, $build, $unit, $integration, $fullText) -Always -Body {
+        $global:LASTEXITCODE = $null
+        dotnet-sonarscanner end
+        Assert-StepExit $endSonar
+    }
+    Invoke-GateStep -Name $sonarIssues -Needs @($endSonar) -Always -Body {
+        Assert-NoOpenSonarIssue $sonarIssues 'crgolden_Directory' $sonarBranch $sonarStartedAt
+    }
 }
 
 Write-Row 'Upload test results / dotnet publish / uploads / deploy' 'NOT RUN' 'delivery steps, not checks'
