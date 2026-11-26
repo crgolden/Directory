@@ -9,7 +9,7 @@
         @{ Name = 'Regenerate lock files and push'; Delivery = $true }
         @{ Name = 'Install SonarQube Cloud scanner'; Tool = 'dotnet-sonarscanner'; Inputs = @('*') }
         @{ Name = 'Install dotnet-coverage'; Tool = 'dotnet-coverage'; Inputs = @('*') }
-        @{ Name = 'Restore local tools'; Run = @('dotnet', 'tool', 'restore'); Inputs = @('dotnet-tools.json') }
+        @{ Name = 'Restore local tools'; Run = @('dotnet', 'tool', 'restore'); Inputs = @('dotnet-tools.json'); Always = $true }
         @{
             Name   = 'Begin Sonar analysis'
             Sonar  = 'begin'
