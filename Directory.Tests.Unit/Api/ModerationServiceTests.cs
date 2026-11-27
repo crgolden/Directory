@@ -280,10 +280,10 @@ public sealed class ModerationServiceTests
         var expectedTotalCount = Generated.NewRowCount();
         var requestedPage = Generated.NewPage();
         var requestedPageSize = Generated.NewPageSize();
-        var table = BuildCorrectionTable(includeTotalCount: true);
-        table.Rows.Add(CorrectionRowPopulated(newValue: expectedNewValue, totalCount: expectedTotalCount));
+        var table = BuildCorrectionTable();
+        table.Rows.Add(CorrectionRowPopulated(newValue: expectedNewValue));
         var conn = new FakeDbConnection();
-        var cmd = FakeDbCommand.WithReader(table);
+        var cmd = FakeDbCommand.WithReaders(CountRows.Table(expectedTotalCount), table);
         conn.Enqueue(cmd);
         var service = Create(conn);
 
@@ -304,7 +304,7 @@ public sealed class ModerationServiceTests
         var requestedPage = Generated.NewPage();
         var requestedPageSize = Generated.NewPageSize();
         var conn = new FakeDbConnection();
-        var cmd = FakeDbCommand.WithReader(BuildCorrectionTable(includeTotalCount: true));
+        var cmd = FakeDbCommand.WithReaders(CountRows.Table(0), BuildCorrectionTable());
         conn.Enqueue(cmd);
         var service = Create(conn);
 
@@ -319,11 +319,29 @@ public sealed class ModerationServiceTests
     }
 
     [Fact]
+    public async Task GetCorrectionsAsync_PageAfterTheLast_ReturnsNoItemsAndStillReadsTheTotalCount()
+    {
+        // Arrange
+        var expectedTotalCount = Generated.NewRowCount();
+        var conn = new FakeDbConnection();
+        conn.Enqueue(FakeDbCommand.WithReaders(CountRows.Table(expectedTotalCount), BuildCorrectionTable()));
+        var service = Create(conn);
+
+        // Act
+        var (items, totalCount) = await service.GetCorrectionsAsync(
+            null, Generated.NewPage(), Generated.NewPageSize(), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Empty(items);
+        Assert.Equal(expectedTotalCount, totalCount);
+    }
+
+    [Fact]
     public async Task GetCorrectionByIdAsync_SystemAuthoredRowWithNullableNulls_MapsNulls()
     {
         // Arrange
         var correctionId = Guid.NewGuid();
-        var table = BuildCorrectionTable(includeTotalCount: false);
+        var table = BuildCorrectionTable();
         table.Rows.Add(CorrectionRowNullable());
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithReader(table));
@@ -350,13 +368,12 @@ public sealed class ModerationServiceTests
         var expectedUserId = Generated.NewUserId();
         var expectedReviewedBy = Generated.NewUserId();
         var expectedChurchName = Generated.NewName();
-        var table = BuildCorrectionTable(includeTotalCount: false);
+        var table = BuildCorrectionTable();
         table.Rows.Add(CorrectionRowPopulated(
             oldValue: expectedOldValue,
             userId: expectedUserId,
             reviewedBy: expectedReviewedBy,
-            churchName: expectedChurchName,
-            totalCount: null));
+            churchName: expectedChurchName));
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithReader(table));
         var service = Create(conn);
@@ -381,7 +398,7 @@ public sealed class ModerationServiceTests
         var pageSizeAboveAnyPage = Generated.NewCountCeiling();
         var expectedOffset = (pageAfterTheFirst - 1) * pageSizeAboveAnyPage;
         var conn = new FakeDbConnection();
-        var cmd = FakeDbCommand.WithReader(BuildCorrectionTable(includeTotalCount: true));
+        var cmd = FakeDbCommand.WithReaders(CountRows.Table(0), BuildCorrectionTable());
         conn.Enqueue(cmd);
         var service = Create(conn);
 
@@ -402,9 +419,8 @@ public sealed class ModerationServiceTests
         var expectedTargetChurchName = Generated.NewName();
         var expectedChurchSlug = Generated.NewSlug();
         var expectedTargetChurchSlug = Generated.NewSlug();
-        var table = BuildCorrectionTable(includeTotalCount: false);
+        var table = BuildCorrectionTable();
         table.Rows.Add(CorrectionRowPopulated(
-            totalCount: null,
             links: new CorrectionLinks(expectedTargetChurchName, expectedChurchSlug, expectedTargetChurchSlug)));
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithReader(table));
@@ -815,7 +831,7 @@ public sealed class ModerationServiceTests
         return new ModerationService(conn, factory.Object, new ChurchService(conn));
     }
 
-    private static DataTable BuildCorrectionTable(bool includeTotalCount)
+    private static DataTable BuildCorrectionTable()
     {
         var t = new DataTable();
         t.Columns.Add(nameof(UserCorrection.Id), typeof(Guid));
@@ -832,16 +848,10 @@ public sealed class ModerationServiceTests
         t.Columns.Add(nameof(UserCorrection.TargetChurchName), typeof(string));
         t.Columns.Add(nameof(UserCorrection.ChurchSlug), typeof(string));
         t.Columns.Add(nameof(UserCorrection.TargetChurchSlug), typeof(string));
-        if (includeTotalCount)
-        {
-            t.Columns.Add(nameof(PagedResult<UserCorrection>.TotalCount), typeof(int));
-        }
-
         return t;
     }
 
     private static object[] CorrectionRowPopulated(
-        int? totalCount,
         string? oldValue = null,
         string? newValue = null,
         Guid? userId = null,
@@ -852,8 +862,8 @@ public sealed class ModerationServiceTests
         // Arrange
         var correctionId = Guid.NewGuid();
         var churchId = Guid.NewGuid();
-        var values = new List<object>
-        {
+        return
+        [
             correctionId,
             churchId,
             userId ?? Generated.NewUserId(),
@@ -868,13 +878,7 @@ public sealed class ModerationServiceTests
             (object?)links?.TargetChurchName ?? DBNull.Value,
             (object?)links?.ChurchSlug ?? DBNull.Value,
             (object?)links?.TargetChurchSlug ?? DBNull.Value,
-        };
-        if (totalCount.HasValue)
-        {
-            values.Add(totalCount.Value);
-        }
-
-        return [.. values];
+        ];
     }
 
     private static object[] CorrectionRowNullable()

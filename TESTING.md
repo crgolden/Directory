@@ -129,8 +129,8 @@ production catalog, then deploys the app.
 
 ## Mutation testing (Stryker)
 
-**Thresholds are 100 (high, low and break).** Every mutant is killed by a test of either tier, marked equivalent with
-`// Stryker disable once <Mutator> : <reason>` on the line above, or excluded in `stryker-config.json`'s `mutate` list:
+**Thresholds are 100 (high, low and break).** Every mutant is killed by a test of either tier or excluded in
+`stryker-config.json`'s `mutate` list; a `// Stryker disable` comment is a suppression the gate's comment catalog fails:
 
 | Excluded | Why |
 |---|---|
@@ -148,7 +148,7 @@ because the unit tier never asserts SQL text against a fake connection; the inte
 - `stryker-config.json` runs the unit project alone, at Stryker's default concurrency, over every file except the
   statement builders and the relevance ordering.
 - `stryker-sql-config.json` mutates only the statement builders, the `*Sql.cs` files (`Search/SearchSql.cs`,
-  `Moderation/ModerationSql.cs`), and runs the unit and integration projects with `concurrency` `1`.
+  `Church/ChurchSql.cs`, `Moderation/ModerationSql.cs`), and runs the unit and integration projects with `concurrency` `1`.
 - `stryker-relevance-config.json` mutates only `Search/RelevanceOrder.cs` and runs the unit and full-text projects,
   so only that file's few mutants rerun the keyword test, which waits for SQL Server to index its rows on every run.
 

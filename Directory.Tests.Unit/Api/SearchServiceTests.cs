@@ -318,7 +318,7 @@ public sealed class SearchServiceTests
         var table = BuildSearchTable();
         table.Rows.Add(SearchRowPopulated(expectedStreet, expectedDistanceMiles));
         var conn = new FakeDbConnection();
-        conn.Enqueue(FakeDbCommand.WithReaders(BuildCountTable(expectedTotalCount), table));
+        conn.Enqueue(FakeDbCommand.WithReaders(CountRows.Table(expectedTotalCount), table));
         var service = new SearchService(conn);
         var query = UnfilteredQuery() with { Lat = searchLatitude, Lng = searchLongitude };
 
@@ -342,7 +342,7 @@ public sealed class SearchServiceTests
         var table = BuildSearchTable();
         table.Rows.Add(SearchRowPopulated(rowStreet, DBNull.Value));
         var conn = new FakeDbConnection();
-        conn.Enqueue(FakeDbCommand.WithReaders(BuildCountTable(rowTotalCount), table));
+        conn.Enqueue(FakeDbCommand.WithReaders(CountRows.Table(rowTotalCount), table));
         var service = new SearchService(conn);
         var query = UnfilteredQuery() with { Lat = searchLatitude, Lng = searchLongitude };
 
@@ -360,7 +360,7 @@ public sealed class SearchServiceTests
         var table = BuildSearchTable();
         table.Rows.Add(SearchRowNullable());
         var conn = new FakeDbConnection();
-        conn.Enqueue(FakeDbCommand.WithReaders(BuildCountTable(expectedTotalCount), table));
+        conn.Enqueue(FakeDbCommand.WithReaders(CountRows.Table(expectedTotalCount), table));
         var service = new SearchService(conn);
         var query = UnfilteredQuery();
 
@@ -886,7 +886,7 @@ public sealed class SearchServiceTests
             expectedDenominationId,
             expectedLastVerifiedAt));
         var conn = new FakeDbConnection();
-        conn.Enqueue(FakeDbCommand.WithReaders(BuildCountTable(rowTotalCount), table));
+        conn.Enqueue(FakeDbCommand.WithReaders(CountRows.Table(rowTotalCount), table));
         var service = new SearchService(conn);
 
         // Act
@@ -914,7 +914,7 @@ public sealed class SearchServiceTests
         var table = BuildSearchTable();
         table.Rows.Add(SearchRowNullableInState(unrecognizedState));
         var conn = new FakeDbConnection();
-        conn.Enqueue(FakeDbCommand.WithReaders(BuildCountTable(rowTotalCount), table));
+        conn.Enqueue(FakeDbCommand.WithReaders(CountRows.Table(rowTotalCount), table));
         var service = new SearchService(conn);
 
         // Act
@@ -1222,14 +1222,6 @@ public sealed class SearchServiceTests
         t.Columns.Add(nameof(Church.UpdatedAt), typeof(DateTimeOffset));
         t.Columns.Add(nameof(Church.IsActive), typeof(bool));
         t.Columns.Add(nameof(SearchResult.DistanceMiles), typeof(double));
-        return t;
-    }
-
-    private static DataTable BuildCountTable(int totalCount)
-    {
-        var t = new DataTable();
-        t.Columns.Add(nameof(SearchPagedResult.TotalCount), typeof(int));
-        t.Rows.Add(totalCount);
         return t;
     }
 

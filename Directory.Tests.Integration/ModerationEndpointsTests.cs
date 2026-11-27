@@ -99,6 +99,22 @@ public sealed class ModerationEndpointsTests : IClassFixture<DirectoryWebApplica
     }
 
     [Fact]
+    public async Task GetCorrections_PageAfterTheLast_ReturnsNoneAndStillCountsThemAll()
+    {
+        var churchId = await CreateChurchAndGetIdAsync();
+        await SeedCorrectionAsync(churchId);
+        var firstPage = await _client.GetFromJsonAsync<JsonElement>(
+            CorrectionsUri(OnePerPage), TestContext.Current.CancellationToken);
+        var totalCount = firstPage.GetProperty("totalCount").GetInt32();
+
+        var body = await _client.GetFromJsonAsync<JsonElement>(
+            CorrectionsUri(totalCount + 1, OnePerPage), TestContext.Current.CancellationToken);
+
+        Assert.Empty(body.GetProperty("items").EnumerateArray());
+        Assert.Equal(totalCount, body.GetProperty("totalCount").GetInt32());
+    }
+
+    [Fact]
     public async Task GetCorrectionById_ReturnsOk_WhenFound()
     {
         var churchId = await CreateChurchAndGetIdAsync();
@@ -195,8 +211,10 @@ public sealed class ModerationEndpointsTests : IClassFixture<DirectoryWebApplica
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }
 
-    private static string CorrectionsUri(int pageSize) =>
-        $"{ModerationEndpoints.Route}?{nameof(CorrectionsRequest.Page)}={FirstPage}&{nameof(CorrectionsRequest.PageSize)}={pageSize}";
+    private static string CorrectionsUri(int pageSize) => CorrectionsUri(FirstPage, pageSize);
+
+    private static string CorrectionsUri(int page, int pageSize) =>
+        $"{ModerationEndpoints.Route}?{nameof(CorrectionsRequest.Page)}={page}&{nameof(CorrectionsRequest.PageSize)}={pageSize}";
 
     private async Task<Guid> CreateChurchAndGetIdAsync()
     {

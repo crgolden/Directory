@@ -10,6 +10,10 @@ using Directory.Tests.Integration.TestSupport;
 [Trait("Category", "Integration")]
 public sealed class ChurchEndpointsTests : IClassFixture<DirectoryWebApplicationFactory>
 {
+    private const int FirstPage = 1;
+
+    private const int OnePerPage = 1;
+
     private readonly HttpClient _client;
 
     public ChurchEndpointsTests(DirectoryWebApplicationFactory factory)
@@ -31,6 +35,30 @@ public sealed class ChurchEndpointsTests : IClassFixture<DirectoryWebApplication
         var response = await _client.GetAsync("/churches?page=0&pageSize=200", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetChurches_OnePerPage_ReturnsOneAndCountsThemAll()
+    {
+        await CreateChurchAndGetIdAsync();
+        await CreateChurchAndGetIdAsync();
+
+        var body = await GetPageAsync(FirstPage, OnePerPage);
+
+        Assert.Single(body.GetProperty("items").EnumerateArray());
+        Assert.True(body.GetProperty("totalCount").GetInt32() > OnePerPage);
+    }
+
+    [Fact]
+    public async Task GetChurches_PageAfterTheLast_ReturnsNoneAndStillCountsThemAll()
+    {
+        await CreateChurchAndGetIdAsync();
+        var totalCount = (await GetPageAsync(FirstPage, OnePerPage)).GetProperty("totalCount").GetInt32();
+
+        var body = await GetPageAsync(totalCount + 1, OnePerPage);
+
+        Assert.Empty(body.GetProperty("items").EnumerateArray());
+        Assert.Equal(totalCount, body.GetProperty("totalCount").GetInt32());
     }
 
     [Fact]
@@ -179,6 +207,10 @@ public sealed class ChurchEndpointsTests : IClassFixture<DirectoryWebApplication
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
+
+    private async Task<JsonElement> GetPageAsync(int page, int pageSize) =>
+        await _client.GetFromJsonAsync<JsonElement>(
+            $"{ChurchEndpoints.Route}?page={page}&pageSize={pageSize}", TestContext.Current.CancellationToken);
 
     private async Task<Guid> CreateChurchAndGetIdAsync()
     {

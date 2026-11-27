@@ -10,7 +10,7 @@ public sealed class ChurchService
 {
     internal const int FirstSlugCollisionSuffix = 2;
 
-    private const string SelectColumns =
+    internal const string SelectColumns =
         "c.[Id], c.[CanonicalName], c.[Slug], c.[Latitude], c.[Longitude], c.[Street], " +
         "c.[City], c.[State], c.[Zip], c.[PhoneNumber], c.[Website], c.[EmailAddress], " +
         "c.[DenominationId], c.[WorshipStyle], c.[PrimaryLanguage], c.[AcceptsLGBTQ], " +
@@ -29,25 +29,20 @@ public sealed class ChurchService
     {
         await EnsureOpenAsync(ct);
         await using var cmd = _dbConnection.CreateCommand();
-        cmd.CommandText = $"""
-            SELECT {SelectColumns}, COUNT(*) OVER() AS [TotalCount]
-            FROM [dbo].[Churches] c
-            WHERE c.[IsActive] = 1
-            ORDER BY c.[CanonicalName] ASC
-            OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY
-            """;
+        cmd.CommandText = ChurchSql.ActivePage();
         AddParam(cmd, SqlParameters.Offset, (page - 1) * pageSize);
         AddParam(cmd, SqlParameters.PageSize, pageSize);
         await using var reader = await cmd.ExecuteReaderAsync(ct);
-        var items = new List<Church>();
         var totalCount = 0;
+        if (await reader.ReadAsync(ct))
+        {
+            totalCount = (int)reader[0];
+        }
+
+        await reader.NextResultAsync(ct);
+        var items = new List<Church>();
         while (await reader.ReadAsync(ct))
         {
-            if (items.Count == 0)
-            {
-                totalCount = (int)reader[24];
-            }
-
             if (Map(reader) is { } church)
             {
                 items.Add(church);

@@ -184,7 +184,7 @@ public sealed class ChurchServiceTests
     {
         // Arrange
         var conn = new FakeDbConnection();
-        conn.Enqueue(FakeDbCommand.WithReader(ChurchRows.Table(includeTotalCount: true)));
+        conn.Enqueue(FakeDbCommand.WithReaders(CountRows.Table(0), ChurchRows.Table()));
         var service = new ChurchService(conn);
 
         // Act
@@ -198,14 +198,32 @@ public sealed class ChurchServiceTests
     }
 
     [Fact]
+    public async Task GetPageAsync_PageAfterTheLast_ReturnsNoItemsAndStillReadsTheTotalCount()
+    {
+        // Arrange
+        var expectedTotalCount = Generated.NewRowCount();
+        var conn = new FakeDbConnection();
+        conn.Enqueue(FakeDbCommand.WithReaders(CountRows.Table(expectedTotalCount), ChurchRows.Table()));
+        var service = new ChurchService(conn);
+
+        // Act
+        var (items, totalCount) = await service.GetPageAsync(
+            Generated.NewPage(), Generated.NewPageSize(), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Empty(items);
+        Assert.Equal(expectedTotalCount, totalCount);
+    }
+
+    [Fact]
     public async Task GetPageAsync_WithRows_MapsItemsAndReadsTotalCount()
     {
         // Arrange
         var expectedTotalCount = Generated.NewRowCount();
-        var table = ChurchRows.Table(includeTotalCount: true);
-        table.Rows.Add(PopulatedRow(expectedTotalCount));
+        var table = ChurchRows.Table();
+        table.Rows.Add(PopulatedRow());
         var conn = new FakeDbConnection();
-        conn.Enqueue(FakeDbCommand.WithReader(table));
+        conn.Enqueue(FakeDbCommand.WithReaders(CountRows.Table(expectedTotalCount), table));
         var service = new ChurchService(conn);
 
         // Act
@@ -221,7 +239,7 @@ public sealed class ChurchServiceTests
     [Fact]
     public async Task GetBySlugAsync_RowWithNullableNulls_MapsNullsForOptionalColumns()
     {
-        var table = ChurchRows.Table(includeTotalCount: false);
+        var table = ChurchRows.Table();
         table.Rows.Add(NullableNullRow());
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithReader(table));
@@ -242,8 +260,8 @@ public sealed class ChurchServiceTests
     [Fact]
     public async Task GetBySlugAsync_PopulatesServiceSchedules()
     {
-        var churchTable = ChurchRows.Table(includeTotalCount: false);
-        churchTable.Rows.Add(PopulatedRow(totalCount: null));
+        var churchTable = ChurchRows.Table();
+        churchTable.Rows.Add(PopulatedRow());
         var schedulesTable = SchedulesTable();
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithReader(churchTable));
@@ -264,8 +282,8 @@ public sealed class ChurchServiceTests
     [Fact]
     public async Task GetBySlugAsync_PopulatesMinistries()
     {
-        var churchTable = ChurchRows.Table(includeTotalCount: false);
-        churchTable.Rows.Add(PopulatedRow(totalCount: null));
+        var churchTable = ChurchRows.Table();
+        churchTable.Rows.Add(PopulatedRow());
         var conn = new FakeDbConnection();
         var ministriesTable = MinistriesTable();
         conn.Enqueue(FakeDbCommand.WithReader(churchTable));
@@ -287,8 +305,8 @@ public sealed class ChurchServiceTests
     [Fact]
     public async Task GetBySlugAsync_PopulatesCampuses()
     {
-        var churchTable = ChurchRows.Table(includeTotalCount: false);
-        churchTable.Rows.Add(PopulatedRow(totalCount: null));
+        var churchTable = ChurchRows.Table();
+        churchTable.Rows.Add(PopulatedRow());
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithReader(churchTable));
         conn.Enqueue(FakeDbCommand.WithReader(new DataTable()));
@@ -313,7 +331,7 @@ public sealed class ChurchServiceTests
     {
         // Arrange
         var conn = new FakeDbConnection();
-        conn.Enqueue(FakeDbCommand.WithReader(ChurchRows.Table(includeTotalCount: false)));
+        conn.Enqueue(FakeDbCommand.WithReader(ChurchRows.Table()));
         var service = new ChurchService(conn);
         var churchId = Guid.NewGuid();
 
@@ -327,8 +345,8 @@ public sealed class ChurchServiceTests
     [Fact]
     public async Task GetByIdAsync_RowPopulated_MapsAllOptionalColumns()
     {
-        var table = ChurchRows.Table(includeTotalCount: false);
-        table.Rows.Add(PopulatedRow(totalCount: null));
+        var table = ChurchRows.Table();
+        table.Rows.Add(PopulatedRow());
         var conn = new FakeDbConnection();
         await conn.OpenAsync(TestContext.Current.CancellationToken);
         conn.Enqueue(FakeDbCommand.WithReader(table));
@@ -509,7 +527,7 @@ public sealed class ChurchServiceTests
         var pageSizeAboveAnyPage = Generated.NewCountCeiling();
         var expectedOffset = (pageAfterTheFirst - 1) * pageSizeAboveAnyPage;
         var conn = new FakeDbConnection();
-        var pageQuery = FakeDbCommand.WithReader(ChurchRows.Table(includeTotalCount: true));
+        var pageQuery = FakeDbCommand.WithReaders(CountRows.Table(0), ChurchRows.Table());
         conn.Enqueue(pageQuery);
         var service = new ChurchService(conn);
 
@@ -666,8 +684,8 @@ public sealed class ChurchServiceTests
     public async Task GetByIdAsync_RowPopulated_MapsContactAndProgramColumns()
     {
         // Arrange
-        var table = ChurchRows.Table(includeTotalCount: false);
-        table.Rows.Add(PopulatedRow(totalCount: null));
+        var table = ChurchRows.Table();
+        table.Rows.Add(PopulatedRow());
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithReader(table));
         var service = new ChurchService(conn);
@@ -783,16 +801,16 @@ public sealed class ChurchServiceTests
 
     private static DataTable TableWithState(string state)
     {
-        var table = ChurchRows.Table(includeTotalCount: false);
-        var onlyRow = table.Rows.Add(PopulatedRow(totalCount: null));
+        var table = ChurchRows.Table();
+        var onlyRow = table.Rows.Add(PopulatedRow());
         onlyRow[nameof(Church.State)] = state;
         return table;
     }
 
     private static FakeDbConnection ConnectionServingChildren(DataTable schedules, DataTable ministries, DataTable campuses)
     {
-        var churchTable = ChurchRows.Table(includeTotalCount: false);
-        churchTable.Rows.Add(PopulatedRow(totalCount: null));
+        var churchTable = ChurchRows.Table();
+        churchTable.Rows.Add(PopulatedRow());
         var conn = new FakeDbConnection();
         conn.Enqueue(FakeDbCommand.WithReader(churchTable));
         conn.Enqueue(FakeDbCommand.WithReader(schedules));
@@ -855,8 +873,8 @@ public sealed class ChurchServiceTests
 
     private static DataTable TableWithCreatedAt(DateTimeOffset createdAt)
     {
-        var table = ChurchRows.Table(includeTotalCount: false);
-        var onlyRow = table.Rows.Add(PopulatedRow(totalCount: null));
+        var table = ChurchRows.Table();
+        var onlyRow = table.Rows.Add(PopulatedRow());
         onlyRow[nameof(Church.CreatedAt)] = createdAt;
         return table;
     }
@@ -968,23 +986,17 @@ public sealed class ChurchServiceTests
         return t;
     }
 
-    private static object[] PopulatedRow(int? totalCount)
+    private static object[] PopulatedRow()
     {
         var churchId = Guid.NewGuid();
         var denominationId = Guid.NewGuid();
-        var values = new List<object>
-        {
+        return
+        [
             churchId, StoredCanonicalName, Generated.NewSlug(), Generated.NewLatitude(), Generated.NewLongitude(), StoredStreet,
             Generated.NewCity(), Generated.NewStateCodeText(), Generated.NewZip(), StoredPhoneNumber, StoredWebsite, StoredEmailAddress,
             denominationId, (int)Generated.NewDefinedValue<WorshipStyle>(), Generated.NewLanguage(), true, true, true, true, Generated.NewConfidenceScore(),
             Generated.NewUtcTimestamp(), DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, true,
-        };
-        if (totalCount.HasValue)
-        {
-            values.Add(totalCount.Value);
-        }
-
-        return [.. values];
+        ];
     }
 
     private static object[] NullableNullRow()

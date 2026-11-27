@@ -42,8 +42,8 @@ Each feature folder holds an `*Endpoints.cs` (route wiring, excluded from covera
   `DateTimeOffset`.
 - **Every stored OIDC subject is a `UNIQUEIDENTIFIER`**; a machine-made merge suggestion records `NULL`. A missing or
   non-GUID `sub` answers 401 on every moderation route.
-- **Search counts then pages in two statements**, never `COUNT(*) OVER()`, which materializes every match to serve one
-  page.
+- **Every paged list counts then pages in two statements** (`GET /search`, `GET /churches`, `GET /corrections`), never
+  `COUNT(*) OVER()`, which materializes every match to serve one page.
 - **`POST /corrections` writes nothing to SQL**; it only queues the correction.
 
 ## Search

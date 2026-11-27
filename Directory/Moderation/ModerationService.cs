@@ -111,15 +111,16 @@ public sealed class ModerationService
         AddParam(cmd, SqlParameters.Offset, (page - 1) * pageSize);
         AddParam(cmd, SqlParameters.PageSize, pageSize);
         await using var reader = await cmd.ExecuteReaderAsync(ct);
-        var items = new List<UserCorrection>();
         var totalCount = 0;
+        if (await reader.ReadAsync(ct))
+        {
+            totalCount = (int)reader[0];
+        }
+
+        await reader.NextResultAsync(ct);
+        var items = new List<UserCorrection>();
         while (await reader.ReadAsync(ct))
         {
-            if (items.Count == 0)
-            {
-                totalCount = (int)reader[14];
-            }
-
             items.Add(MapCorrection(reader));
         }
 

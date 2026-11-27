@@ -108,7 +108,7 @@ public sealed class ModerationApplyCorrectionTests
         // Arrange
         var correction = CorrectionFor(nameof(Church.PhoneNumber), Generated.NewPhoneNumber());
         var conn = new FakeDbConnection();
-        conn.Enqueue(FakeDbCommand.WithReader(ChurchRows.Table(includeTotalCount: false)));
+        conn.Enqueue(FakeDbCommand.WithReader(ChurchRows.Table()));
         var service = NewService(conn);
 
         // Act

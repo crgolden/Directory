@@ -1,13 +1,12 @@
 namespace Directory.Tests.Unit.TestSupport;
 
 using System.Data;
-using Directory.Church;
 using Directory.Entities;
 using Directory.Enums;
 
 internal static class ChurchRows
 {
-    public static DataTable Table(bool includeTotalCount)
+    public static DataTable Table()
     {
         var t = new DataTable();
         t.Columns.Add(nameof(Church.Id), typeof(Guid));
@@ -34,11 +33,6 @@ internal static class ChurchRows
         t.Columns.Add(nameof(Church.CreatedAt), typeof(DateTimeOffset));
         t.Columns.Add(nameof(Church.UpdatedAt), typeof(DateTimeOffset));
         t.Columns.Add(nameof(Church.IsActive), typeof(bool));
-        if (includeTotalCount)
-        {
-            t.Columns.Add(nameof(PagedResult<Church>.TotalCount), typeof(int));
-        }
-
         return t;
     }
 
@@ -65,7 +59,7 @@ internal static class ChurchRows
         var language = Generated.NewLanguage();
         var confidenceScore = Generated.NewConfidenceScore();
         var now = DateTimeOffset.UtcNow;
-        var table = Table(includeTotalCount: false);
+        var table = Table();
         table.Rows.Add(
             churchId,
             name,
